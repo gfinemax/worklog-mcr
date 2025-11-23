@@ -131,4 +131,8 @@
     padding: 0 !important;
     width: 100% !important;
   }
+  /* Reset padding for MainLayout container */
+  .pl-64 {
+    padding-left: 0 !important;
+  }
 }

@@ -9,7 +9,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <div className="pl-64">
         <Navbar />
         <main className="pt-16">
-          <div className="p-6">{children}</div>
+          <div className="p-6 print:p-0">{children}</div>
         </main>
       </div>
     </div>
