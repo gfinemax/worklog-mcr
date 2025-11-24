@@ -6,6 +6,23 @@ import { Printer, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Input } from "@/components/ui/input"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+
+// Channel Abbreviations
+const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
+    "MBC SPORTS+": "SP",
+    "MBC Every1": "EV",
+    "MBC DRAMA": "DR",
+    "MBC M": "M",
+    "MBC ON": "ON",
+}
 
 // Component for the circular number toggle
 function NumberToggle({ value, selected, onClick }: { value: number; selected: boolean; onClick: () => void }) {
@@ -32,35 +49,178 @@ function ChannelRow({
     isHalf?: boolean
     hasBorderRight?: boolean
 }) {
-    const [selectedType, setSelectedType] = useState<number | null>(1) // Default to 1
+    const [selectedType, setSelectedType] = useState<number | null>(null)
+    const [content, setContent] = useState<string>("")
+    const [timecodeEntries, setTimecodeEntries] = useState<{ [key: number]: string }>({})
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [dialogValue, setDialogValue] = useState("")
+    const [validationError, setValidationError] = useState("")
+
+    const validateTimecode = (text: string): boolean => {
+        const timecodePattern = /(\d{2}):(\d{2}):(\d{2}):(\d{2})/
+        const match = text.match(timecodePattern)
+
+        if (!match) {
+            setValidationError("타임코드 형식이 올바르지 않습니다 (HH:MM:SS:FF)")
+            return false
+        }
+
+        const [_, hh, mm, ss, ff] = match
+        const hours = parseInt(hh)
+        const minutes = parseInt(mm)
+        const seconds = parseInt(ss)
+        const frames = parseInt(ff)
+
+        if (hours > 23) {
+            setValidationError("시간은 00~23 범위여야 합니다")
+            return false
+        }
+        if (minutes > 59) {
+            setValidationError("분은 00~59 범위여야 합니다")
+            return false
+        }
+        if (seconds > 59) {
+            setValidationError("초는 00~59 범위여야 합니다")
+            return false
+        }
+        if (frames > 23) {
+            setValidationError("프레임은 00~23 범위여야 합니다")
+            return false
+        }
+
+        setValidationError("")
+        return true
+    }
+
+    const generateRightContent = (): string => {
+        const sortedEntries = Object.entries(timecodeEntries)
+            .sort(([a], [b]) => parseInt(a) - parseInt(b))
+            .map(([_, value]) => value)
+
+        return sortedEntries.join('\n')
+    }
+
+    const handleNumberClick = (num: number) => {
+        setSelectedType(num)
+        const abbr = CHANNEL_ABBREVIATIONS[name] || ""
+        const existingValue = timecodeEntries[num]
+        const defaultText = `${abbr}00:00:00:00부터 정규${num + 1}번`
+
+        setDialogValue(existingValue || defaultText)
+        setValidationError("")
+        setIsDialogOpen(true)
+    }
+
+    const handleDialogConfirm = () => {
+        if (!validateTimecode(dialogValue)) {
+            return
+        }
+
+        if (selectedType !== null) {
+            setTimecodeEntries({
+                ...timecodeEntries,
+                [selectedType]: dialogValue
+            })
+        }
+
+        setIsDialogOpen(false)
+        setSelectedType(null)
+    }
+
+    const handleDialogClose = (open: boolean) => {
+        if (!open) {
+            setSelectedType(null)
+            setValidationError("")
+        }
+        setIsDialogOpen(open)
+    }
+
+    const handleDelete = () => {
+        if (selectedType !== null) {
+            const newEntries = { ...timecodeEntries }
+            delete newEntries[selectedType]
+            setTimecodeEntries(newEntries)
+        }
+
+        setIsDialogOpen(false)
+        setSelectedType(null)
+    }
 
     return (
         <div className={cn("flex flex-col h-full", hasBorderRight && "border-r border-black")}>
-            {/* Header */}
-            <div className="flex items-center border-b border-black p-1 text-sm bg-gray-50/50">
-                <span className="mr-2 font-bold whitespace-nowrap">{name}</span>
-                <span className="whitespace-nowrap text-xs">운행표 수정</span>
-                <div className="mx-1 inline-flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((num) => (
-                        <NumberToggle
-                            key={num}
-                            value={num}
-                            selected={selectedType === num}
-                            onClick={() => setSelectedType(num)}
-                        />
-                    ))}
+            <div className="flex items-center justify-between border-b border-black p-1 text-sm bg-gray-50/50">
+                <span className="font-bold whitespace-nowrap">{name}</span>
+                <div className="flex items-center gap-1">
+                    <span className="whitespace-nowrap text-xs">운행표 수정</span>
+                    <div className="inline-flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                            <NumberToggle
+                                key={num}
+                                value={num}
+                                selected={timecodeEntries[num] !== undefined}
+                                onClick={() => handleNumberClick(num)}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* Content Area */}
             <div className="flex flex-1 min-h-[4.5rem]">
-                <textarea
-                    className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
-                    placeholder="내용을 입력하세요..."
-                ></textarea>
-
-
+                <div className="w-3/4 border-r border-gray-300">
+                    <textarea
+                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
+                        placeholder="내용을 입력하세요..."
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                    ></textarea>
+                </div>
+                <div className="w-1/4">
+                    <textarea
+                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
+                        placeholder=""
+                        value={generateRightContent()}
+                        readOnly
+                    ></textarea>
+                </div>
             </div>
+
+            <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>운행표 수정 내용 입력</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="timecode" className="text-right">
+                                내용
+                            </Label>
+                            <Input
+                                id="timecode"
+                                value={dialogValue}
+                                onChange={(e) => setDialogValue(e.target.value)}
+                                className="col-span-3"
+                            />
+                        </div>
+                        {validationError && (
+                            <div className="col-span-4 text-sm text-red-600">
+                                {validationError}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        {selectedType !== null && timecodeEntries[selectedType] && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleDelete}
+                            >
+                                삭제
+                            </Button>
+                        )}
+                        <Button type="submit" onClick={handleDialogConfirm}>적용</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
