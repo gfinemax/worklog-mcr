@@ -1,10 +1,27 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity } from "lucide-react"
+import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity, Star } from "lucide-react"
+import { useWorklogStore } from "@/store/worklog"
+import Link from "next/link"
 
 export default function Dashboard() {
+  const [mounted, setMounted] = useState(false)
+  const worklogs = useWorklogStore((state) => state.worklogs)
+  const importantWorklogs = worklogs.filter(log => log.isImportant).slice(0, 5)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return null
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -67,6 +84,52 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Important Worklogs */}
+        {importantWorklogs.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                  <CardTitle>중요 업무일지</CardTitle>
+                </div>
+                <Link href="/worklog">
+                  <Button variant="ghost" size="sm">
+                    전체 보기
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {importantWorklogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{log.date}</p>
+                          <Badge variant="outline" className="text-xs">{log.team}</Badge>
+                          <Badge variant="outline" className="text-xs">{log.type}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {[...log.workers.director, ...log.workers.assistant, ...log.workers.video]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={log.status === "완료" ? "secondary" : "default"}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
           {/* Main Content - Work Log Status */}
           <Card className="col-span-4">
@@ -85,9 +148,8 @@ export default function Dashboard() {
                   <div key={channel.name} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-4">
                       <div
-                        className={`w-2 h-2 rounded-full ${
-                          channel.status === "정상" ? "bg-green-500" : "bg-yellow-500"
-                        }`}
+                        className={`w-2 h-2 rounded-full ${channel.status === "정상" ? "bg-green-500" : "bg-yellow-500"
+                          }`}
                       />
                       <div>
                         <p className="font-medium">{channel.name}</p>

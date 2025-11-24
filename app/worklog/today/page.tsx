@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Printer, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,14 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { useWorklogStore } from "@/store/worklog"
 
 // Channel Abbreviations
 const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
@@ -226,8 +235,11 @@ function ChannelRow({
 }
 
 export default function TodayWorkLog() {
+    const router = useRouter()
+    const addWorklog = useWorklogStore((state) => state.addWorklog)
     const [date, setDate] = useState<string>("")
     const [shiftType, setShiftType] = useState<'day' | 'night'>('night')
+    const [selectedTeam, setSelectedTeam] = useState<string>("1조")
     const [workers, setWorkers] = useState<{
         director: string[];
         assistant: string[];
@@ -238,6 +250,19 @@ export default function TodayWorkLog() {
         video: ['박민수']
     })
 
+    const updateTitle = () => {
+        const now = new Date()
+        const year = now.getFullYear()
+        const month = now.getMonth() + 1
+        const day = now.getDate()
+
+        const yy = year.toString().slice(2)
+        const mm = month.toString().padStart(2, '0')
+        const dd = day.toString().padStart(2, '0')
+        const shiftStr = shiftType === 'day' ? 'A' : 'N'
+        document.title = `MCR 업무일지_${yy}${mm}${dd}_${shiftStr}`
+    }
+
     useEffect(() => {
         const now = new Date()
         const year = now.getFullYear()
@@ -246,10 +271,36 @@ export default function TodayWorkLog() {
         const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
         const weekDay = weekDays[now.getDay()]
         setDate(`${year}년 ${month}월 ${day}일 ${weekDay}요일`)
-    }, [])
+
+        // Update title on mount and shift change
+        updateTitle()
+    }, [shiftType])
+
+    const handleSave = () => {
+        const now = new Date()
+        const year = now.getFullYear()
+        const month = now.getMonth() + 1
+        const day = now.getDate()
+        const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+
+        addWorklog({
+            id: Date.now(),
+            date: dateStr,
+            team: selectedTeam,
+            type: shiftType === 'day' ? '주간' : '야간',
+            workers: workers,
+            status: "작성중",
+            signature: "1/4",
+            isImportant: false,
+        })
+        router.push('/worklog')
+    }
 
     const handlePrint = () => {
-        window.print()
+        updateTitle() // Ensure title is correct before printing
+        setTimeout(() => {
+            window.print()
+        }, 100)
     }
 
     return (
@@ -257,10 +308,24 @@ export default function TodayWorkLog() {
             <div className="min-h-screen bg-gray-100 p-8 print:bg-white print:p-0 font-sans">
                 <div className="mx-auto max-w-[210mm] print:max-w-none">
                     {/* Action Buttons - Hidden in print */}
-                    <div className="mb-6 flex justify-between print:hidden">
-                        <h1 className="text-2xl font-bold">TODAY 업무일지</h1>
+                    <div className="mb-6 flex justify-between items-center print:hidden">
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-2xl font-bold">TODAY 업무일지</h1>
+                            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+                                <SelectTrigger className="w-[120px]">
+                                    <SelectValue placeholder="근무조 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {[...Array(10)].map((_, i) => (
+                                        <SelectItem key={i + 1} value={`${i + 1}조`}>
+                                            {i + 1}조
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => { }}>
+                            <Button variant="outline" onClick={handleSave}>
                                 <Save className="mr-2 h-4 w-4" />
                                 임시저장
                             </Button>
