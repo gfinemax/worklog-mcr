@@ -151,7 +151,7 @@ function ChannelRow({
             <div className="flex items-center justify-between border-b border-black p-1 text-sm bg-gray-50/50">
                 <span className="font-bold whitespace-nowrap">{name}</span>
                 <div className="flex items-center gap-1">
-                    <span className="whitespace-nowrap text-xs">운행표 수정</span>
+                    <span className="whitespace-nowrap text-sm">운행표 수정</span>
                     <div className="inline-flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((num) => (
                             <NumberToggle
@@ -165,7 +165,7 @@ function ChannelRow({
                 </div>
             </div>
 
-            <div className="flex flex-1 min-h-[4.5rem]">
+            <div className="flex flex-1 min-h-[6rem]">
                 <div className="w-3/4 border-r border-gray-300">
                     <textarea
                         className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
@@ -176,7 +176,7 @@ function ChannelRow({
                 </div>
                 <div className="w-1/4">
                     <textarea
-                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
+                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight overflow-hidden whitespace-nowrap"
                         placeholder=""
                         value={generateRightContent()}
                         readOnly
