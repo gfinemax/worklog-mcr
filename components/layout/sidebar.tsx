@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, CheckSquare } from "lucide-react"
+import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, CheckSquare, Calendar } from "lucide-react"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", href: "/" },
+  { icon: Calendar, label: "TODAY업무일지", href: "/worklog/today" },
   { icon: FileText, label: "업무일지목록", href: "/worklog" },
-  { icon: PenSquare, label: "업무일지", href: "/worklog/daily-log" },
+
   { icon: PenSquare, label: "포스트", href: "/posts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
@@ -46,11 +47,10 @@ export function Sidebar() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                    }`}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      }`}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.label}</span>

@@ -104,6 +104,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -115,20 +116,39 @@
     size: A4;
     margin: 0;
   }
+
   body {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
     background-color: white;
   }
+
   aside,
   nav,
   header,
   .hidden-print {
     display: none !important;
   }
+
   main {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
   }
+
+  /* Reset padding for MainLayout container */
+  .pl-64 {
+    padding-left: 0 !important;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  /* IE and Edge */
+  scrollbar-width: none !important;
+  /* Firefox */
 }
