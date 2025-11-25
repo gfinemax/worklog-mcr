@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +20,7 @@ type SortConfig = {
 } | null
 
 export default function WorkLogList() {
+  const router = useRouter()
   const worklogs = useWorklogStore((state) => state.worklogs)
   const updateWorklog = useWorklogStore((state) => state.updateWorklog)
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
@@ -211,7 +213,11 @@ export default function WorkLogList() {
               </TableHeader>
               <TableBody>
                 {sortedWorklogs.map((log) => (
-                  <TableRow key={log.id}>
+                  <TableRow
+                    key={log.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => router.push(`/worklog/today?id=${log.id}`)}
+                  >
                     <TableCell className="font-medium text-center">{log.date}</TableCell>
                     <TableCell className="text-center">{log.team}</TableCell>
                     <TableCell className="text-center">
@@ -223,9 +229,20 @@ export default function WorkLogList() {
                         .join(", ")}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={log.status === "완료" ? "secondary" : "default"}>{log.status}</Badge>
+                      <Badge
+                        variant={
+                          log.status === "서명완료" ? "secondary" :
+                            log.status === "근무종료" ? "destructive" :
+                              "default"
+                        }
+                        className={
+                          log.status === "근무종료" ? "bg-amber-500 hover:bg-amber-600" : ""
+                        }
+                      >
+                        {log.status}
+                      </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-center">
                         <Checkbox
                           checked={log.isImportant}
@@ -239,7 +256,7 @@ export default function WorkLogList() {
                         <span className="text-sm text-muted-foreground">{log.signature}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-center">
                         <Button
                           variant="ghost"

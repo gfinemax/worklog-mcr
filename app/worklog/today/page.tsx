@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Printer, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MainLayout } from "@/components/layout/main-layout"
@@ -22,7 +23,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { useWorklogStore } from "@/store/worklog"
+import { toast } from "sonner"
+import { useWorklogStore, Worklog } from "@/store/worklog"
 
 // Channel Abbreviations
 const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
@@ -236,7 +238,10 @@ function ChannelRow({
 
 export default function TodayWorkLog() {
     const router = useRouter()
-    const addWorklog = useWorklogStore((state) => state.addWorklog)
+    const searchParams = useSearchParams()
+    const id = searchParams.get('id')
+
+    const { worklogs, addWorklog, updateWorklog } = useWorklogStore()
     const [date, setDate] = useState<string>("")
     const [shiftType, setShiftType] = useState<'day' | 'night'>('night')
     const [selectedTeam, setSelectedTeam] = useState<string>("1조")
@@ -249,13 +254,52 @@ export default function TodayWorkLog() {
         assistant: ['이영희'],
         video: ['박민수']
     })
+    const [status, setStatus] = useState<Worklog['status']>('작성중')
+
+    useEffect(() => {
+        if (id) {
+            const worklog = worklogs.find(w => w.id === Number(id))
+            if (worklog) {
+                // Parse date string (YYYY-MM-DD) to Date object
+                const [yearStr, monthStr, dayStr] = worklog.date.split('-')
+                const dateObj = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr))
+
+                const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
+                const weekDay = weekDays[dateObj.getDay()]
+
+                setDate(`${yearStr}년 ${Number(monthStr)}월 ${Number(dayStr)}일 ${weekDay}요일`)
+                setShiftType(worklog.type === '주간' ? 'day' : 'night')
+                setSelectedTeam(worklog.team)
+                setWorkers(worklog.workers)
+                setStatus(worklog.status)
+
+                if (worklog.status === '서명완료') {
+                    toast.warning("이미 서명이 완료된 일지입니다. 수정 시 주의해주세요.", {
+                        duration: 5000,
+                    })
+                } else if (worklog.status === '근무종료') {
+                    toast.info("근무 시간이 종료되었습니다. 서명을 완료해주세요.", {
+                        duration: 5000,
+                    })
+                }
+            }
+        } else {
+            const now = new Date()
+            const year = now.getFullYear()
+            const month = now.getMonth() + 1
+            const day = now.getDate()
+            const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
+            const weekDay = weekDays[now.getDay()]
+            setDate(`${year}년 ${month}월 ${day}일 ${weekDay}요일`)
+        }
+        updateTitle()
+    }, [id, worklogs])
 
     const updateTitle = () => {
         const now = new Date()
         const year = now.getFullYear()
         const month = now.getMonth() + 1
         const day = now.getDate()
-
         const yy = year.toString().slice(2)
         const mm = month.toString().padStart(2, '0')
         const dd = day.toString().padStart(2, '0')
@@ -263,41 +307,43 @@ export default function TodayWorkLog() {
         document.title = `MCR 업무일지_${yy}${mm}${dd}_${shiftStr}`
     }
 
-    useEffect(() => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = now.getMonth() + 1
-        const day = now.getDate()
-        const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
-        const weekDay = weekDays[now.getDay()]
-        setDate(`${year}년 ${month}월 ${day}일 ${weekDay}요일`)
-
-        // Update title on mount and shift change
-        updateTitle()
-    }, [shiftType])
+    const getPageTitle = () => {
+        if (status === '근무종료' || status === '서명완료') return '업무일지'
+        return 'TODAY 업무일지'
+    }
 
     const handleSave = () => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = now.getMonth() + 1
-        const day = now.getDate()
-        const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+        if (id) {
+            updateWorklog(Number(id), {
+                team: selectedTeam,
+                type: shiftType === 'day' ? '주간' : '야간',
+                workers: workers,
+            })
+            toast.success("저장되었습니다.")
+        } else {
+            const now = new Date()
+            const year = now.getFullYear()
+            const month = now.getMonth() + 1
+            const day = now.getDate()
+            const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
 
-        addWorklog({
-            id: Date.now(),
-            date: dateStr,
-            team: selectedTeam,
-            type: shiftType === 'day' ? '주간' : '야간',
-            workers: workers,
-            status: "작성중",
-            signature: "1/4",
-            isImportant: false,
-        })
+            addWorklog({
+                id: Date.now(),
+                date: dateStr,
+                team: selectedTeam,
+                type: shiftType === 'day' ? '주간' : '야간',
+                workers: workers,
+                status: "작성중",
+                signature: "1/4",
+                isImportant: false,
+            })
+            toast.success("새 일지가 생성되었습니다.")
+        }
         router.push('/worklog')
     }
 
     const handlePrint = () => {
-        updateTitle() // Ensure title is correct before printing
+        updateTitle()
         setTimeout(() => {
             window.print()
         }, 100)
@@ -310,7 +356,18 @@ export default function TodayWorkLog() {
                     {/* Action Buttons - Hidden in print */}
                     <div className="mb-6 flex justify-between items-center print:hidden">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-bold">TODAY 업무일지</h1>
+                            <div className="flex items-center gap-3">
+                                {status === '근무종료' && (
+                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-base px-3 py-1">근무종료</Badge>
+                                )}
+                                {status === '서명완료' && (
+                                    <Badge className="bg-teal-600 hover:bg-teal-700 text-base px-3 py-1">서명완료</Badge>
+                                )}
+                                <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
+                            </div>
+                            <Button variant="outline" onClick={() => router.push('/worklog')}>
+                                목록으로
+                            </Button>
                             <Select value={selectedTeam} onValueChange={setSelectedTeam}>
                                 <SelectTrigger className="w-[120px]">
                                     <SelectValue placeholder="근무조 선택" />
@@ -327,20 +384,20 @@ export default function TodayWorkLog() {
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={handleSave}>
                                 <Save className="mr-2 h-4 w-4" />
-                                임시저장
+                                {id ? "저장" : "임시저장"}
                             </Button>
                             <Button onClick={handlePrint}>
                                 <Printer className="mr-2 h-4 w-4" />
                                 인쇄하기
                             </Button>
                         </div>
-                    </div>
+                    </div >
 
                     {/* A4 Page Container */}
-                    <div className="bg-white p-[10mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] mx-auto relative box-border flex flex-col">
+                    < div className="bg-white p-[10mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] mx-auto relative box-border flex flex-col" >
 
                         {/* Header Section */}
-                        <div className="mb-1">
+                        < div className="mb-1" >
                             <div className="flex items-start justify-between">
                                 {/* Logo & Team Name */}
                                 <div className="flex flex-col justify-between h-32">
@@ -373,10 +430,10 @@ export default function TodayWorkLog() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </div >
 
                         {/* Shift Table */}
-                        <div className="mb-2 w-full border border-black">
+                        < div className="mb-2 w-full border border-black" >
                             <div className="flex bg-gray-100 text-center text-sm font-bold border-b border-black">
                                 <div
                                     className="w-[180px] border-r border-black py-1 cursor-pointer hover:bg-gray-200"
@@ -465,45 +522,45 @@ export default function TodayWorkLog() {
                                     )}
                                 </div>
                             </div>
-                        </div>
+                        </div >
 
                         {/* Channel Logs Section Title */}
-                        <div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]">
+                        < div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]" >
                             채널별 송출사항
-                        </div>
+                        </div >
 
                         {/* Channels Container */}
-                        <div className="border border-black border-b-0 flex-1 flex flex-col">
+                        < div className="border border-black border-b-0 flex-1 flex flex-col" >
 
                             {/* MBC SPORTS+ */}
-                            <div className="border-b border-black flex-1">
+                            < div className="border-b border-black flex-1" >
                                 <ChannelRow name="MBC SPORTS+" />
-                            </div>
+                            </div >
 
                             {/* MBC Every1 */}
-                            <div className="border-b border-black flex-1">
+                            < div className="border-b border-black flex-1" >
                                 <ChannelRow name="MBC Every1" />
-                            </div>
+                            </div >
 
                             {/* MBC DRAMA */}
-                            <div className="border-b border-black flex-1">
+                            < div className="border-b border-black flex-1" >
                                 <ChannelRow name="MBC DRAMA" />
-                            </div>
+                            </div >
 
                             {/* MBC M */}
-                            <div className="border-b border-black flex-1">
+                            < div className="border-b border-black flex-1" >
                                 <ChannelRow name="MBC M" />
-                            </div>
+                            </div >
 
                             {/* MBC ON */}
-                            <div className="border-b border-black flex-1">
+                            < div className="border-b border-black flex-1" >
                                 <ChannelRow name="MBC ON" />
-                            </div>
+                            </div >
 
-                        </div>
+                        </div >
 
                         {/* System Issues */}
-                        <div className="border border-black border-t-0 shrink-0">
+                        < div className="border border-black border-t-0 shrink-0" >
                             <div className="bg-gray-100 py-0.5 text-center text-sm font-bold border-b border-black">장비 및 시스템 주요사항</div>
                             <div className="h-32">
                                 <textarea
@@ -511,19 +568,19 @@ export default function TodayWorkLog() {
                                     placeholder="특이사항 없음"
                                 ></textarea>
                             </div>
-                        </div>
+                        </div >
 
                         {/* Footer Check */}
-                        <div className="mt-2 flex justify-end items-center gap-2 shrink-0">
+                        < div className="mt-2 flex justify-end items-center gap-2 shrink-0" >
                             <span className="font-bold text-xs">Private CDN A/V 이상없습니다.</span>
                             <div className="h-5 w-5 border border-black flex items-center justify-center cursor-pointer hover:bg-gray-100">
                                 <span className="text-sm">v</span>
                             </div>
-                        </div>
+                        </div >
 
-                    </div>
-                </div>
-            </div>
-        </MainLayout>
+                    </div >
+                </div >
+            </div >
+        </MainLayout >
     )
 }

@@ -7,7 +7,7 @@ import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, C
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", href: "/" },
   { icon: Calendar, label: "TODAY업무일지", href: "/worklog/today" },
-  { icon: FileText, label: "업무일지목록", href: "/worklog" },
+  { icon: FileText, label: "업무일지목록", href: "/worklog", exact: true },
 
   { icon: PenSquare, label: "포스트", href: "/posts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
@@ -41,7 +41,10 @@ export function Sidebar() {
           <ul className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+              // @ts-ignore
+              const isActive = item.exact
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(item.href + "/")
 
               return (
                 <li key={item.href}>

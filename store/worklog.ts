@@ -10,7 +10,7 @@ export interface Worklog {
         assistant: string[]
         video: string[]
     }
-    status: '작성중' | '완료'
+    status: '작성중' | '근무종료' | '서명완료'
     signature: string
     isImportant: boolean
     aiSummary?: string
@@ -48,8 +48,8 @@ export const useWorklogStore = create<WorklogStore>((set) => ({
                 assistant: ["이부감"],
                 video: ["박영상"]
             },
-            status: "작성중",
-            signature: "1/4",
+            status: "근무종료",
+            signature: "2/4",
             isImportant: false,
         },
         {
@@ -62,7 +62,7 @@ export const useWorklogStore = create<WorklogStore>((set) => ({
                 assistant: ["김보조"],
                 video: ["최비디오"]
             },
-            status: "완료",
+            status: "서명완료",
             signature: "4/4",
             isImportant: false,
         },
@@ -76,7 +76,7 @@ export const useWorklogStore = create<WorklogStore>((set) => ({
                 assistant: ["정조수"],
                 video: ["강화면"]
             },
-            status: "완료",
+            status: "서명완료",
             signature: "4/4",
             isImportant: false,
         },
@@ -90,7 +90,7 @@ export const useWorklogStore = create<WorklogStore>((set) => ({
                 assistant: ["윤송출"],
                 video: ["임화질"]
             },
-            status: "완료",
+            status: "서명완료",
             signature: "4/4",
             isImportant: false,
         },
@@ -104,7 +104,7 @@ export const useWorklogStore = create<WorklogStore>((set) => ({
                 assistant: ["한부조"],
                 video: ["오영상"]
             },
-            status: "완료",
+            status: "서명완료",
             signature: "4/4",
             isImportant: false,
         },
