@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Noto_Sans_KR } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
 import "./globals.css"
 
 // <CHANGE> Using Noto Sans KR for Korean text support
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className={`${notoSansKr.variable} font-sans antialiased`}>
         {children}
         <Analytics />
+        <Toaster />
       </body>
     </html>
   )

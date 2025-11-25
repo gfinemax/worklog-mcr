@@ -1,11 +1,18 @@
+"use client"
+
+import { useState } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, MessageSquare, Eye, ThumbsUp } from "lucide-react"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { PostEditor } from "@/components/post-editor"
 
 export default function PostList() {
+  const [isWriteOpen, setIsWriteOpen] = useState(false)
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -14,9 +21,16 @@ export default function PostList() {
             <h1 className="text-2xl font-bold tracking-tight">통합 포스트</h1>
             <p className="text-muted-foreground">업무 관련 공지 및 이슈 공유 게시판입니다.</p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />새 포스트 작성
-          </Button>
+          <Dialog open={isWriteOpen} onOpenChange={setIsWriteOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />새 포스트 작성
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px] p-0 border-0 bg-transparent shadow-none">
+              <PostEditor onSuccess={() => setIsWriteOpen(false)} />
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="flex gap-4">

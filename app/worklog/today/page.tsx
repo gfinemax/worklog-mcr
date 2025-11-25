@@ -329,7 +329,7 @@ export default function TodayWorkLog() {
             const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
 
             addWorklog({
-                id: Date.now(),
+
                 date: dateStr,
                 team: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',

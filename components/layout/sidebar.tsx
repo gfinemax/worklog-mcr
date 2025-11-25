@@ -13,7 +13,7 @@ const menuItems = [
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
   { icon: BarChart3, label: "통계 및 보고서", href: "/reports" },
-  { icon: Users, label: "사용자 관리", href: "/users" },
+  { icon: Users, label: "근무자 관리", href: "/users" },
   { icon: Settings, label: "설정", href: "/settings" },
 ]
 

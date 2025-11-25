@@ -9,15 +9,38 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Info, User, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { authService } from "@/lib/auth"
+import { toast } from "sonner"
 
 export default function SignupPage() {
-  const handleSignup = (e: React.FormEvent) => {
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle signup logic
+    setLoading(true)
+    try {
+      await authService.signup(email, password, name)
+      toast.success("계정이 생성되었습니다. 로그인해주세요.")
+      router.push("/login")
+    } catch (error: any) {
+      toast.error("가입 실패: " + error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleGoogleSignup = () => {
-    // Handle Google signup
+  const handleGoogleSignup = async () => {
+    try {
+      await authService.loginWithGoogle()
+    } catch (error: any) {
+      toast.error("Google 로그인 실패: " + error.message)
+    }
   }
 
   return (
@@ -121,6 +144,8 @@ export default function SignupPage() {
                   placeholder="홍길동"
                   className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
                   required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                 />
               </div>
             </div>
@@ -137,6 +162,8 @@ export default function SignupPage() {
                   placeholder="name@mbcplus.com"
                   className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
                   required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -153,12 +180,14 @@ export default function SignupPage() {
                   placeholder="8자 이상 입력해주세요"
                   className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
             </div>
 
             <div className="flex items-start space-x-2 pt-2">
-              <Checkbox id="terms" className="mt-1" />
+              <Checkbox id="terms" className="mt-1" required />
               <Label htmlFor="terms" className="text-sm text-slate-500 leading-tight font-normal">
                 <Link href="#" className="text-blue-600 hover:underline font-medium">
                   서비스 이용약관
@@ -173,9 +202,10 @@ export default function SignupPage() {
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full h-12 mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all font-medium text-base group"
             >
-              계정 만들기
+              {loading ? "가입 중..." : "계정 만들기"}
               <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </form>

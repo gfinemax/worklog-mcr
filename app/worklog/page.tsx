@@ -34,7 +34,7 @@ export default function WorkLogList() {
     loading: false
   })
 
-  const handleImportantToggle = (id: number, checked: boolean) => {
+  const handleImportantToggle = (id: string | number, checked: boolean) => {
     updateWorklog(id, { isImportant: checked })
   }
 

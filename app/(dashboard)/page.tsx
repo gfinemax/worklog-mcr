@@ -120,7 +120,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={log.status === "완료" ? "secondary" : "default"}>
+                    <Badge variant={log.status === "서명완료" ? "secondary" : "default"}>
                       {log.status}
                     </Badge>
                   </div>

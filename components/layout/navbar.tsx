@@ -19,9 +19,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 // Mock data for demonstration
 const TEAM_MEMBERS = [
-  { id: 1, name: "김철수", role: "조원" },
-  { id: 2, name: "이영희", role: "조원" },
-  { id: 3, name: "박민수", role: "조장" },
+  { id: 1, name: "오학동", role: "tech_staff" },
+  { id: 2, name: "도널드 트럼프", role: "Former President" },
+  { id: 3, name: "버락 오바마", role: "Former President" },
+  { id: 4, name: "이순신", role: "장군" },
 ]
 
 const NOTIFICATIONS = [
@@ -35,7 +36,7 @@ const NOTIFICATIONS = [
   {
     id: 2,
     title: "새로운 업무일지",
-    message: "김철수님이 '송출 장비 점검' 일지를 작성했습니다.",
+    message: "오학동님이 '송출 장비 점검' 일지를 작성했습니다.",
     time: "1시간 전",
     read: false,
   },
@@ -48,7 +49,7 @@ export function Navbar() {
   const router = useRouter()
   // State to simulate different login modes for demonstration
   const [loginMode, setLoginMode] = useState<LoginMode>("TEAM")
-  const [teamName] = useState("MCR1")
+  const [teamName] = useState("1조")
   const [selectedMember, setSelectedMember] = useState<(typeof TEAM_MEMBERS)[0] | null>(TEAM_MEMBERS[0])
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -101,7 +102,7 @@ export function Navbar() {
                         </Badge>
                       )}
                       <span className="text-sm font-semibold">
-                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "조 계정") : "홍길동"}
+                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "조 계정") : "오학동"}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -113,7 +114,7 @@ export function Navbar() {
                     <AvatarFallback
                       className={loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}
                     >
-                      {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : teamName[0]) : "홍"}
+                      {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : teamName[0]) : "오"}
                     </AvatarFallback>
                   </Avatar>
                   <ChevronDown className="h-4 w-4 text-muted-foreground opacity-50" />
