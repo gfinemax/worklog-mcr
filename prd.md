@@ -21,72 +21,20 @@
 5. **채널 관리** - 방송 채널별 운행표 관리
 6. **업무확인 서명** - 4개 파트 서명 관리
 7. **통계 및 보고서** - 운행 데이터 분석 및 시각화
-8. **사용자 관리** - 계정, 팀, 스태프 관리
+8. **사용자 관리** - 계정, 조, 스태프 관리
 9. **설정** - 시스템 설정 및 근무 패턴 관리
 
 ---
 
 ## 2. 사용자 인증 및 권한
 
-### 2.1 인증 시스템
-
-**인증 방식**: Supabase Auth (JWT 기반)
-- Access Token: 24시간
-- Refresh Token: 7일
-
-**로그인 유형**: 2가지 로그인 방식 지원
-
-**1. 팀 로그인** (사용자 편의성 최적화) - 현재 구현됨 ✅
-- 팀 계정으로 로그인 (예: "3팀" 로그인)
-- 팀원 전체가 자동 로그인 상태
-- 글 작성/수정 시 팀원 선택 UI 제공
-- 선택된 팀원 이름으로 작성자 기록
-- **장점**: 근무 교대 시 개별 로그인/로그아웃 불필요
-- **사용 시나리오**: 근무조 근무 중 공용 PC 사용
-
-**2. 개인 로그인** - 현재 구현됨 ✅
-- 개인 이메일/비밀번호로 로그인
-- 개인 계정으로만 활동
-- 개인 대시보드 및 개인 알림
-- **사용 시나리오**: 개인 PC, 모바일 기기
-
-**보안**: RBAC (Role-Based Access Control)
-
-### 2.2 사용자 역할 (Role)
-
-| 역할 | 코드 | 설명 | 권한 |
-|------|------|------|------|
-| 주조감독 | `main_director` | 총괄 책임자 | 전체 관리 권한 |
-| CMS감독 | `sub_director` | CMS 담당 | 일지 작성/수정 |
-| 예비감독 | `backup_director` | 예비 인력 | 일지 작성/수정 |
-| 영상감독 | `tech_staff` | 기술 담당 | 일지 작성/수정 |
-| 관리자 | `admin` | 시스템 관리자 | 전체 시스템 관리 |
-
-### 2.3 스태프 관리
-- **WorklogStaff 모델**: 정식 사용자(`User`)와 외부 인원(`ExternalStaff`) 모두 등록 가능
-- **역할 할당**: 업무일지 작성 시 스태프별 역할 지정
-- **유연성**: 근무조별 스태프 구성 변경 가능
-
----
-
-## 3. 대시보드
-
-### 3.1 일일 현황 모니터링
-
-**당일 근무 정보**
-- 근무조 정보 (A/N 근무 구분)
-- 담당자 목록 (주조감독, CMS감독, 예비감독, 영상감독)
-- 근무 시간대 표시
-
-**채널별 운행 현황**
-- 5개 채널 운행표 등록 현황
 - 채널별 등록 횟수 실시간 표시
 - 실시간 이슈 모니터링
 
 **업무확인 서명 현황**
 - 4개 파트 서명 상태
   - 운행 파트
-  - 팀장 파트
+  - 조장 파트
   - MCR 파트
   - Network 파트
 - 진행률(%) 표시
@@ -97,7 +45,7 @@
 - 최근 포스트 목록
 - AI 요약 표시
 
-**팀로그인시 주요이슈 표시**
+**조로그인시 주요이슈 표시**
 - AI 요약 표시
 - 오늘 근무 주요 송출 내용, 공지 및 주요이슈 및 사고 표시
 
@@ -133,12 +81,12 @@
 - **Y (Off)**: 휴무
 
 **근무조 운영**
-- 10개 팀이 5일 주기 패턴 순환
-- 각 팀당 3~4명 구성 (기본 3명 + 상황에 따라 1명 추가)
+- 10개 조이 5일 주기 패턴 순환
+- 각 조당 3~4명 구성 (기본 3명 + 상황에 따라 1명 추가)
 
 **순환 예시**
 
-| 팀 | Day 1 | Day 2 | Day 3 | Day 4 | Day 5 |
+| 조 | Day 1 | Day 2 | Day 3 | Day 4 | Day 5 |
 |----|-------|-------|-------|-------|-------|
 | 1조 | A | N | S | Y | Y |
 | 2조 | N | S | Y | Y | A |
@@ -156,7 +104,7 @@
 **기본 정보 입력**
 - 근무일자
 - 근무 구분 (A/N)
-- 팀 선택
+- 조 선택
 - 근무자 지정
   - 주조감독
   - CMS감독
@@ -201,7 +149,7 @@
 - 상태 전환 가능
 
 ### 4.4 제약 조건
-- 팀당 날짜별 1개의 일지만 생성 가능 (Unique Constraint)
+- 조당 날짜별 1개의 일지만 생성 가능 (Unique Constraint)
 - **과거 일지 수정 제한**:
   - 업무일지 본문 및 기본 정보: 읽기 전용 (수정 불가)
   - 연결된 포스트 댓글: 언제든지 작성/수정/삭제 가능
@@ -215,7 +163,7 @@
 
 **검색 조건**
 - 기간 검색 (시작일 ~ 종료일)
-- 팀 필터
+- 조 필터
 - 근무 구분 (A/N)
 - 작성자 검색
 - **카테고리 필터** (다중 선택 가능)
@@ -225,7 +173,7 @@
 
 **정렬 옵션**
 - 최신순 / 오래된순
-- 팀별
+- 조별
 - 근무일자별
 - 카테고리별
 
@@ -233,7 +181,7 @@
 
 **기본 정보**
 - 근무일자
-- 팀명
+- 조명
 - 근무 구분 (A/N)
 - 근무자 (주조감독)
 - 서명 상태 (진행률 %)
@@ -360,9 +308,9 @@
 4. **긴급 사항** - 즉시 대응이 필요한 긴급 이슈
 5. **정기 점검** - 정기적인 유지보수 및 점검
 6. **송출 사고** - 방송 송출 중 발생한 사고
-7. **기술 지원** - 기술팀 협업 및 지원 요청
-8. **운영 공지** - 팀 내 공지 및 안내사항
-9. **협업 요청** - 타 부서/팀 협업 관련
+7. **기술 지원** - 기술조 협업 및 지원 요청
+8. **운영 공지** - 조 내 공지 및 안내사항
+9. **협업 요청** - 타 부서/조 협업 관련
 10. **기타** - 위 카테고리에 속하지 않는 사항
 
 **카테고리 관리**
@@ -386,7 +334,7 @@
 
 **작성자 구분**
 - 개인 작성
-- 팀 단위 작성
+- 조 단위 작성
 
 ### 6.7 커뮤니티 기능
 
@@ -462,7 +410,7 @@
 
 **4개 파트 서명**
 1. **운행 파트** - 방송 운행 담당자
-2. **팀장 파트** - 해당 팀 팀장
+2. **조장 파트** - 해당 조 조장
 3. **MCR 파트** - MCR 책임자
 4. **Network 파트** - 네트워크 담당자
 
@@ -529,7 +477,7 @@
 
 **일지 작성 현황**
 - 월별/주별 작성 건수
-- 팀별 작성 현황
+- 조별 작성 현황
 - 미작성 일지 추적
 
 **담당자별 통계**
@@ -541,7 +489,7 @@
 - 카테고리별 포스트 수
 - 월별/주별 카테고리 추이
 - 가장 많이 사용되는 카테고리 TOP 5
-- 팀별 카테고리 사용 패턴
+- 조별 카테고리 사용 패턴
 - 긴급 카테고리 발생 빈도
 
 **태그 통계**
@@ -577,7 +525,7 @@
 
 **필터링**
 - 기간 선택
-- 팀 선택
+- 조 선택
 - 채널 선택
 - 카테고리 선택
 
@@ -597,7 +545,7 @@
 - 이메일
 - 연락처
 - 역할 (Role)
-- 소속 팀
+- 소속 조
 
 **계정 상태**
 - 활성화
@@ -609,24 +557,24 @@
 - 메뉴별 접근 제어
 - 기능별 권한 할당
 
-### 10.2 팀 관리
+### 10.2 조 관리
 
-**Team 모델**
-- 팀 생성
-- 팀 이름 변경
-- 팀 삭제
-- 팀원 구성 관리
+**Group 모델**
+- 조 생성
+- 조 이름 변경
+- 조 삭제
+- 조원 구성 관리
 
-**팀 구성**
-- 팀원 추가
-- 팀원 이동
-- 팀원 제외
+**조 구성**
+- 조원 추가
+- 조원 이동
+- 조원 제외
 - 역할 할당
 
-**10개 팀 운영**
+**10개 조 운영**
 - 순환 근무조 관리
-- 팀별 근무 패턴 설정
-- 팀별 통계 확인
+- 조별 근무 패턴 설정
+- 조별 통계 확인
 
 ### 10.3 외부 스태프 관리
 
@@ -659,7 +607,7 @@
 - 주기 조정 가능
 
 **관리 기능**
-- 팀별 근무자 구성 설정
+- 조별 근무자 구성 설정
   - 이동
   - 추가
   - 제외
@@ -762,524 +710,26 @@
 ### 12.1 ERD 개요
 
 시스템의 핵심 엔티티 관계:
-- Users ↔ Teams (다대다)
-- Worklogs ↔ Teams (다대일)
-- Worklogs ↔ Posts (일대다)
-- Posts ↔ Categories (다대일)
-- Posts ↔ Comments (일대다)
-- Worklogs ↔ Signatures (일대다)
-- Worklogs ↔ ChannelBroadcasts (일대다)
-
-### 12.2 주요 테이블 정의
-
-#### users (사용자)
-```sql
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  phone VARCHAR(20),
-  role VARCHAR(50) NOT NULL, -- main_director, sub_director, backup_director, tech_staff, admin
-  profile_image_url TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-```
-
-#### teams (팀)
-```sql
-CREATE TABLE teams (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL, -- 1조, 2조, ..., 10조
-  team_login_id VARCHAR(100) UNIQUE, -- 팀 로그인용 ID
-  team_password_hash TEXT, -- 팀 로그인용 비밀번호
-  description TEXT,
-  shift_pattern VARCHAR(10) DEFAULT 'ANSYY', -- 근무 패턴
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX idx_teams_name ON teams(name) WHERE is_active = true;
-```
-
-#### team_members (팀원 매핑)
-```sql
-CREATE TABLE team_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  role VARCHAR(50), -- 팀 내 역할
-  joined_at TIMESTAMPTZ DEFAULT NOW(),
-  left_at TIMESTAMPTZ,
-  
-  UNIQUE(team_id, user_id)
-);
-
-CREATE INDEX idx_team_members_team ON team_members(team_id);
-CREATE INDEX idx_team_members_user ON team_members(user_id);
-```
-
-#### external_staff (외부 스태프)
-```sql
-CREATE TABLE external_staff (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL,
-  phone VARCHAR(20),
-  email VARCHAR(255),
-  organization VARCHAR(200), -- 소속
-  role VARCHAR(50),
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### worklogs (업무일지)
-```sql
-CREATE TABLE worklogs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  work_date DATE NOT NULL, -- 근무 기준일 (07:30 기준)
-  shift_type VARCHAR(10) NOT NULL, -- 'A' (Day) or 'N' (Night)
-  team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
-  status VARCHAR(20) DEFAULT 'draft', -- draft, published
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- 제약: 팀당 날짜별 shift_type별 1개만
-  UNIQUE(team_id, work_date, shift_type)
-);
-
-CREATE INDEX idx_worklogs_date ON worklogs(work_date DESC);
-CREATE INDEX idx_worklogs_team ON worklogs(team_id);
-CREATE INDEX idx_worklogs_status ON worklogs(status);
-```
-
-#### worklog_staff (업무일지 스태프)
-```sql
-CREATE TABLE worklog_staff (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  worklog_id UUID REFERENCES worklogs(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  external_staff_id UUID REFERENCES external_staff(id) ON DELETE SET NULL,
-  role VARCHAR(50) NOT NULL, -- main_director, sub_director, backup_director, tech_staff
-  
-  -- user_id 또는 external_staff_id 중 하나는 반드시 있어야 함
-  CHECK (
-    (user_id IS NOT NULL AND external_staff_id IS NULL) OR
-    (user_id IS NULL AND external_staff_id IS NOT NULL)
-  )
-);
-
-CREATE INDEX idx_worklog_staff_worklog ON worklog_staff(worklog_id);
-```
-
-#### categories (카테고리)
-```sql
-CREATE TABLE categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL UNIQUE,
-  description TEXT,
-  color_code VARCHAR(7), -- HEX 색상 코드 (#FF5733)
-  icon VARCHAR(50), -- 아이콘 이름
-  display_order INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_categories_order ON categories(display_order);
-```
-
-#### posts (포스트 - 통합 콘텐츠)
-```sql
-CREATE TABLE posts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(200),
-  content TEXT NOT NULL,
-  summary TEXT, -- AI 자동 요약
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  worklog_id UUID REFERENCES worklogs(id) ON DELETE SET NULL, -- 연결된 업무일지
-  parent_id UUID REFERENCES posts(id) ON DELETE CASCADE, -- 답글용
-  author_id UUID REFERENCES users(id),
-  author_name VARCHAR(100), -- 팀 로그인 시 선택된 팀원 이름
-  is_pinned BOOLEAN DEFAULT false, -- 중요 표시 (대시보드 고정)
-  priority VARCHAR(20) DEFAULT 'normal', -- normal, important, urgent
-  view_count INTEGER DEFAULT 0,
-  like_count INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_posts_worklog ON posts(worklog_id);
-CREATE INDEX idx_posts_category ON posts(category_id);
-CREATE INDEX idx_posts_pinned ON posts(is_pinned) WHERE is_pinned = true;
-CREATE INDEX idx_posts_created ON posts(created_at DESC);
-```
-
-#### post_tags (포스트 태그)
-```sql
-CREATE TABLE post_tags (
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-  tag VARCHAR(50) NOT NULL,
-  PRIMARY KEY (post_id, tag)
-);
-
-CREATE INDEX idx_post_tags_tag ON post_tags(tag);
-```
-
-#### comments (댓글)
-```sql
-CREATE TABLE comments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-  parent_id UUID REFERENCES comments(id) ON DELETE CASCADE, -- 대댓글용
-  content TEXT NOT NULL,
-  author_id UUID REFERENCES users(id),
-  author_name VARCHAR(100), -- 팀 로그인 시 선택된 팀원 이름
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_comments_post ON comments(post_id);
-CREATE INDEX idx_comments_created ON comments(created_at DESC);
-```
-
-#### channel_broadcasts (채널 방송 운행)
-```sql
-CREATE TABLE channel_broadcasts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  worklog_id UUID REFERENCES worklogs(id) ON DELETE CASCADE,
-  channel_name VARCHAR(50) NOT NULL, -- MBC SPORTS+, MBC Every1, 등
-  broadcast_count INTEGER DEFAULT 1, -- 등록 횟수 (1~5)
-  content TEXT,
-  notes TEXT, -- 추가 내용
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_channel_broadcasts_worklog ON channel_broadcasts(worklog_id);
-CREATE INDEX idx_channel_broadcasts_channel ON channel_broadcasts(channel_name);
-```
-
-#### signatures (서명)
-```sql
-CREATE TABLE signatures (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  worklog_id UUID REFERENCES worklogs(id) ON DELETE CASCADE,
-  part_name VARCHAR(50) NOT NULL, -- 운행, 팀장, MCR, Network
-  signer_id UUID REFERENCES users(id),
-  signer_name VARCHAR(100),
-  signed_at TIMESTAMPTZ,
-  status VARCHAR(20) DEFAULT 'pending', -- pending, signed
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(worklog_id, part_name)
-);
-
-CREATE INDEX idx_signatures_worklog ON signatures(worklog_id);
-CREATE INDEX idx_signatures_status ON signatures(status);
-```
-
-#### attachments (첨부파일)
-```sql
-CREATE TABLE attachments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_name VARCHAR(255) NOT NULL,
-  file_path TEXT NOT NULL, -- Supabase Storage 경로
-  file_size INTEGER, -- 바이트 단위
-  mime_type VARCHAR(100),
-  attached_to_type VARCHAR(50), -- 'worklog', 'post', 'channel_broadcast'
-  attached_to_id UUID NOT NULL,
-  uploaded_by UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_attachments_type_id ON attachments(attached_to_type, attached_to_id);
-```
-
-### 12.3 Supabase RLS (Row Level Security) 정책
-
-**기본 정책**
-```sql
--- users 테이블: 자신의 정보만 수정 가능
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view all users"
-  ON users FOR SELECT
-  USING (true);
-
-CREATE POLICY "Users can update own profile"
-  ON users FOR UPDATE
-  USING (auth.uid() = id);
-
--- worklogs 테이블: 역할에 따른 접근 제어
-ALTER TABLE worklogs ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "All can view worklogs"
-  ON worklogs FOR SELECT
-  USING (true);
-
-CREATE POLICY "Staff can create worklogs"
-  ON worklogs FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid()
-      AND users.role IN ('main_director', 'sub_director', 'backup_director', 'tech_staff', 'admin')
-    )
-  );
-
--- posts 테이블: 작성자만 수정/삭제
-ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "All can view posts"
-  ON posts FOR SELECT
-  USING (true);
-
-CREATE POLICY "Authenticated users can create posts"
-  ON posts FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
-
-CREATE POLICY "Authors can update own posts"
-  ON posts FOR UPDATE
-  USING (author_id = auth.uid());
-
-CREATE POLICY "Authors or admins can delete posts"
-  ON posts FOR DELETE
-  USING (
-    author_id = auth.uid() OR
-    EXISTS (
-      SELECT 1 FROM users
-      WHERE users.id = auth.uid() AND users.role = 'admin'
-    )
-  );
-```
-
----
-
-## 13. API 설계 (Supabase Client)
-
-### 13.1 API 엔드포인트 개요
-
-Supabase는 자동으로 RESTful API를 생성합니다. 주요 API 패턴:
-
-**기본 구조**
-```
-GET /rest/v1/{table}          - 목록 조회
-POST /rest/v1/{table}         - 생성
-GET /rest/v1/{table}?id=eq.{uuid}  - 상세 조회
-PATCH /rest/v1/{table}?id=eq.{uuid} - 수정
-DELETE /rest/v1/{table}?id=eq.{uuid} - 삭제
-```
-
-### 13.2 주요 API 엔드포인트
-
-#### 인증 API
-```javascript
-// 팀 로그인
-POST /auth/v1/token
-Body: {
-  grant_type: 'password',
-  team_login_id: '3팀',
-  team_password: 'xxx'
-}
-
-// 개인 로그인
-POST /auth/v1/token
-Body: {
-  grant_type: 'password',
-  email: 'user@example.com',
-  password: 'xxx'
-}
-
-// 로그아웃
-POST /auth/v1/logout
-```
-
-#### 업무일지 API
-```javascript
-// 업무일지 목록 조회 (필터링, 페이지네이션)
-GET /rest/v1/worklogs?work_date=gte.2025-11-01&work_date=lte.2025-11-30&order=work_date.desc&limit=20
-
-// 업무일지 생성
-POST /rest/v1/worklogs
-Body: {
-  work_date: '2025-11-20',
-  shift_type: 'A',
-  team_id: 'uuid',
-  status: 'draft'
-}
-
-// 업무일지 상세 조회 (스태프, 포스트 포함)
-GET /rest/v1/worklogs?id=eq.{uuid}&select=*,worklog_staff(*,user:users(*)),posts(*,category:categories(*))
-
-// 업무일지 수정
-PATCH /rest/v1/worklogs?id=eq.{uuid}
-Body: {
-  status: 'published'
-}
-```
-
-#### 포스트 API
-```javascript
-// 포스트 목록 조회 (카테고리 필터)
-GET /rest/v1/posts?category_id=eq.{uuid}&order=created_at.desc&limit=20
-
-// 중요 포스트 조회 (대시보드용)
-GET /rest/v1/posts?is_pinned=eq.true&order=created_at.desc&limit=5
-
-// 포스트 생성
-POST /rest/v1/posts
-Body: {
-  title: '긴급 점검 사항',
-  content: '...',
-  category_id: 'uuid',
-  worklog_id: 'uuid',
-  priority: 'urgent',
-  is_pinned: true
-}
-
-// 포스트 수정
-PATCH /rest/v1/posts?id=eq.{uuid}
-Body: {
-  content: '수정된 내용'
-}
-```
-
-#### 카테고리 API
-```javascript
-// 카테고리 목록
-GET /rest/v1/categories?order=display_order.asc
-
-// 카테고리 생성
-POST /rest/v1/categories
-Body: {
-  name: '긴급 사항',
-  color_code: '#FF5733',
-  display_order: 1
-}
-
-// 카테고리 수정
-PATCH /rest/v1/categories?id=eq.{uuid}
-Body: {
-  name: '긴급 이슈',
-  color_code: '#FF0000'
-}
-```
-
-#### 서명 API
-```javascript
-// 서명 현황 조회 (필터: 이번 달, 대기 중, 지연)
-GET /rest/v1/signatures?worklog_id=in.(uuid1,uuid2)&status=eq.pending
-
-// 서명 완료
-PATCH /rest/v1/signatures?id=eq.{uuid}
-Body: {
-  signer_id: 'uuid',
-  signer_name: '김운행',
-  signed_at: '2025-11-20T18:45:00Z',
-  status: 'signed'
-}
-```
-
-#### 채널 방송 API
-```javascript
-// 채널 운행표 등록
-POST /rest/v1/channel_broadcasts
-Body: {
-  worklog_id: 'uuid',
-  channel_name: 'MBC SPORTS+',
-  broadcast_count: 3,
-  content: '운행 내용'
-}
-
-// 채널별 통계
-GET /rest/v1/rpc/get_channel_stats
-Body: {
-  start_date: '2025-11-01',
-  end_date: '2025-11-30'
-}
-```
-
-#### AI 요약 API (Supabase Edge Function)
-```javascript
-// AI 요약 생성
-POST /functions/v1/generate-summary
-Body: {
-  post_id: 'uuid',
-  content: '긴 텍스트 내용...'
-}
-
-Response: {
-  summary: '20자 내외 요약'
-}
-```
-
-### 13.3 Realtime 구독 (Supabase Realtime)
-
-```javascript
-// 특정 업무일지의 실시간 업데이트 구독
-const channel = supabase
-  .channel('worklog-changes')
-  .on(
-    'postgres_changes',
-    {
-      event: '*',
-      schema: 'public',
-      table: 'posts',
-      filter: `worklog_id=eq.${worklogId}`
-    },
-    (payload) => {
-      console.log('Change received!', payload)
-      // UI 업데이트
-    }
-  )
-  .subscribe()
-
-// 서명 현황 실시간 구독
-const signatureChannel = supabase
-  .channel('signature-changes')
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'signatures'
-    },
-    (payload) => {
-      console.log('Signature updated!', payload)
-      // 대시보드 업데이트
-    }
-  )
-  .subscribe()
-```
-
----
-
-## 14. 주요 사용 시나리오
+- Users ↔ Groups (다대다)
 
 ### 14.1 시나리오 1: 주조감독의 A근무 업무일지 작성
 
-**상황**: 3팀 주조감독 김철수가 A근무(07:30~19:00) 업무일지를 작성
+**상황**: 3조 주조감독 김철수가 A근무(07:30~19:00) 업무일지를 작성
 
 **단계**:
 1. **로그인**
-   - 공용 PC에서 "3팀" 팀 로그인 (team_login_id: "3팀")
-   - 팀원 전체 자동 로그인 상태
+   - 공용 PC에서 "3조" 조 로그인 (group_login_id: "3조")
+   - 조원 전체 자동 로그인 상태
 
 2. **대시보드 확인**
    - 당일(2025-11-20) 근무 정보 확인
-   - 3팀 A근무, 담당자: 김철수(주조감독), 이영희(CMS감독), 박민수(예비감독), 최기술(영상감독)
+   - 3조 A근무, 담당자: 김철수(주조감독), 이영희(CMS감독), 박민수(예비감독), 최기술(영상감독)
    - 4개 파트 서명 현황 확인 (모두 대기 중)
    - 중요 포스트 2개 확인
 
 3. **업무일지 작성**
    - "업무일지" 메뉴 클릭
-   - 당일 3팀 A근무 일지 자동 생성 (이미 존재하면 불러오기)
+   - 당일 3조 A근무 일지 자동 생성 (이미 존재하면 불러오기)
    - 채널별 운행표 등록:
      * MBC SPORTS+: 3회 등록, "프로야구 중계" 입력
      * MBC Every1: 2회 등록, "예능 프로그램" 입력
@@ -1309,7 +759,7 @@ const signatureChannel = supabase
 
 7. **서명 요청**
    - "업무확인 서명" 메뉴 이동
-   - 2025-11-20, 3팀 업무일지 서명 요청
+   - 2025-11-20, 3조 업무일지 서명 요청
    - 운행 파트에 알림 발송
 
 8. **로그아웃**
@@ -1317,7 +767,7 @@ const signatureChannel = supabase
 
 ### 14.2 시나리오 2: CMS감독의 모바일에서 댓글 작성
 
-**상황**: 2팀 CMS감독 이영희가 집에서 모바일로 과거 일지 댓글 작성
+**상황**: 2조 CMS감독 이영희가 집에서 모바일로 과거 일지 댓글 작성
 
 **단계**:
 1. **개인 로그인 (모바일)**
@@ -1328,9 +778,9 @@ const signatureChannel = supabase
 2. **업무일지 목록 검색**
    - "업무일지 목록" 메뉴 (햄버거 메뉴에서 선택)
    - 기간 검색: 2025-11-15 ~ 2025-11-18
-   - 팀 필터: "2팀" 선택
+   - 조 필터: "2조" 선택
    - 카테고리 필터: "시스템 이슈" 선택
-   - 검색 결과: 2025-11-17, 2팀 N근무 일지 표시
+   - 검색 결과: 2025-11-17, 2조 N근무 일지 표시
 
 3. **과거 일지 확인**
    - 2025-11-17 일지 클릭
@@ -1350,13 +800,13 @@ const signatureChannel = supabase
 6. **로그아웃**
    - 햄버거 메뉴 → "로그아웃"
 
-### 14.3 시나리오 3: 팀장의 서명 처리
+### 14.3 시나리오 3: 조장의 서명 처리
 
-**상황**: 팀장 파트 박팀장이 업무 확인 후 서명
+**상황**: 조장 파트 박조장이 업무 확인 후 서명
 
 **단계**:
 1. **로그인**
-   - 개인 로그인: teamleader@example.com
+   - 개인 로그인: groupleader@example.com
 
 2. **서명 대기 알림 확인**
    - 대시보드에서 "미서명 알림" 표시
@@ -1366,21 +816,21 @@ const signatureChannel = supabase
    - "업무확인 서명" 메뉴 클릭
    - 필터: "현재 대기 중" 선택
    - 목록 표시:
-     * 2025-11-20, 3팀: 운행 파트 서명 완료, 팀장 파트 대기 중
-     * 2025-11-19, 2팀: 모든 파트 서명 완료
-     * 2025-11-18, 1팀: 팀장 파트 대기 중 (24시간 이상 지연)
+     * 2025-11-20, 3조: 운행 파트 서명 완료, 조장 파트 대기 중
+     * 2025-11-19, 2조: 모든 파트 서명 완료
+     * 2025-11-18, 1조: 조장 파트 대기 중 (24시간 이상 지연)
 
 4. **업무일지 확인**
-   - 2025-11-20, 3팀 행 클릭 → 해당 업무일지 상세 보기
+   - 2025-11-20, 3조 행 클릭 → 해당 업무일지 상세 보기
    - 채널 운행표 확인
    - 포스트 내용 확인
    - 긴급 이슈 확인: "네트워크 일시 불안정" 포스트 확인
 
 5. **서명 완료**
    - "서명하기" 버튼 클릭
-   - 확인 팝업: "2025-11-20, 3팀 업무일지에 서명하시겠습니까?"
+   - 확인 팝업: "2025-11-20, 3조 업무일지에 서명하시겠습니까?"
    - "확인" 클릭
-   - 서명 완료: 팀장 파트 → "박팀장 18:45" 표시
+   - 서명 완료: 조장 파트 → "박조장 18:45" 표시
    - 다음 파트(MCR 파트)에 알림 자동 발송
 
 6. **통계 확인**
@@ -1446,11 +896,11 @@ const signatureChannel = supabase
      * 긴급 사항: 28회 (8%)
    - 원 그래프로 시각화
 
-5. **팀별 통계**
-   - 팀별 일지 작성 현황:
-     * 3팀: 완료율 100%
-     * 2팀: 완료율 95%
-     * 1팀: 완료율 90%
+5. **조별 통계**
+   - 조별 일지 작성 현황:
+     * 3조: 완료율 100%
+     * 2조: 완료율 95%
+     * 1조: 완료율 90%
 
 6. **Excel 다운로드**
    - "Excel 다운로드" 버튼 클릭
@@ -1652,20 +1102,4 @@ const signatureChannel = supabase
 | Post | 포스트 (메모, 게시글, 답글 통합) |
 | ChannelBroadcast | 채널 방송 운행 정보 |
 | WorklogStaff | 업무일지 스태프 (근무자) |
-| ExternalStaff | 외부 스태프 (비정규 인원) |
-| ANSYY | 근무 패턴 (A: 주간, N: 야간, S: 휴식, Y: 휴무) |
-| Draft | 임시저장 상태 |
-| Published | 발행 완료 상태 |
-| Category | 카테고리 (포스트 분류 체계) |
-| Tag | 태그 (자유로운 키워드 분류) |
-| Is Pinned | 중요 표시 (대시보드 고정용) |
-| Priority | 우선순위 (일반/중요/긴급) |
-| RBAC | Role-Based Access Control (역할 기반 접근 제어) |
-| JWT | JSON Web Token (인증 토큰) |
-| Rich Text | 서식이 포함된 텍스트 |
-| Supabase | Backend-as-a-Service 플랫폼 (PostgreSQL 기반) |
-| BaaS | Backend as a Service (백엔드 서비스) |
-| RLS | Row Level Security (행 수준 보안, Supabase) |
-| Edge Functions | Serverless 함수 (Supabase) |
-| PWA | Progressive Web App (프로그레시브 웹 앱) |
 | 반응형 디자인 | 다양한 화면 크기에 자동 대응하는 디자인 |

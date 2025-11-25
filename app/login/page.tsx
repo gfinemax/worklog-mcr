@@ -16,11 +16,11 @@ import { cn } from "@/lib/utils"
 
 // Mock data for team members
 const TEAM_MEMBERS = [
-  { id: 1, name: "김주조", role: "팀장", initial: "김" },
-  { id: 2, name: "이영상", role: "팀원", initial: "이" },
-  { id: 3, name: "박음향", role: "팀원", initial: "박" },
-  { id: 4, name: "최서버", role: "팀원", initial: "최" },
-  { id: 5, name: "정네트", role: "팀원", initial: "정" },
+  { id: 1, name: "김주조", role: "조장", initial: "김" },
+  { id: 2, name: "이영상", role: "조원", initial: "이" },
+  { id: 3, name: "박음향", role: "조원", initial: "박" },
+  { id: 4, name: "최서버", role: "조원", initial: "최" },
+  { id: 5, name: "정네트", role: "조원", initial: "정" },
 ]
 
 export default function LoginPage() {
@@ -120,7 +120,7 @@ export default function LoginPage() {
               >
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  <span>팀 로그인</span>
+                  <span>조별 로그인</span>
                 </div>
               </TabsTrigger>
               <TabsTrigger
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 >
                   <div className="space-y-2">
                     <Label htmlFor="team-id" className="text-slate-600 font-medium pl-1">
-                      팀 아이디
+                      조 아이디
                     </Label>
                     <div className="relative group">
                       <Users className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
@@ -158,7 +158,7 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between px-1">
                       <Label htmlFor="team-pw" className="text-slate-600 font-medium">
-                        팀 비밀번호
+                        조 비밀번호
                       </Label>
                     </div>
                     <div className="relative group">
@@ -175,7 +175,7 @@ export default function LoginPage() {
                     type="submit"
                     className="w-full h-12 mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all font-medium text-base"
                   >
-                    팀 접속하기
+                    조 접속하기
                   </Button>
                 </form>
               ) : (

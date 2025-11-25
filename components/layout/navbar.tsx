@@ -19,9 +19,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 // Mock data for demonstration
 const TEAM_MEMBERS = [
-  { id: 1, name: "김철수", role: "팀원" },
-  { id: 2, name: "이영희", role: "팀원" },
-  { id: 3, name: "박민수", role: "팀장" },
+  { id: 1, name: "김철수", role: "조원" },
+  { id: 2, name: "이영희", role: "조원" },
+  { id: 3, name: "박민수", role: "조장" },
 ]
 
 const NOTIFICATIONS = [
@@ -101,11 +101,11 @@ export function Navbar() {
                         </Badge>
                       )}
                       <span className="text-sm font-semibold">
-                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "팀 계정") : "홍길동"}
+                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "조 계정") : "홍길동"}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {loginMode === "TEAM" ? (selectedMember ? "팀원으로 작성 중" : "팀 관리 모드") : "개인 업무 모드"}
+                      {loginMode === "TEAM" ? (selectedMember ? "조원으로 작성 중" : "조 관리 모드") : "개인 업무 모드"}
                     </span>
                   </div>
                   <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-muted">
@@ -121,14 +121,14 @@ export function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  {loginMode === "TEAM" ? "팀원 선택 (작성자 전환)" : "계정 정보"}
+                  {loginMode === "TEAM" ? "조원 선택 (작성자 전환)" : "계정 정보"}
                 </DropdownMenuLabel>
 
                 {loginMode === "TEAM" && (
                   <>
                     <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setSelectedMember(null)}>
                       <Users className="h-4 w-4" />
-                      <span>{teamName} (팀 공통)</span>
+                      <span>{teamName} (조 공통)</span>
                       {!selectedMember && (
                         <Badge variant="outline" className="ml-auto text-[10px]">
                           선택됨
@@ -157,7 +157,7 @@ export function Navbar() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={toggleMode} className="gap-2 text-muted-foreground cursor-pointer">
                   <LogOut className="h-4 w-4" />
-                  <span>{loginMode === "TEAM" ? "개인 로그인으로 전환 (데모)" : "팀 로그인으로 전환 (데모)"}</span>
+                  <span>{loginMode === "TEAM" ? "개인 로그인으로 전환 (데모)" : "조별 로그인으로 전환 (데모)"}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
