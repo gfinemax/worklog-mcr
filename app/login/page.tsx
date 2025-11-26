@@ -14,14 +14,32 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { authService } from "@/lib/auth"
 import { toast } from "sonner"
-import { useAuthStore } from "@/store/auth"
+import { useAuthStore, SessionMember } from "@/store/auth"
+import { supabase } from "@/lib/supabase"
+import { WorkerRegistrationDialog } from "@/components/worker-registration-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function LoginPage() {
   const router = useRouter()
   const [step, setStep] = useState<"login" | "session-setup">("login")
   const [loading, setLoading] = useState(false)
 
-  const { setUser: setGlobalUser, setGroup: setGlobalGroup } = useAuthStore()
+  const { setUser: setGlobalUser, setGroup: setGlobalGroup, setSession: setGlobalSession } = useAuthStore()
 
   // Login Form State
   const [email, setEmail] = useState("")
@@ -30,10 +48,26 @@ export default function LoginPage() {
   // Session Setup State
   const [user, setUser] = useState<any>(null)
   const [group, setGroup] = useState<any>(null)
-  const [members, setMembers] = useState<any[]>([]) // All available members (default + external)
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+  const [sessionMembers, setSessionMembers] = useState<SessionMember[]>([])
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchMode, setSearchMode] = useState<'substitute' | 'add'>('add')
+  const [targetMemberId, setTargetMemberId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
+  const [availableRoles, setAvailableRoles] = useState<string[]>(["감독", "부감독", "영상"])
+
+  // Fetch Roles on Mount
+  useEffect(() => {
+    const fetchRoles = async () => {
+      const { data } = await supabase.from("roles").select("name").eq("type", "both").order("order")
+      if (data) {
+        // Ensure we have the basic roles if DB is empty or different
+        const roleNames = data.map(r => r.name)
+        if (roleNames.length > 0) setAvailableRoles(roleNames)
+      }
+    }
+    fetchRoles()
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,14 +84,37 @@ export default function LoginPage() {
         const groupData = Array.isArray(userGroup) ? userGroup[0] : userGroup
         setGroup(groupData)
         setGlobalGroup(groupData)
-        // Fetch default group members
-        // For now, we'll simulate fetching members or use the authService if we added a method for it.
-        // Since we didn't add a specific "getGroupMembers" to authService yet, let's assume we can get them.
-        // Actually, let's just use the current user as the initial member for now, 
-        // and in a real app we'd fetch the group's roster.
-        // For this demo, let's assume the user is the first member.
-        setMembers([profile])
-        setSelectedMemberIds([profile.id])
+
+        // Fetch Group Members
+        const { data: memberData, error: memberError } = await supabase
+          .from('group_members')
+          .select(`
+                user_id,
+                role,
+                users (
+                    id,
+                    name,
+                    profile_image_url
+                )
+            `)
+          .eq('group_id', groupData.id)
+
+        if (memberData) {
+          const initialMembers: SessionMember[] = memberData.map((m: any) => ({
+            id: m.users.id,
+            name: m.users.name,
+            role: m.role || "영상", // Default role from DB or fallback
+            profile_image_url: m.users.profile_image_url
+          }))
+
+          // Sort by role priority for display (Director first)
+          // Simple sort: Director > Assistant > Video
+          const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
+          initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+
+          setSessionMembers(initialMembers)
+        }
+
         setStep("session-setup")
       } else {
         // No group, go straight to dashboard
@@ -72,49 +129,143 @@ export default function LoginPage() {
 
   const handleStartSession = async () => {
     if (!group || !user) return
+
+    // Validation: Check for Director
+    const hasDirector = sessionMembers.some(m => m.role === '감독')
+    if (!hasDirector) {
+      const confirmStart = confirm("감독이 지정되지 않았습니다. 그래도 근무를 시작하시겠습니까?")
+      if (!confirmStart) return
+    }
+
     setLoading(true)
     try {
-      await authService.startSession(group.id, user.id)
-      // Also update with selected members if different from default
-      if (selectedMemberIds.length > 0) {
-        await authService.updateSessionMembers(group.id, selectedMemberIds)
-      }
+      // 1. Create Work Session in DB
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('work_sessions')
+        .insert({
+          group_id: group.id,
+          date: new Date().toISOString().split('T')[0],
+          start_time: new Date().toISOString(),
+          status: 'active'
+        })
+        .select()
+        .single()
+
+      if (sessionError) throw sessionError
+
+      // 2. Insert Session Members
+      const membersToInsert = sessionMembers.map(m => ({
+        session_id: sessionData.id,
+        user_id: m.id,
+        name: m.name,
+        role: m.role,
+        is_substitute: m.isSubstitute || false,
+        original_member_name: m.originalMemberId ? sessionMembers.find(om => om.id === m.originalMemberId)?.name : null
+      }))
+
+      const { error: membersError } = await supabase
+        .from('work_session_members')
+        .insert(membersToInsert)
+
+      if (membersError) throw membersError
+
+      // 3. Update Global Store
+      setGlobalSession({
+        id: sessionData.id,
+        groupId: group.id,
+        groupName: group.name,
+        members: sessionMembers,
+        startedAt: sessionData.start_time
+      })
+
       toast.success(`${group.name} 근무 세션이 시작되었습니다.`)
       router.push("/")
     } catch (error: any) {
+      console.error("Session Start Error:", error)
       toast.error("세션 시작 실패: " + error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const toggleMember = (memberId: string) => {
-    setSelectedMemberIds(prev =>
-      prev.includes(memberId)
-        ? prev.filter(id => id !== memberId)
-        : [...prev, memberId]
-    )
+  const handleRoleChange = (memberId: string, newRole: string) => {
+    setSessionMembers(prev => prev.map(m =>
+      m.id === memberId ? { ...m, role: newRole } : m
+    ))
   }
 
-  const handleSearchMember = async () => {
-    if (!searchQuery.trim()) return
-    try {
-      const results = await authService.searchUsers(searchQuery)
-      setSearchResults(results || [])
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
-  const addExternalMember = (member: any) => {
-    if (!members.find(m => m.id === member.id)) {
-      setMembers([...members, member])
-    }
-    if (!selectedMemberIds.includes(member.id)) {
-      setSelectedMemberIds([...selectedMemberIds, member.id])
-    }
-    setSearchResults([])
+  const openSearch = (mode: 'substitute' | 'add', memberId?: string) => {
+    setSearchMode(mode)
+    setTargetMemberId(memberId || null)
     setSearchQuery("")
+    setSearchResults([])
+    setIsSearchOpen(true)
+  }
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query)
+    if (query.length < 1) {
+      setSearchResults([])
+      return
+    }
+
+    // Search in both users and support_staff
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, name, role, profile_image_url')
+      .ilike('name', `%${query}%`)
+      .limit(5)
+
+    const { data: staff } = await supabase
+      .from('support_staff')
+      .select('id, name, role') // support_staff doesn't have profile_image_url yet in types but let's handle it
+      .ilike('name', `%${query}%`)
+      .limit(5)
+
+    const combined = [
+      ...(users || []).map((u: any) => ({ ...u, type: 'internal' })),
+      ...(staff || []).map((s: any) => ({ ...s, type: 'external', profile_image_url: null }))
+    ]
+    setSearchResults(combined)
+  }
+
+  const handleSelectWorker = (worker: any) => {
+    if (searchMode === 'substitute' && targetMemberId) {
+      // Substitute logic
+      setSessionMembers(prev => prev.map(m => {
+        if (m.id === targetMemberId) {
+          return {
+            id: worker.id,
+            name: worker.name,
+            role: m.role, // Keep original role
+            isSubstitute: true,
+            originalMemberId: m.id,
+            profile_image_url: worker.profile_image_url
+          }
+        }
+        return m
+      }))
+      toast.success(`${worker.name}님으로 교체되었습니다.`)
+    } else {
+      // Add logic
+      if (sessionMembers.find(m => m.id === worker.id)) {
+        toast.error("이미 목록에 있는 근무자입니다.")
+        return
+      }
+      setSessionMembers(prev => [...prev, {
+        id: worker.id,
+        name: worker.name,
+        role: '영상', // Default role
+        isSubstitute: false,
+        profile_image_url: worker.profile_image_url
+      }])
+      toast.success(`${worker.name}님이 추가되었습니다.`)
+    }
+    setIsSearchOpen(false)
+  }
+
+  const handleRemoveMember = (memberId: string) => {
+    setSessionMembers(prev => prev.filter(m => m.id !== memberId))
   }
 
   return (
@@ -235,7 +386,7 @@ export default function LoginPage() {
                     <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                     <Input
                       id="email"
-                      type="email"
+                      type="text"
                       placeholder="name@mbcplus.com"
                       className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
                       required
@@ -245,14 +396,6 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <Label htmlFor="password" className="text-slate-600 font-medium">
-                      비밀번호
-                    </Label>
-                    <Link href="#" className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
-                      비밀번호 찾기
-                    </Link>
-                  </div>
                   <div className="relative group">
                     <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                     <Input
@@ -263,6 +406,11 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
+                  </div>
+                  <div className="flex justify-end px-1">
+                    <Link href="#" className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
+                      비밀번호 찾기
+                    </Link>
                   </div>
                 </div>
                 <Button
@@ -303,24 +451,24 @@ export default function LoginPage() {
 
               <div className="space-y-1">
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900">근무자 확정</h2>
-                <p className="text-slate-500 text-sm">오늘 함께 근무할 멤버를 선택해주세요.</p>
+                <p className="text-slate-500 text-sm">오늘 함께 근무할 멤버와 역할을 확인해주세요.</p>
               </div>
 
               <div className="space-y-3">
-                <Label className="text-slate-500 pl-1 text-xs uppercase tracking-wider font-semibold">
-                  현재 멤버
-                </Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {members.map((member) => (
+                <div className="flex items-center justify-between">
+                  <Label className="text-slate-500 pl-1 text-xs uppercase tracking-wider font-semibold">
+                    현재 멤버 ({sessionMembers.length}명)
+                  </Label>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-700" onClick={() => openSearch('add')}>
+                    <Plus className="h-3 w-3 mr-1" /> 근무자 추가
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {sessionMembers.map((member) => (
                     <div
                       key={member.id}
-                      onClick={() => toggleMember(member.id)}
-                      className={cn(
-                        "relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200",
-                        selectedMemberIds.includes(member.id)
-                          ? "border-blue-500 bg-blue-50/50 shadow-sm ring-1 ring-blue-200"
-                          : "border-slate-100 bg-white hover:border-blue-200"
-                      )}
+                      className="relative flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200"
                     >
                       <Avatar className="h-10 w-10 border border-slate-100">
                         <AvatarImage src={member.profile_image_url} />
@@ -328,77 +476,108 @@ export default function LoginPage() {
                           {member.name[0]}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-slate-700">{member.name}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{member.role}</span>
-                      </div>
-                      {selectedMemberIds.includes(member.id) && (
-                        <div className="absolute top-2 right-2 h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                          <Check className="h-3 w-3 text-white" />
+
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-700">{member.name}</span>
+                          {member.isSubstitute && (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-orange-100 text-orange-700">교체됨</Badge>
+                          )}
                         </div>
-                      )}
+                        {/* Role Selector */}
+                        <Select value={member.role} onValueChange={(val) => handleRoleChange(member.id, val)}>
+                          <SelectTrigger className="h-7 text-xs border-none shadow-none p-0 focus:ring-0 w-fit gap-1 text-slate-500 font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableRoles.map(role => (
+                              <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs text-slate-400 hover:text-blue-600"
+                          onClick={() => openSearch('substitute', member.id)}
+                        >
+                          교체
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:text-red-600"
+                          onClick={() => handleRemoveMember(member.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-3 pt-2">
-                <Label className="text-slate-500 pl-1 text-xs uppercase tracking-wider font-semibold">
-                  외부 지원 인력 추가
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input
-                    placeholder="이름 검색..."
-                    className="pl-9 pr-10 h-10 bg-slate-50 border-slate-200 focus:bg-white rounded-xl"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value)
-                      handleSearchMember()
-                    }}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => {
-                        setSearchQuery("")
-                        setSearchResults([])
-                      }}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {searchResults.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-40 overflow-y-auto">
-                    {searchResults.map(result => (
-                      <div
-                        key={result.id}
-                        onClick={() => addExternalMember(result)}
-                        className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                      >
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>{result.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{result.name}</span>
-                          <span className="text-xs text-slate-400">{result.role}</span>
-                        </div>
-                        <Plus className="ml-auto h-4 w-4 text-blue-500" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               <Button
                 onClick={handleStartSession}
-                disabled={loading || selectedMemberIds.length === 0}
+                disabled={loading || sessionMembers.length === 0}
                 className="w-full h-12 mt-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all font-medium text-base"
               >
                 {loading ? "세션 시작 중..." : "근무 시작하기"}
               </Button>
+
+              {/* Worker Search Dialog */}
+              <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{searchMode === 'substitute' ? '근무자 교체' : '근무자 추가'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="이름 검색..."
+                        className="pl-9"
+                        value={searchQuery}
+                        onChange={(e) => handleSearch(e.target.value)}
+                      />
+                    </div>
+                    <ScrollArea className="h-[200px] rounded-md border p-2">
+                      {searchResults.length === 0 ? (
+                        <div className="text-center text-sm text-muted-foreground py-8">
+                          검색 결과가 없습니다.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {searchResults.map((worker) => (
+                            <div
+                              key={worker.id}
+                              className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                              onClick={() => handleSelectWorker(worker)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={worker.profile_image_url} />
+                                  <AvatarFallback>{worker.name[0]}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{worker.name}</span>
+                                  <span className="text-xs text-muted-foreground">{worker.role}</span>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="text-[10px]">
+                                {worker.type === 'internal' ? '순환' : '지원'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </div>

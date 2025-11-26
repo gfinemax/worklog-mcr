@@ -41,6 +41,36 @@ interface Worker {
   profile_image_url?: string
 }
 
+const ROLE_PRIORITY: Record<string, number> = {
+  "감독": 1,
+  "부감독": 2,
+  "영상": 3,
+  "시스템관리": 4,
+  "관리": 5,
+  "기술스텝": 6,
+  "조원": 7
+}
+
+const getRolePriorityValue = (roleString: string) => {
+  if (!roleString) return 99
+  // Get the highest priority (lowest number) among all roles
+  const priorities = roleString.split(',').map(r => ROLE_PRIORITY[r.trim()] || 99)
+  return Math.min(...priorities)
+}
+
+const sortRoles = (roleString: string) => {
+  if (!roleString) return ""
+  return roleString
+    .split(',')
+    .map(r => r.trim())
+    .sort((a, b) => {
+      const priorityA = ROLE_PRIORITY[a] || 99
+      const priorityB = ROLE_PRIORITY[b] || 99
+      return priorityA - priorityB
+    })
+    .join(', ')
+}
+
 export default function UsersPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,9 +122,9 @@ export default function UsersPage() {
         })
       }
 
-      // 3. Fetch External Staff
+      // 3. Fetch Support Staff
       const { data: externalData, error: externalError } = await supabase
-        .from('external_staff')
+        .from('support_staff')
         .select('*')
         .order('name')
 
@@ -105,7 +135,7 @@ export default function UsersPage() {
         id: u.id,
         name: u.name,
         email: u.email,
-        role: u.role,
+        role: sortRoles(u.role),
         team: userGroupMap[u.id] || "소속 없음",
         status: u.is_active ? "active" : "inactive",
         lastLogin: "-",
@@ -117,8 +147,8 @@ export default function UsersPage() {
         id: e.id,
         name: e.name,
         email: e.email || "-",
-        role: e.role,
-        team: e.organization || "외부",
+        role: sortRoles(e.role),
+        team: e.organization || "지원",
         status: e.is_active ? "active" : "inactive",
         lastLogin: "-",
         type: 'external'
@@ -162,9 +192,9 @@ export default function UsersPage() {
 
         if (error) throw error
       } else {
-        // Delete external staff
+        // Delete support staff
         const { error } = await supabase
-          .from('external_staff')
+          .from('support_staff')
           .delete()
           .eq('id', deleteTarget.id)
 
@@ -199,7 +229,6 @@ export default function UsersPage() {
   )
 
   const sortedWorkers = [...filteredWorkers].sort((a, b) => {
-    // ... (sort logic remains same)
     if (!sortConfig) return 0
 
     const aValue = a[sortConfig.key] || ""
@@ -211,6 +240,14 @@ export default function UsersPage() {
     if (aValue > bValue) {
       return sortConfig.direction === "asc" ? 1 : -1
     }
+
+    // Secondary Sort: If sorting by Team and values are equal, sort by Role Priority
+    if (sortConfig.key === 'team') {
+      const priorityA = getRolePriorityValue(a.role)
+      const priorityB = getRolePriorityValue(b.role)
+      return priorityA - priorityB
+    }
+
     return 0
   })
 
@@ -296,7 +333,7 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={worker.type === 'internal' ? 'secondary' : 'default'}>
-                          {worker.type === 'internal' ? '사내' : '외부'}
+                          {worker.type === 'internal' ? '순환' : '지원'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

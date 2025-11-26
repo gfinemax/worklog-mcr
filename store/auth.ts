@@ -15,11 +15,30 @@ interface Group {
     active_members?: string[]
 }
 
+export interface SessionMember {
+    id: string // user_id
+    name: string
+    role: string // '감독' | '부감독' | '영상'
+    isSubstitute?: boolean
+    originalMemberId?: string
+    profile_image_url?: string
+}
+
+export interface CurrentSession {
+    id?: string // work_session_id
+    groupId: string
+    groupName: string
+    members: SessionMember[]
+    startedAt: string
+}
+
 interface AuthStore {
     user: User | null
     group: Group | null
+    currentSession: CurrentSession | null
     setUser: (user: User | null) => void
     setGroup: (group: Group | null) => void
+    setSession: (session: CurrentSession | null) => void
     logout: () => void
 }
 
@@ -28,9 +47,11 @@ export const useAuthStore = create<AuthStore>()(
         (set) => ({
             user: null,
             group: null,
+            currentSession: null,
             setUser: (user) => set({ user }),
             setGroup: (group) => set({ group }),
-            logout: () => set({ user: null, group: null }),
+            setSession: (session) => set({ currentSession: session }),
+            logout: () => set({ user: null, group: null, currentSession: null }),
         }),
         {
             name: 'auth-storage',

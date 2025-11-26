@@ -17,13 +17,15 @@ import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
+import { useAuthStore } from "@/store/auth"
+
 // Mock data for demonstration
-const TEAM_MEMBERS = [
-  { id: 1, name: "오학동", role: "tech_staff" },
-  { id: 2, name: "도널드 트럼프", role: "Former President" },
-  { id: 3, name: "버락 오바마", role: "Former President" },
-  { id: 4, name: "이순신", role: "장군" },
-]
+// const TEAM_MEMBERS = [
+//   { id: 1, name: "오학동", role: "tech_staff" },
+//   { id: 2, name: "도널드 트럼프", role: "Former President" },
+//   { id: 3, name: "버락 오바마", role: "Former President" },
+//   { id: 4, name: "이순신", role: "장군" },
+// ]
 
 const NOTIFICATIONS = [
   {
@@ -47,10 +49,18 @@ type LoginMode = "TEAM" | "INDIVIDUAL"
 
 export function Navbar() {
   const router = useRouter()
+  const { user, group, currentSession } = useAuthStore()
+
   // State to simulate different login modes for demonstration
   const [loginMode, setLoginMode] = useState<LoginMode>("TEAM")
-  const [teamName] = useState("1조")
-  const [selectedMember, setSelectedMember] = useState<(typeof TEAM_MEMBERS)[0] | null>(TEAM_MEMBERS[0])
+  // const [teamName] = useState("1조")
+  const [selectedMember, setSelectedMember] = useState<any>(null)
+
+  // Initialize selected member with current user if available
+  // useEffect(() => {
+  //   if (user) setSelectedMember(user)
+  // }, [user])
+
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -60,7 +70,8 @@ export function Navbar() {
       setSelectedMember(null)
     } else {
       setLoginMode("TEAM")
-      setSelectedMember(TEAM_MEMBERS[0])
+      // Default to first member of session or user
+      setSelectedMember(currentSession?.members[0] || null)
     }
   }
 
@@ -91,7 +102,7 @@ export function Navbar() {
                           variant="secondary"
                           className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
                         >
-                          {teamName}
+                          {group?.name || "소속 없음"}
                         </Badge>
                       ) : (
                         <Badge
@@ -102,7 +113,7 @@ export function Navbar() {
                         </Badge>
                       )}
                       <span className="text-sm font-semibold">
-                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "조 계정") : "오학동"}
+                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : (user?.name || "조 계정")) : (user?.name || "사용자")}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -114,7 +125,7 @@ export function Navbar() {
                     <AvatarFallback
                       className={loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}
                     >
-                      {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : teamName[0]) : "오"}
+                      {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : group?.name?.[0]) : user?.name?.[0]}
                     </AvatarFallback>
                   </Avatar>
                   <ChevronDown className="h-4 w-4 text-muted-foreground opacity-50" />
@@ -129,7 +140,7 @@ export function Navbar() {
                   <>
                     <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setSelectedMember(null)}>
                       <Users className="h-4 w-4" />
-                      <span>{teamName} (조 공통)</span>
+                      <span>{group?.name} (조 공통)</span>
                       {!selectedMember && (
                         <Badge variant="outline" className="ml-auto text-[10px]">
                           선택됨
@@ -137,7 +148,7 @@ export function Navbar() {
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    {TEAM_MEMBERS.map((member) => (
+                    {currentSession?.members.map((member) => (
                       <DropdownMenuItem
                         key={member.id}
                         className="gap-2 cursor-pointer"
@@ -145,6 +156,7 @@ export function Navbar() {
                       >
                         <User className="h-4 w-4" />
                         <span>{member.name}</span>
+                        <span className="text-[10px] text-muted-foreground ml-1">({member.role})</span>
                         {selectedMember?.id === member.id && (
                           <Badge variant="outline" className="ml-auto text-[10px]">
                             선택됨

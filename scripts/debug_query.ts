@@ -29,9 +29,9 @@ async function testQuery() {
         console.log('User Query Result:', JSON.stringify(userData, null, 2))
     }
 
-    console.log('Checking for external staff 손수민...')
+    console.log('Checking for support staff 손수민...')
     const { data: staffData, error: staffError } = await supabase
-        .from('external_staff')
+        .from('support_staff')
         .select('*')
         .eq('name', '손수민')
 

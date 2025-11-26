@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,8 +9,38 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Save, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { useAuthStore } from "@/store/auth"
 
 export default function NewWorkLog() {
+  const { currentSession } = useAuthStore()
+
+  // Form State
+  const [director, setDirector] = useState("")
+  const [cms, setCms] = useState("")
+  const [backup, setBackup] = useState("")
+  const [video, setVideo] = useState("")
+  const [team, setTeam] = useState("team3") // Default fallback
+
+  useEffect(() => {
+    if (currentSession) {
+      // Map Team Name to Value (Simple mapping for demo)
+      if (currentSession.groupName.includes("1")) setTeam("team1")
+      else if (currentSession.groupName.includes("2")) setTeam("team2")
+      else if (currentSession.groupName.includes("3")) setTeam("team3")
+      else if (currentSession.groupName.includes("4")) setTeam("team4")
+
+      // Map Workers
+      const directors = currentSession.members.filter(m => m.role === '감독').map(m => m.name)
+      const assistants = currentSession.members.filter(m => m.role === '부감독').map(m => m.name)
+      const videos = currentSession.members.filter(m => m.role === '영상').map(m => m.name)
+
+      if (directors.length > 0) setDirector(directors[0])
+      if (assistants.length > 0) setCms(assistants[0])
+      if (assistants.length > 1) setBackup(assistants[1])
+      if (videos.length > 0) setVideo(videos[0])
+    }
+  }, [currentSession])
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -43,11 +74,11 @@ export default function NewWorkLog() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="date">근무일자</Label>
-                  <Input id="date" type="date" defaultValue="2025-11-20" />
+                  <Input id="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="shift">근무조</Label>
-                  <Select defaultValue="team3">
+                  <Select value={team} onValueChange={setTeam}>
                     <SelectTrigger id="shift">
                       <SelectValue placeholder="근무조 선택" />
                     </SelectTrigger>
@@ -83,19 +114,19 @@ export default function NewWorkLog() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="director">주조감독</Label>
-                  <Input id="director" placeholder="이름 입력" />
+                  <Input id="director" placeholder="이름 입력" value={director} onChange={(e) => setDirector(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cms">CMS감독</Label>
-                  <Input id="cms" placeholder="이름 입력" />
+                  <Input id="cms" placeholder="이름 입력" value={cms} onChange={(e) => setCms(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="backup">예비감독</Label>
-                  <Input id="backup" placeholder="이름 입력" />
+                  <Input id="backup" placeholder="이름 입력" value={backup} onChange={(e) => setBackup(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="video">영상감독</Label>
-                  <Input id="video" placeholder="이름 입력" />
+                  <Input id="video" placeholder="이름 입력" value={video} onChange={(e) => setVideo(e.target.value)} />
                 </div>
               </div>
             </CardContent>

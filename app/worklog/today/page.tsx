@@ -24,7 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { useWorklogStore, Worklog } from "@/store/worklog"
+import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
 
 // Channel Abbreviations
 const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
@@ -49,20 +49,24 @@ function NumberToggle({ value, selected, onClick }: { value: number; selected: b
         </button>
     )
 }
-
-// Component for the channel row
 function ChannelRow({
     name,
     isHalf = false,
     hasBorderRight = false,
+    content,
+    onContentChange,
+    timecodeEntries,
+    onTimecodesChange
 }: {
     name: string
     isHalf?: boolean
     hasBorderRight?: boolean
+    content: string
+    onContentChange: (value: string) => void
+    timecodeEntries: { [key: number]: string }
+    onTimecodesChange: (entries: { [key: number]: string }) => void
 }) {
     const [selectedType, setSelectedType] = useState<number | null>(null)
-    const [content, setContent] = useState<string>("")
-    const [timecodeEntries, setTimecodeEntries] = useState<{ [key: number]: string }>({})
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [dialogValue, setDialogValue] = useState("")
     const [validationError, setValidationError] = useState("")
@@ -128,7 +132,7 @@ function ChannelRow({
         }
 
         if (selectedType !== null) {
-            setTimecodeEntries({
+            onTimecodesChange({
                 ...timecodeEntries,
                 [selectedType]: dialogValue
             })
@@ -150,7 +154,7 @@ function ChannelRow({
         if (selectedType !== null) {
             const newEntries = { ...timecodeEntries }
             delete newEntries[selectedType]
-            setTimecodeEntries(newEntries)
+            onTimecodesChange(newEntries)
         }
 
         setIsDialogOpen(false)
@@ -182,7 +186,7 @@ function ChannelRow({
                         className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight"
                         placeholder="특히사항 없음"
                         value={content}
-                        onChange={(e) => setContent(e.target.value)}
+                        onChange={(e) => onContentChange(e.target.value)}
                     ></textarea>
                 </div>
                 <div className="w-1/4">
@@ -255,6 +259,28 @@ export default function TodayWorkLog() {
         video: ['박민수']
     })
     const [status, setStatus] = useState<Worklog['status']>('작성중')
+    const [channelLogs, setChannelLogs] = useState<{ [key: string]: ChannelLog }>({})
+    const [systemIssues, setSystemIssues] = useState<string>("")
+
+    // Auto-save effect
+    useEffect(() => {
+        if (!id) return
+
+        const timer = setTimeout(() => {
+            // @ts-ignore
+            updateWorklog(id, {
+                team: selectedTeam,
+                type: shiftType === 'day' ? '주간' : '야간',
+                workers: workers,
+                channelLogs: channelLogs,
+                // systemIssues: systemIssues // Assuming we add this later or map it
+            })
+            // Optional: Show a subtle indicator that it saved? 
+            // toast.success("자동 저장됨", { duration: 1000 }) // Might be too annoying
+        }, 3000) // 3 seconds debounce
+
+        return () => clearTimeout(timer)
+    }, [id, selectedTeam, shiftType, workers, channelLogs, systemIssues, updateWorklog])
 
     useEffect(() => {
         if (id) {
@@ -272,6 +298,8 @@ export default function TodayWorkLog() {
                 setSelectedTeam(worklog.team)
                 setWorkers(worklog.workers)
                 setStatus(worklog.status)
+                setChannelLogs(worklog.channelLogs || {})
+                // setSystemIssues(worklog.systemIssues || "")
 
                 if (worklog.status === '서명완료') {
                     toast.warning("이미 서명이 완료된 일지입니다. 수정 시 주의해주세요.", {
@@ -319,6 +347,7 @@ export default function TodayWorkLog() {
                 team: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
+                channelLogs: channelLogs,
             })
             toast.success("저장되었습니다.")
         } else {
@@ -337,6 +366,7 @@ export default function TodayWorkLog() {
                 status: "작성중",
                 signature: "1/4",
                 isImportant: false,
+                channelLogs: channelLogs,
             })
             toast.success("새 일지가 생성되었습니다.")
         }
@@ -385,7 +415,7 @@ export default function TodayWorkLog() {
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={handleSave}>
                                 <Save className="mr-2 h-4 w-4" />
-                                {id ? "저장" : "임시저장"}
+                                저장
                             </Button>
                             <Button onClick={handlePrint}>
                                 <Printer className="mr-2 h-4 w-4" />
@@ -534,29 +564,59 @@ export default function TodayWorkLog() {
                         < div className="border border-black border-b-0 flex-1 flex flex-col" >
 
                             {/* MBC SPORTS+ */}
-                            < div className="border-b border-black flex-1" >
-                                <ChannelRow name="MBC SPORTS+" />
-                            </div >
+                            <div className="border-b border-black flex-1">
+                                <ChannelRow
+                                    name="MBC SPORTS+"
+                                    content={channelLogs["MBC SPORTS+"]?.content || ""}
+                                    onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], content: val, timecodes: prev["MBC SPORTS+"]?.timecodes || {} } }))}
+                                    timecodeEntries={channelLogs["MBC SPORTS+"]?.timecodes || {}}
+                                    onTimecodesChange={(entries) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], content: prev["MBC SPORTS+"]?.content || "", timecodes: entries } }))}
+                                />
+                            </div>
 
                             {/* MBC Every1 */}
-                            < div className="border-b border-black flex-1" >
-                                <ChannelRow name="MBC Every1" />
-                            </div >
+                            <div className="border-b border-black flex-1">
+                                <ChannelRow
+                                    name="MBC Every1"
+                                    content={channelLogs["MBC Every1"]?.content || ""}
+                                    onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], content: val, timecodes: prev["MBC Every1"]?.timecodes || {} } }))}
+                                    timecodeEntries={channelLogs["MBC Every1"]?.timecodes || {}}
+                                    onTimecodesChange={(entries) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], content: prev["MBC Every1"]?.content || "", timecodes: entries } }))}
+                                />
+                            </div>
 
                             {/* MBC DRAMA */}
-                            < div className="border-b border-black flex-1" >
-                                <ChannelRow name="MBC DRAMA" />
-                            </div >
+                            <div className="border-b border-black flex-1">
+                                <ChannelRow
+                                    name="MBC DRAMA"
+                                    content={channelLogs["MBC DRAMA"]?.content || ""}
+                                    onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], content: val, timecodes: prev["MBC DRAMA"]?.timecodes || {} } }))}
+                                    timecodeEntries={channelLogs["MBC DRAMA"]?.timecodes || {}}
+                                    onTimecodesChange={(entries) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], content: prev["MBC DRAMA"]?.content || "", timecodes: entries } }))}
+                                />
+                            </div>
 
                             {/* MBC M */}
-                            < div className="border-b border-black flex-1" >
-                                <ChannelRow name="MBC M" />
-                            </div >
+                            <div className="border-b border-black flex-1">
+                                <ChannelRow
+                                    name="MBC M"
+                                    content={channelLogs["MBC M"]?.content || ""}
+                                    onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], content: val, timecodes: prev["MBC M"]?.timecodes || {} } }))}
+                                    timecodeEntries={channelLogs["MBC M"]?.timecodes || {}}
+                                    onTimecodesChange={(entries) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], content: prev["MBC M"]?.content || "", timecodes: entries } }))}
+                                />
+                            </div>
 
                             {/* MBC ON */}
-                            < div className="border-b border-black flex-1" >
-                                <ChannelRow name="MBC ON" />
-                            </div >
+                            <div className="border-b border-black flex-1">
+                                <ChannelRow
+                                    name="MBC ON"
+                                    content={channelLogs["MBC ON"]?.content || ""}
+                                    onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], content: val, timecodes: prev["MBC ON"]?.timecodes || {} } }))}
+                                    timecodeEntries={channelLogs["MBC ON"]?.timecodes || {}}
+                                    onTimecodesChange={(entries) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], content: prev["MBC ON"]?.content || "", timecodes: entries } }))}
+                                />
+                            </div>
 
                         </div >
 

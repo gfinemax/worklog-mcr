@@ -48,10 +48,10 @@ const WORKERS = [
     { name: '김소연', group: '5조', role: '영상' },
 ]
 
-const EXTERNAL_STAFF = [
-    { name: '손수민', role: '지원인력' },
-    { name: '임제혁', role: '지원인력' },
-    { name: '임근형', role: '지원인력' },
+const SUPPORT_STAFF = [
+    { name: '손수민', role: '관리', email: 'son@example.com' },
+    { name: '임제혁', role: '기술스텝', email: 'lim@example.com' },
+    { name: '임근형', role: '기술스텝', email: 'lim2@example.com' },
 ]
 
 async function seed() {
@@ -150,30 +150,42 @@ async function seed() {
         }
     }
 
-    // 3. Create External Staff
-    console.log('3. Seeding External Staff...')
-    for (const staff of EXTERNAL_STAFF) {
+    // 3. Create Support Staff
+    console.log('3. Seeding Support Staff...')
+    for (const staff of SUPPORT_STAFF) {
         // Check if exists
         const { data: existingStaff } = await supabase
-            .from('external_staff')
+            .from('support_staff')
             .select('id')
             .eq('name', staff.name)
             .single()
 
         if (!existingStaff) {
             const { error } = await supabase
-                .from('external_staff')
+                .from('support_staff')
                 .insert({
                     name: staff.name,
+                    email: staff.email,
                     role: staff.role,
-                    organization: '외부지원',
+                    organization: '지원',
                     is_active: true
                 })
 
-            if (error) console.error(`Error creating external staff ${staff.name}:`, error.message)
-            else console.log(`External staff ${staff.name} created.`)
+            if (error) console.error(`Error creating support staff ${staff.name}:`, error.message)
+            else console.log(`Support staff ${staff.name} created.`)
         } else {
-            console.log(`External staff ${staff.name} already exists.`)
+            // Update existing staff with email/role if needed
+            const { error } = await supabase
+                .from('support_staff')
+                .update({
+                    email: staff.email,
+                    role: staff.role,
+                    organization: '지원'
+                })
+                .eq('name', staff.name)
+
+            if (error) console.error(`Error updating support staff ${staff.name}:`, error.message)
+            else console.log(`Support staff ${staff.name} updated.`)
         }
     }
 

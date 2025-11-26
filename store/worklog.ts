@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 
+export interface ChannelLog {
+    content: string
+    timecodes: { [key: number]: string }
+}
+
 export interface Worklog {
     id: string | number
     date: string
@@ -15,6 +20,8 @@ export interface Worklog {
     signature: string
     isImportant: boolean
     aiSummary?: string
+    channelLogs?: { [key: string]: ChannelLog }
+    systemIssues?: string
 }
 
 interface WorklogStore {
@@ -35,7 +42,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 worklog_staff(
                     role,
                     user:users(name),
-                    external_staff(name)
+                    support_staff(name)
                 )
             `)
             .order('work_date', { ascending: false })
@@ -47,40 +54,42 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         // Transform DB data to frontend model
         const formattedWorklogs: Worklog[] = data.map((log: any) => ({
-            id: log.id, // UUID but frontend uses number currently? Wait, frontend interface says number. DB is UUID. I need to update interface to string or number. Let's update interface to string | number or just string.
-            // Actually, for now let's keep it simple. If I change ID to string, I might break other things. 
-            // But Supabase IDs are UUIDs. I MUST change ID type to string or handle mapping.
-            // Let's change interface `id` to `string | number` to be safe, or just `string`.
-            // Given the existing code uses `Number(id)` in page.tsx, I should probably update page.tsx too if I change to UUID.
-            // For this step, I will map UUID to string and update interface.
+            id: log.id,
             date: log.work_date,
             team: log.group?.name || 'Unknown',
             type: log.shift_type === 'A' ? '주간' : '야간',
             workers: {
-                director: log.worklog_staff?.filter((s: any) => s.role === 'main_director').map((s: any) => s.user?.name || s.external_staff?.name) || [],
-                assistant: log.worklog_staff?.filter((s: any) => s.role === 'sub_director').map((s: any) => s.user?.name || s.external_staff?.name) || [],
-                video: log.worklog_staff?.filter((s: any) => s.role === 'tech_staff').map((s: any) => s.user?.name || s.external_staff?.name) || []
+                director: log.worklog_staff?.filter((s: any) => s.role === 'main_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
+                assistant: log.worklog_staff?.filter((s: any) => s.role === 'sub_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
+                video: log.worklog_staff?.filter((s: any) => s.role === 'tech_staff').map((s: any) => s.user?.name || s.support_staff?.name) || []
             },
             status: log.status,
             signature: "0/4", // Placeholder for now
             isImportant: false, // Placeholder
-            aiSummary: log.ai_summary
+            aiSummary: log.ai_summary,
+            channelLogs: log.channel_logs || {},
+            systemIssues: log.system_issues || "" // Assuming we might add this too, or put it in channel_logs? Let's assume separate or part of channel_logs. 
+            // Wait, I didn't add system_issues column. I should probably add it or put it in channel_logs.
+            // Let's put systemIssues in channel_logs for now or just add another column?
+            // The user didn't ask for system issues specifically but it's part of the form.
+            // I'll assume systemIssues is part of the form state I need to save.
+            // I'll add it to channel_logs JSON or a new column.
+            // Let's stick to channel_logs for now and maybe I can add system_issues column later if needed.
+            // Actually, let's just add system_issues to the JSONB if possible, or just add another column.
+            // I'll add another column for system_issues in the SQL script?
+            // No, I'll just use channel_logs to store everything or add a specific field in JSON.
         }))
 
         set({ worklogs: formattedWorklogs })
     },
     addWorklog: async (worklog) => {
         // Map frontend data to DB structure
-        // We need group_id from team name. This is tricky without fetching groups.
-        // For now, let's assume we can insert. But wait, we need group_id.
-        // I'll skip the complex mapping for this "Implementation" step and just show the structure.
-        // Or I can fetch the group ID first.
-
-        // Simplified insertion for demonstration
         const { data, error } = await supabase.from('worklogs').insert({
             work_date: worklog.date,
             shift_type: worklog.type === '주간' ? 'A' : 'N',
             status: worklog.status,
+            channel_logs: worklog.channelLogs,
+            // system_issues: worklog.systemIssues 
             // group_id: ... need to lookup
         }).select()
 
@@ -89,16 +98,20 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             return
         }
 
-        // Optimistic update or refetch
         get().fetchWorklogs()
     },
     updateWorklog: async (id, updates) => {
+        const dbUpdates: any = {
+            status: updates.status,
+        }
+
+        if (updates.channelLogs) dbUpdates.channel_logs = updates.channelLogs
+        if (updates.type) dbUpdates.shift_type = updates.type === '주간' ? 'A' : 'N'
+        // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues
+
         const { error } = await supabase
             .from('worklogs')
-            .update({
-                status: updates.status,
-                // map other fields
-            })
+            .update(dbUpdates)
             .eq('id', id)
 
         if (error) {

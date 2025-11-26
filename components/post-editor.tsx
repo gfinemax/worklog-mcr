@@ -12,6 +12,7 @@ import { User, Users, Lock, Send } from "lucide-react"
 import { useAuthStore } from "@/store/auth"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { authService } from "@/lib/auth"
 
 interface PostEditorProps {
     onSuccess?: () => void
@@ -45,15 +46,22 @@ export function PostEditor({ onSuccess }: PostEditorProps) {
 
         // Verify PIN if in group mode
         if (mode === "group") {
-            // In a real app, we would verify the PIN against the user's stored hash.
-            // For this demo, we'll assume any 4-digit PIN is valid if it matches the user's PIN (if we fetched it).
-            // Since we didn't fetch the PIN hash to the frontend (security risk), we should verify it on the server.
-            // But for this prototype, we'll just check if it's 4 digits.
             if (pin.length !== 4) {
                 toast.error("PIN 번호는 4자리여야 합니다.")
                 return
             }
-            // Ideally: await authService.verifyPin(user.id, pin)
+
+            try {
+                const isValid = await authService.verifyPin(user.id, pin)
+                if (!isValid) {
+                    toast.error("PIN 번호가 일치하지 않습니다.")
+                    return
+                }
+            } catch (error) {
+                console.error("PIN verification failed", error)
+                toast.error("PIN 확인 중 오류가 발생했습니다.")
+                return
+            }
         }
 
         setLoading(true)

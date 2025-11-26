@@ -4,11 +4,11 @@ export const authService = {
     // 1. Login (Individual)
     async login(email: string, password: string) {
         const { data, error } = await supabase.auth.signInWithPassword({
-            email,
+            email: email.trim(),
             password,
         })
 
-        if (error) throw error
+        if (error) throw new Error(`Auth Error: ${error.message}`)
         if (!data.user) throw new Error('No user data returned')
 
         // Fetch user profile to get name and role
@@ -18,7 +18,7 @@ export const authService = {
             .eq('id', data.user.id)
             .single()
 
-        if (profileError) throw profileError
+        if (profileError) throw new Error(`Profile Error: ${profileError.message}`)
 
         return {
             user: data.user,
@@ -159,9 +159,9 @@ export const authService = {
 
         if (userError) throw userError
 
-        // 2. Search external staff
+        // 2. Search support staff
         const { data: externalStaff, error: externalError } = await supabase
-            .from('external_staff')
+            .from('support_staff')
             .select('*')
             .ilike('name', `%${query}%`)
             .limit(5)
@@ -176,5 +176,18 @@ export const authService = {
         ]
 
         return combined
+    },
+
+    // 5. Verify PIN
+    async verifyPin(userId: string, pin: string) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('pin_code')
+            .eq('id', userId)
+            .single()
+
+        if (error) throw error
+
+        return data.pin_code === pin
     }
 }
