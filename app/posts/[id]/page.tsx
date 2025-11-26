@@ -5,18 +5,24 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle, MessageSquare, Trash2, Loader2 } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
-import { usePostStore, Post } from "@/store/posts"
+import { usePostStore, Post, Comment } from "@/store/posts"
+import { useAuthStore } from "@/store/auth"
 import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function PostDetailPage() {
     const router = useRouter()
     const params = useParams()
     const id = params.id as string
 
-    const { posts, fetchPosts } = usePostStore()
+    const { posts, fetchPosts, fetchComments, addComment, deleteComment, updateComment } = usePostStore()
+    const { user } = useAuthStore()
     const [post, setPost] = useState<Post | null>(null)
+    const [comments, setComments] = useState<Comment[]>([])
+    const [newComment, setNewComment] = useState("")
+    const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 
     useEffect(() => {
         // If posts are already loaded, find it
@@ -30,7 +36,104 @@ export default function PostDetailPage() {
                 if (found) setPost(found)
             })
         }
+
+        // Fetch comments
+        loadComments()
     }, [id, posts, fetchPosts])
+
+    const loadComments = async () => {
+        const data = await fetchComments(id)
+        setComments(data)
+    }
+
+    const handleSubmitComment = async () => {
+        if (!newComment.trim() || !user) return
+
+        setIsSubmittingComment(true)
+        try {
+            await addComment({
+                post_id: id,
+                author_id: user.id,
+                content: newComment
+            })
+            setNewComment("")
+            toast.success("댓글이 등록되었습니다.")
+            loadComments()
+        } catch (error) {
+            toast.error("댓글 등록 중 오류가 발생했습니다.")
+        } finally {
+            setIsSubmittingComment(false)
+        }
+    }
+
+    const handleDeleteComment = async (commentId: string) => {
+        if (!confirm("댓글을 삭제하시겠습니까?")) return
+
+        try {
+            await deleteComment(commentId)
+            toast.success("댓글이 삭제되었습니다.")
+            loadComments()
+        } catch (error) {
+            toast.error("댓글 삭제 중 오류가 발생했습니다.")
+        }
+    }
+
+    const handleUpdateComment = async (commentId: string, content: string) => {
+        try {
+            await updateComment(commentId, { content, updated_at: new Date().toISOString() })
+            toast.success("댓글이 수정되었습니다.")
+            loadComments()
+        } catch (error) {
+            toast.error("댓글 수정 중 오류가 발생했습니다.")
+        }
+    }
+
+    const handleReplyComment = async (parentId: string, content: string) => {
+        if (!user) return
+        try {
+            await addComment({
+                post_id: id,
+                author_id: user.id,
+                content,
+                parent_id: parentId
+            })
+            toast.success("답글이 등록되었습니다.")
+            loadComments()
+        } catch (error) {
+            toast.error("답글 등록 중 오류가 발생했습니다.")
+        }
+    }
+
+    const handleReaction = async (commentId: string, emoji: string) => {
+        if (!user) return
+        const comment = comments.find(c => c.id === commentId)
+        if (!comment) return
+
+        const currentReactions = comment.reactions || {}
+        const userIds = currentReactions[emoji] || []
+
+        let newReactions = { ...currentReactions }
+
+        if (userIds.includes(user.id)) {
+            // Remove reaction
+            newReactions[emoji] = userIds.filter(uid => uid !== user.id)
+            if (newReactions[emoji].length === 0) {
+                delete newReactions[emoji]
+            }
+        } else {
+            // Add reaction
+            newReactions[emoji] = [...userIds, user.id]
+        }
+
+        try {
+            await updateComment(commentId, { reactions: newReactions })
+            // Optimistic update
+            setComments(comments.map(c => c.id === commentId ? { ...c, reactions: newReactions } : c))
+        } catch (error) {
+            toast.error("반응 업데이트 실패")
+            loadComments() // Revert on error
+        }
+    }
 
     if (!post) {
         return (
@@ -42,14 +145,26 @@ export default function PostDetailPage() {
         )
     }
 
+    // Group comments by parent_id
+    const rootComments = comments.filter(c => !c.parent_id)
+    const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId)
+
     return (
         <MainLayout>
             <div className="max-w-4xl mx-auto space-y-6">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <h1 className="text-2xl font-bold">포스트 상세</h1>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <h1 className="text-2xl font-bold">포스트 상세</h1>
+                    </div>
+                    {user && post.author_id === user.id && (
+                        <Button variant="outline" size="sm" onClick={() => router.push(`/posts/${id}/edit`)}>
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            수정
+                        </Button>
+                    )}
                 </div>
 
                 <Card>
@@ -147,8 +262,248 @@ export default function PostDetailPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Comments Section */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <MessageSquare className="h-5 w-5" />
+                            댓글
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {/* Comment List */}
+                        <div className="space-y-6">
+                            {rootComments.length === 0 ? (
+                                <p className="text-center text-muted-foreground py-4">
+                                    아직 작성된 댓글이 없습니다.
+                                </p>
+                            ) : (
+                                rootComments.map((comment) => (
+                                    <CommentItem
+                                        key={comment.id}
+                                        comment={comment}
+                                        replies={getReplies(comment.id)}
+                                        currentUserId={user?.id}
+                                        onDelete={handleDeleteComment}
+                                        onUpdate={handleUpdateComment}
+                                        onReply={handleReplyComment}
+                                        onReaction={handleReaction}
+                                    />
+                                ))
+                            )}
+                        </div>
+
+                        {/* Comment Form */}
+                        <div className="flex gap-3 pt-4 border-t">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                <Textarea
+                                    placeholder="댓글을 입력하세요..."
+                                    className="min-h-[80px] resize-none"
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                />
+                                <div className="flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        onClick={handleSubmitComment}
+                                        disabled={!newComment.trim() || isSubmittingComment}
+                                    >
+                                        {isSubmittingComment ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                등록 중...
+                                            </>
+                                        ) : (
+                                            "댓글 등록"
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </MainLayout>
+    )
+}
+
+import { Smile, Edit2, CornerDownRight } from "lucide-react"
+
+interface CommentItemProps {
+    comment: Comment
+    replies: Comment[]
+    currentUserId?: string
+    onDelete: (id: string) => void
+    onUpdate: (id: string, content: string) => void
+    onReply: (parentId: string, content: string) => void
+    onReaction: (id: string, emoji: string) => void
+}
+
+function CommentItem({ comment, replies, currentUserId, onDelete, onUpdate, onReply, onReaction }: CommentItemProps) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [editContent, setEditContent] = useState(comment.content)
+    const [isReplying, setIsReplying] = useState(false)
+    const [replyContent, setReplyContent] = useState("")
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+    const handleSaveEdit = () => {
+        if (editContent.trim() !== comment.content) {
+            onUpdate(comment.id, editContent)
+        }
+        setIsEditing(false)
+    }
+
+    const handleSubmitReply = () => {
+        if (replyContent.trim()) {
+            onReply(comment.id, replyContent)
+            setReplyContent("")
+            setIsReplying(false)
+        }
+    }
+
+
+
+    return (
+        <div className="group">
+            <div className="flex gap-3">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{comment.author?.name || '알 수 없음'}</span>
+                            <span className="text-xs text-muted-foreground">
+                                {new Date(comment.created_at).toLocaleString()}
+                            </span>
+                            {comment.updated_at && comment.updated_at !== comment.created_at && (
+                                <span className="text-xs text-muted-foreground">(수정됨)</span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
+                                <Smile className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                            {currentUserId === comment.author_id && (
+                                <>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditing(!isEditing)}>
+                                        <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDelete(comment.id)}>
+                                        <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {showEmojiPicker && (
+                        <div className="absolute z-10 mt-1 bg-white dark:bg-slate-800 border rounded-full shadow-lg p-1 flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="fixed inset-0 z-[-1]" onClick={() => setShowEmojiPicker(false)} />
+                            {['❤️', '👍', '✅', '😄', '😢'].map(emoji => (
+                                <button
+                                    key={emoji}
+                                    className="hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-full text-xl transition-transform hover:scale-125 leading-none"
+                                    onClick={() => {
+                                        onReaction(comment.id, emoji)
+                                        setShowEmojiPicker(false)
+                                    }}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {isEditing ? (
+                        <div className="space-y-2 mt-2">
+                            <Textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                className="min-h-[60px]"
+                            />
+                            <div className="flex justify-end gap-2">
+                                <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>취소</Button>
+                                <Button size="sm" onClick={handleSaveEdit}>저장</Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-foreground/90 whitespace-pre-wrap">{comment.content}</p>
+                    )}
+
+                    {/* Reactions */}
+                    {comment.reactions && Object.keys(comment.reactions).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {Object.entries(comment.reactions).map(([emoji, userIds]) => (
+                                <Button
+                                    key={emoji}
+                                    variant="outline"
+                                    size="sm"
+                                    className={`h-6 px-2 text-xs gap-1 ${userIds.includes(currentUserId || '') ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : ''}`}
+                                    onClick={() => onReaction(comment.id, emoji)}
+                                >
+                                    <span>{emoji}</span>
+                                    <span>{userIds.length}</span>
+                                </Button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-4 mt-1">
+                        <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs text-muted-foreground"
+                            onClick={() => setIsReplying(!isReplying)}
+                        >
+                            답글 달기
+                        </Button>
+                    </div>
+
+                    {isReplying && (
+                        <div className="flex gap-3 mt-3">
+                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                <CornerDownRight className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                <Textarea
+                                    placeholder="답글을 입력하세요..."
+                                    className="min-h-[60px] resize-none"
+                                    value={replyContent}
+                                    onChange={(e) => setReplyContent(e.target.value)}
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <Button size="sm" variant="ghost" onClick={() => setIsReplying(false)}>취소</Button>
+                                    <Button size="sm" onClick={handleSubmitReply}>등록</Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Nested Replies */}
+            {replies.length > 0 && (
+                <div className="pl-11 mt-3 space-y-3 border-l-2 ml-4">
+                    {replies.map(reply => (
+                        <CommentItem
+                            key={reply.id}
+                            comment={reply}
+                            replies={[]} // Only support 1 level nesting for now
+                            currentUserId={currentUserId}
+                            onDelete={onDelete}
+                            onUpdate={onUpdate}
+                            onReply={onReply} // Recursion possible but limited by UI
+                            onReaction={onReaction}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
     )
 }
 

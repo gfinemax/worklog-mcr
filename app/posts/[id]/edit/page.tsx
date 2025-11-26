@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Save, Paperclip, X, Loader2 } from "lucide-react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { usePostStore } from "@/store/posts"
 import { toast } from "sonner"
 import dynamic from "next/dynamic"
@@ -18,20 +18,20 @@ import { useAuthStore } from "@/store/auth"
 // Dynamic import for React Quill to avoid SSR issues
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false })
 
-export default function NewPostPage() {
+export default function EditPostPage() {
     const router = useRouter()
-    const searchParams = useSearchParams()
-    const worklogId = searchParams.get("worklogId")
-    const channelName = searchParams.get("channel")
+    const params = useParams()
+    const id = params.id as string
 
-    const { categories, addPost, fetchCategories } = usePostStore()
+    const { posts, fetchPosts, categories, fetchCategories, updatePost } = usePostStore()
     const { user } = useAuthStore()
 
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
     const [categoryId, setCategoryId] = useState("")
     const [priority, setPriority] = useState("일반")
-    const [attachments, setAttachments] = useState<File[]>([])
+    const [attachments, setAttachments] = useState<any[]>([])
+    const [newAttachments, setNewAttachments] = useState<File[]>([])
     const [isSaving, setIsSaving] = useState(false)
     const [tags, setTags] = useState<string[]>([])
     const [tagInput, setTagInput] = useState("")
@@ -39,10 +39,47 @@ export default function NewPostPage() {
     const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
     const [isModuleLoaded, setIsModuleLoaded] = useState(false)
     const [quillClass, setQuillClass] = useState<any>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
         fetchCategories()
     }, [])
+
+    // Fetch post data
+    useEffect(() => {
+        const loadPost = async () => {
+            let post = posts.find(p => p.id === id)
+            if (!post) {
+                await fetchPosts()
+                post = usePostStore.getState().posts.find(p => p.id === id)
+            }
+
+            if (post) {
+                // Check authorization
+                if (user && post.author_id !== user.id) {
+                    toast.error("수정 권한이 없습니다.")
+                    router.push(`/posts/${id}`)
+                    return
+                }
+
+                setTitle(post.title)
+                setContent(post.content)
+                setCategoryId(post.category_id)
+                setPriority(post.priority)
+                setTags(post.tags || [])
+                setSummary(post.summary || "")
+                setAttachments(post.attachments || [])
+                setIsLoading(false)
+            } else {
+                toast.error("포스트를 찾을 수 없습니다.")
+                router.push("/posts")
+            }
+        }
+
+        if (user) {
+            loadPost()
+        }
+    }, [id, posts, fetchPosts, user, router])
 
     // Async module loading for Quill Blot Formatter
     useEffect(() => {
@@ -65,22 +102,17 @@ export default function NewPostPage() {
         }
     }, [])
 
-    // Find channel-operation category to auto-select
-    useEffect(() => {
-        if (channelName && categories.length > 0) {
-            const channelCat = categories.find(c => c.slug === 'channel-operation')
-            if (channelCat) setCategoryId(channelCat.id)
-            setTitle(`${channelName} 운행 이슈`)
-        }
-    }, [channelName, categories])
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setAttachments(prev => [...prev, ...Array.from(e.target.files!)])
+            setNewAttachments(prev => [...prev, ...Array.from(e.target.files!)])
         }
     }
 
-    const removeFile = (index: number) => {
+    const removeNewFile = (index: number) => {
+        setNewAttachments(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const removeExistingFile = (index: number) => {
         setAttachments(prev => prev.filter((_, i) => i !== index))
     }
 
@@ -135,47 +167,35 @@ export default function NewPostPage() {
 
         setIsSaving(true)
         try {
-            // 1. Upload files (Mock for now, just storing metadata)
-            const attachmentMeta = attachments.map(file => ({
+            // 1. Upload new files (Mock for now)
+            const newAttachmentMeta = newAttachments.map(file => ({
                 name: file.name,
                 url: URL.createObjectURL(file), // Mock URL
                 type: file.type,
                 size: file.size
             }))
 
-            // 2. Create Post
-            const postData = {
+            const finalAttachments = [...attachments, ...newAttachmentMeta]
+
+            // 2. Update Post
+            const updates = {
                 title,
                 content,
                 category_id: categoryId,
-                priority,
-                worklog_id: worklogId || undefined,
-                channel: channelName || undefined,
-                attachments: attachmentMeta,
+                priority: priority as any,
+                attachments: finalAttachments,
                 summary: summary || undefined,
                 tags,
-                author_id: user?.id || null
             }
 
-            console.log('Sending post data:', postData)
+            await updatePost(id, updates)
 
-            await addPost(postData)
-
-            if (worklogId && channelName) {
-                toast.success("업무일지에 요약이 반영되었습니다.")
-            }
-
-            toast.success("포스트가 저장되었습니다.")
-
-            if (worklogId) {
-                router.push(`/worklog/today?id=${worklogId}`)
-            } else {
-                router.push('/posts')
-            }
+            toast.success("포스트가 수정되었습니다.")
+            router.push(`/posts/${id}`)
 
         } catch (error: any) {
             console.error('Save error:', error)
-            toast.error(`저장 중 오류가 발생했습니다: ${error.message || error.details || '알 수 없는 오류'}`)
+            toast.error(`수정 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
         } finally {
             setIsSaving(false)
         }
@@ -196,6 +216,16 @@ export default function NewPostPage() {
         }
     }, [quillClass])
 
+    if (isLoading) {
+        return (
+            <MainLayout>
+                <div className="flex items-center justify-center h-[50vh]">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+            </MainLayout>
+        )
+    }
+
     return (
         <MainLayout>
             <style jsx global>{`
@@ -212,7 +242,7 @@ export default function NewPostPage() {
                     <Button variant="ghost" size="icon" onClick={() => router.back()}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <h1 className="text-2xl font-bold">새 포스트 작성</h1>
+                    <h1 className="text-2xl font-bold">포스트 수정</h1>
                 </div>
 
                 <Card>
@@ -289,9 +319,6 @@ export default function NewPostPage() {
                                     onChange={(e) => setSummary(e.target.value)}
                                     className="bg-white"
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    * 업무일지 연동 시 이 요약 내용이 채널 메모로 저장됩니다.
-                                </p>
                             </div>
 
                             <div className="space-y-2">
@@ -338,7 +365,7 @@ export default function NewPostPage() {
                                 <Label>첨부파일</Label>
                                 <div className="flex items-center gap-4">
                                     <Button type="button" variant="outline" onClick={() => document.getElementById('file-upload')?.click()}>
-                                        <Paperclip className="mr-2 h-4 w-4" /> 파일 선택
+                                        <Paperclip className="mr-2 h-4 w-4" /> 파일 추가
                                     </Button>
                                     <input
                                         id="file-upload"
@@ -347,20 +374,39 @@ export default function NewPostPage() {
                                         className="hidden"
                                         onChange={handleFileChange}
                                     />
-                                    <span className="text-sm text-muted-foreground">
-                                        {attachments.length}개 파일 선택됨
-                                    </span>
                                 </div>
+
+                                {/* Existing Attachments */}
                                 {attachments.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {attachments.map((file, i) => (
-                                            <div key={i} className="flex items-center gap-2 bg-muted px-3 py-1 rounded-full text-sm">
-                                                <span>{file.name}</span>
-                                                <button type="button" onClick={() => removeFile(i)}>
-                                                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                    <div className="mt-2">
+                                        <Label className="text-xs text-muted-foreground mb-1 block">기존 파일</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {attachments.map((file, i) => (
+                                                <div key={i} className="flex items-center gap-2 bg-muted px-3 py-1 rounded-full text-sm border border-blue-100">
+                                                    <span>{file.name}</span>
+                                                    <button type="button" onClick={() => removeExistingFile(i)}>
+                                                        <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* New Attachments */}
+                                {newAttachments.length > 0 && (
+                                    <div className="mt-2">
+                                        <Label className="text-xs text-muted-foreground mb-1 block">새로 추가된 파일</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {newAttachments.map((file, i) => (
+                                                <div key={i} className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full text-sm border border-green-100">
+                                                    <span>{file.name}</span>
+                                                    <button type="button" onClick={() => removeNewFile(i)}>
+                                                        <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -378,7 +424,7 @@ export default function NewPostPage() {
                                     ) : (
                                         <>
                                             <Save className="mr-2 h-4 w-4" />
-                                            저장
+                                            수정 완료
                                         </>
                                     )}
                                 </Button>

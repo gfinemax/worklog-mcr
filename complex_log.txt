@@ -1,0 +1,8 @@
+Starting complex constraint tests...
+Test 1: Insert with is_emergency: false
+Test 1 Failed: Could not find the 'is_emergency' column of 'posts' in the schema cache
+Result: is_emergency column EXISTS (or other error)
+Test 2: Insert with is_emergency: true
+Test 2 Failed: Could not find the 'is_emergency' column of 'posts' in the schema cache
+Test 3: Insert with is_emergency: true, priority: urgent
+Test 3 Failed: Could not find the 'is_emergency' column of 'posts' in the schema cache

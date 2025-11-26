@@ -7,9 +7,9 @@ import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, C
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", href: "/" },
   { icon: Calendar, label: "TODAY업무일지", href: "/worklog/today" },
-  { icon: FileText, label: "업무일지목록", href: "/worklog", exact: true },
+  { icon: FileText, label: "업무일지 목록", href: "/worklog", exact: true },
 
-  { icon: PenSquare, label: "포스트", href: "/posts" },
+  { icon: PenSquare, label: "포스트 목록", href: "/posts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
   { icon: BarChart3, label: "통계 및 보고서", href: "/reports" },

@@ -41,6 +41,20 @@ export interface Post {
     }
 }
 
+export interface Comment {
+    id: string
+    post_id: string
+    author_id: string
+    content: string
+    created_at: string
+    updated_at?: string
+    parent_id?: string | null
+    reactions?: Record<string, string[]> // emoji -> userIds[]
+    author?: {
+        name: string
+    }
+}
+
 interface PostStore {
     posts: Post[]
     categories: Category[]
@@ -50,6 +64,10 @@ interface PostStore {
     addPost: (post: Partial<Post>) => Promise<void>
     updatePost: (id: string, updates: Partial<Post>) => Promise<void>
     resolvePost: (id: string, note: string) => Promise<void>
+    fetchComments: (postId: string) => Promise<Comment[]>
+    addComment: (comment: Partial<Comment>) => Promise<void>
+    updateComment: (id: string, updates: Partial<Comment>) => Promise<void>
+    deleteComment: (id: string) => Promise<void>
 }
 
 export const usePostStore = create<PostStore>((set, get) => ({
@@ -68,6 +86,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
             return
         }
 
+        console.log('Fetched categories:', data)
         set({ categories: data })
     },
 
@@ -77,7 +96,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
             .from('posts')
             .select(`
                 *,
-                author:users(name),
+                author:users!posts_author_user_id_fkey(name),
                 category:categories(name, slug)
             `)
             .order('created_at', { ascending: false })
@@ -107,12 +126,13 @@ export const usePostStore = create<PostStore>((set, get) => ({
     },
 
     addPost: async (post) => {
+        console.log('Store adding post:', post)
         const { error } = await supabase
             .from('posts')
             .insert(post)
 
         if (error) {
-            console.error('Error adding post:', error)
+            console.error('Error adding post:', JSON.stringify(error, null, 2))
             throw error
         }
 
@@ -145,5 +165,69 @@ export const usePostStore = create<PostStore>((set, get) => ({
         }
 
         get().fetchPosts()
+    },
+
+    fetchComments: async (postId) => {
+        const { data, error } = await supabase
+            .from('comments')
+            .select(`
+                *,
+                author:users!comments_author_user_id_fkey(name)
+            `)
+            .eq('post_id', postId)
+            .order('created_at', { ascending: true })
+
+        if (error) {
+            console.error('Error fetching comments:', error)
+            return []
+        }
+
+        // Map author_user_id to author_id for the frontend
+        return data.map((comment: any) => ({
+            ...comment,
+            author_id: comment.author_user_id,
+        })) as Comment[]
+    },
+
+    addComment: async (comment) => {
+        // Map author_id to author_user_id for the database
+        const dbComment = {
+            ...comment,
+            author_user_id: comment.author_id,
+        }
+        delete (dbComment as any).author_id
+
+        const { error } = await supabase
+            .from('comments')
+            .insert(dbComment)
+
+        if (error) {
+            console.error('Error adding comment:', error)
+            throw error
+        }
+    },
+
+    updateComment: async (id, updates) => {
+        const { error } = await supabase
+            .from('comments')
+            .update(updates)
+            .eq('id', id)
+
+        if (error) {
+            console.error('Error updating comment:', error)
+            throw error
+        }
+    },
+
+    deleteComment: async (id) => {
+        const { error } = await supabase
+            .from('comments')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            console.error('Error deleting comment:', error)
+            throw error
+        }
     }
 }))

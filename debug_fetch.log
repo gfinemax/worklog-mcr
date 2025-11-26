@@ -1,0 +1,34 @@
+Debugging fetchComments...
+Using post ID: 47f4ae3c-e751-4351-82c2-bbe683563b9c
+1. Fetching with author relation...
+Error 1: {
+  "code": "PGRST201",
+  "details": [
+    {
+      "cardinality": "many-to-one",
+      "embedding": "comments with users",
+      "relationship": "comments_author_user_id_fkey using comments(author_user_id) and users(id)"
+    },
+    {
+      "cardinality": "many-to-one",
+      "embedding": "comments with users",
+      "relationship": "comments_created_by_fkey using comments(created_by) and users(id)"
+    }
+  ],
+  "hint": "Try changing 'users' to one of the following: 'users!comments_author_user_id_fkey', 'users!comments_created_by_fkey'. Find the desired relationship in the 'details' key.",
+  "message": "Could not embed because more than one relationship was found for 'comments' and 'users'"
+}
+2. Fetching without relation...
+Data 2 length: 2
+Sample 2: {
+  "id": "fc7096e9-3046-4bcd-84fe-95ecdbe63a9f",
+  "post_id": "47f4ae3c-e751-4351-82c2-bbe683563b9c",
+  "parent_id": null,
+  "content": "댓글 테스트 중입니다.",
+  "author_user_id": "33b99ae7-beb5-42ec-b867-d1c9f416c7d5",
+  "author_group_id": null,
+  "author_name": null,
+  "created_at": "2025-11-26T21:34:22.984574+00:00",
+  "updated_at": "2025-11-26T21:34:22.984574+00:00",
+  "created_by": null
+}
