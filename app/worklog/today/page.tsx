@@ -51,6 +51,7 @@ function NumberToggle({ value, selected, onClick }: { value: number; selected: b
 }
 function ChannelRow({
     name,
+    worklogId,
     isHalf = false,
     hasBorderRight = false,
     content,
@@ -59,6 +60,7 @@ function ChannelRow({
     onTimecodesChange
 }: {
     name: string
+    worklogId: string | null
     isHalf?: boolean
     hasBorderRight?: boolean
     content: string
@@ -66,6 +68,7 @@ function ChannelRow({
     timecodeEntries: { [key: number]: string }
     onTimecodesChange: (entries: { [key: number]: string }) => void
 }) {
+    const router = useRouter()
     const [selectedType, setSelectedType] = useState<number | null>(null)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [dialogValue, setDialogValue] = useState("")
@@ -161,10 +164,28 @@ function ChannelRow({
         setSelectedType(null)
     }
 
+    const handleCreateIssue = () => {
+        if (!worklogId) {
+            toast.error("먼저 일지를 저장해주세요.")
+            return
+        }
+        router.push(`/posts/new?worklogId=${worklogId}&channel=${encodeURIComponent(name)}`)
+    }
+
     return (
         <div className={cn("flex flex-col h-full", hasBorderRight && "border-r border-black")}>
             <div className="flex items-center justify-between border-b border-black p-1 text-sm bg-gray-50/50">
-                <span className="font-bold whitespace-nowrap">{name}</span>
+                <div className="flex items-center gap-2">
+                    <span className="font-bold whitespace-nowrap">{name}</span>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-2 text-[10px] bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200"
+                        onClick={handleCreateIssue}
+                    >
+                        이슈 등록
+                    </Button>
+                </div>
                 <div className="flex items-center gap-1">
                     <span className="whitespace-nowrap text-sm">운행표 수정</span>
                     <div className="inline-flex items-center gap-1">
@@ -567,6 +588,7 @@ export default function TodayWorkLog() {
                             <div className="border-b border-black flex-1">
                                 <ChannelRow
                                     name="MBC SPORTS+"
+                                    worklogId={id}
                                     content={channelLogs["MBC SPORTS+"]?.content || ""}
                                     onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], content: val, timecodes: prev["MBC SPORTS+"]?.timecodes || {} } }))}
                                     timecodeEntries={channelLogs["MBC SPORTS+"]?.timecodes || {}}
@@ -578,6 +600,7 @@ export default function TodayWorkLog() {
                             <div className="border-b border-black flex-1">
                                 <ChannelRow
                                     name="MBC Every1"
+                                    worklogId={id}
                                     content={channelLogs["MBC Every1"]?.content || ""}
                                     onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], content: val, timecodes: prev["MBC Every1"]?.timecodes || {} } }))}
                                     timecodeEntries={channelLogs["MBC Every1"]?.timecodes || {}}
@@ -589,6 +612,7 @@ export default function TodayWorkLog() {
                             <div className="border-b border-black flex-1">
                                 <ChannelRow
                                     name="MBC DRAMA"
+                                    worklogId={id}
                                     content={channelLogs["MBC DRAMA"]?.content || ""}
                                     onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], content: val, timecodes: prev["MBC DRAMA"]?.timecodes || {} } }))}
                                     timecodeEntries={channelLogs["MBC DRAMA"]?.timecodes || {}}
@@ -600,6 +624,7 @@ export default function TodayWorkLog() {
                             <div className="border-b border-black flex-1">
                                 <ChannelRow
                                     name="MBC M"
+                                    worklogId={id}
                                     content={channelLogs["MBC M"]?.content || ""}
                                     onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], content: val, timecodes: prev["MBC M"]?.timecodes || {} } }))}
                                     timecodeEntries={channelLogs["MBC M"]?.timecodes || {}}
@@ -611,6 +636,7 @@ export default function TodayWorkLog() {
                             <div className="border-b border-black flex-1">
                                 <ChannelRow
                                     name="MBC ON"
+                                    worklogId={id}
                                     content={channelLogs["MBC ON"]?.content || ""}
                                     onContentChange={(val) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], content: val, timecodes: prev["MBC ON"]?.timecodes || {} } }))}
                                     timecodeEntries={channelLogs["MBC ON"]?.timecodes || {}}

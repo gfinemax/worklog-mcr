@@ -1,0 +1,48 @@
+
+> my-v0-project@0.1.0 build
+> next build
+
+ ??Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\workspace\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\workspace\antigravity\worklog-mcr\pnpm-lock.yaml
+
+   ??Next.js 15.5.6
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+Failed to compile.
+
+./app/worklog/new/page.tsx
+Error:   x You're importing a component that needs `useState`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+  |
+  |  Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+  |
+
+   ,-[C:\workspace\antigravity\worklog-mcr\app\worklog\new\page.tsx:1:1]
+ 1 | import { useState, useEffect } from "react"
+   :          ^^^^^^^^
+ 2 | import { MainLayout } from "@/components/layout/main-layout"
+ 3 | import { Button } from "@/components/ui/button"
+ 4 | import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+   `----
+  x You're importing a component that needs `useEffect`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+  |
+  |  Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+  |
+
+   ,-[C:\workspace\antigravity\worklog-mcr\app\worklog\new\page.tsx:1:1]
+ 1 | import { useState, useEffect } from "react"
+   :                    ^^^^^^^^^
+ 2 | import { MainLayout } from "@/components/layout/main-layout"
+ 3 | import { Button } from "@/components/ui/button"
+ 4 | import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+   `----
+
+Import trace for requested module:
+./app/worklog/new/page.tsx
+
+
+> Build failed because of webpack errors

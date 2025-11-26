@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"

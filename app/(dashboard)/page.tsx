@@ -5,18 +5,50 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity, Star } from "lucide-react"
+import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity, Star, AlertTriangle } from "lucide-react"
 import { useWorklogStore } from "@/store/worklog"
+import { usePostStore, Post } from "@/store/posts"
 import Link from "next/link"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 export default function Dashboard() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const worklogs = useWorklogStore((state) => state.worklogs)
   const importantWorklogs = worklogs.filter(log => log.isImportant).slice(0, 5)
 
+  const { posts, fetchPosts, resolvePost } = usePostStore()
+  const [emergencyPosts, setEmergencyPosts] = useState<Post[]>([])
+  const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
+  const [resolutionNote, setResolutionNote] = useState("")
+
   useEffect(() => {
     setMounted(true)
+    fetchPosts({ priority: '긴급' })
   }, [])
+
+  useEffect(() => {
+    setEmergencyPosts(posts.filter(p => p.priority === '긴급' && p.status === 'open'))
+  }, [posts])
+
+  const handleResolveClick = (post: Post) => {
+    setResolveDialog({ open: true, post })
+  }
+
+  const confirmResolve = async () => {
+    if (!resolveDialog.post) return
+    try {
+      await resolvePost(resolveDialog.post.id, resolutionNote)
+      toast.success("이슈가 해결 처리되었습니다.")
+      setResolveDialog({ open: false, post: null })
+      setResolutionNote("")
+    } catch (error) {
+      toast.error("처리 중 오류가 발생했습니다.")
+    }
+  }
 
   if (!mounted) {
     return null
@@ -33,12 +65,57 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">2025년 11월 20일 (수)</span>
-            <Button>
+            <Button onClick={() => router.push('/worklog/today')}>
               <FileText className="mr-2 h-4 w-4" />
               일지 작성하기
             </Button>
           </div>
         </div>
+
+        {/* Emergency Issues Section */}
+        {emergencyPosts.length > 0 && (
+          <Card className="border-red-200 bg-red-50/50 animate-in fade-in slide-in-from-top-2">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5 animate-pulse" />
+                  <CardTitle>긴급 이슈 발생 ({emergencyPosts.length}건)</CardTitle>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {emergencyPosts.map(post => (
+                  <div key={post.id} className="flex items-center justify-between p-3 bg-white border border-red-100 rounded-lg shadow-sm">
+                    <div className="space-y-1 cursor-pointer" onClick={() => router.push(`/posts/${post.id}`)}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="destructive" className="animate-pulse">긴급</Badge>
+                        <span className="font-bold hover:underline">{post.title}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-1">
+                        {post.summary || post.content.replace(/<[^>]*>?/gm, '').substring(0, 100)}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{post.author?.name}</span>
+                        <span>•</span>
+                        <span>{new Date(post.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => handleResolveClick(post)}
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      해결 처리
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -68,8 +145,8 @@ export default function Dashboard() {
               <AlertCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">2건</div>
-              <p className="text-xs text-muted-foreground">미해결 장비 이슈</p>
+              <div className="text-2xl font-bold text-destructive">{emergencyPosts.length}건</div>
+              <p className="text-xs text-muted-foreground">미해결 긴급 이슈</p>
             </CardContent>
           </Card>
           <Card>
@@ -237,6 +314,40 @@ export default function Dashboard() {
             </Card>
           </div>
         </div>
+
+        {/* Resolve Dialog */}
+        <Dialog open={resolveDialog.open} onOpenChange={(open) => setResolveDialog({ ...resolveDialog, open })}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>이슈 해결 처리</DialogTitle>
+              <DialogDescription>
+                해당 긴급 이슈를 해결 상태로 변경합니다. 조치 내용을 간단히 입력해주세요.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">이슈 제목</h4>
+                <p className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
+                  {resolveDialog.post?.title}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">조치 내용</h4>
+                <Textarea
+                  placeholder="예: 장비 재부팅 후 정상화 확인됨"
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResolveDialog({ open: false, post: null })}>취소</Button>
+              <Button onClick={confirmResolve} disabled={!resolutionNote.trim()}>
+                해결 완료
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   )
