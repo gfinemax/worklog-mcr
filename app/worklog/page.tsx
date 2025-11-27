@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
@@ -23,7 +23,12 @@ export default function WorkLogList() {
   const router = useRouter()
   const worklogs = useWorklogStore((state) => state.worklogs)
   const updateWorklog = useWorklogStore((state) => state.updateWorklog)
+  const fetchWorklogs = useWorklogStore((state) => state.fetchWorklogs)
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
+
+  useEffect(() => {
+    fetchWorklogs()
+  }, [fetchWorklogs])
   const [summaryDialog, setSummaryDialog] = useState<{
     open: boolean
     worklog: Worklog | null
@@ -69,6 +74,25 @@ export default function WorkLogList() {
     }
   }
 
+  const isWorkingNow = (log: Worklog) => {
+    const now = new Date()
+    const [year, month, day] = log.date.split('-').map(Number)
+
+    let start = new Date(year, month - 1, day)
+    let end = new Date(year, month - 1, day)
+
+    if (log.type === '주간') {
+      start.setHours(7, 30, 0, 0)
+      end.setHours(18, 30, 0, 0)
+    } else {
+      start.setHours(18, 30, 0, 0)
+      end.setDate(end.getDate() + 1)
+      end.setHours(8, 0, 0, 0)
+    }
+
+    return now >= start && now <= end
+  }
+
   const sortedWorklogs = useMemo(() => {
     let sortableWorklogs = [...worklogs]
     if (sortConfig !== null) {
@@ -80,6 +104,16 @@ export default function WorkLogList() {
         if (sortConfig.key === 'workers') {
           aValue = a.workers.director[0] || ''
           bValue = b.workers.director[0] || ''
+        }
+
+        // Special handling for status sorting (include '근무중')
+        if (sortConfig.key === 'status') {
+          const getEffectiveStatus = (log: Worklog) => {
+            if (isWorkingNow(log) && log.status === '작성중') return '근무중'
+            return log.status
+          }
+          aValue = getEffectiveStatus(a)
+          bValue = getEffectiveStatus(b)
         }
 
         if (aValue < bValue) {
@@ -207,7 +241,7 @@ export default function WorkLogList() {
                       </span>
                     </Button>
                   </TableHead>
-                  <TableHead className="text-center">서명</TableHead>
+                  <TableHead className="text-center">결제</TableHead>
                   <TableHead className="text-center">AI요약</TableHead>
                 </TableRow>
               </TableHeader>
@@ -229,18 +263,47 @@ export default function WorkLogList() {
                         .join(", ")}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge
-                        variant={
-                          log.status === "서명완료" ? "secondary" :
-                            log.status === "근무종료" ? "destructive" :
-                              "default"
+                      {(() => {
+                        const isWorking = isWorkingNow(log)
+
+                        // Calculate work end time to determine if work has ended
+                        const [year, month, day] = log.date.split('-').map(Number)
+                        let end = new Date(year, month - 1, day)
+                        if (log.type === '주간') {
+                          end.setHours(18, 30, 0, 0)
+                        } else {
+                          end.setDate(end.getDate() + 1)
+                          end.setHours(8, 0, 0, 0)
                         }
-                        className={
-                          log.status === "근무종료" ? "bg-amber-500 hover:bg-amber-600" : ""
+                        const isWorkEnded = new Date() > end
+
+                        let displayStatus = log.status
+                        if (log.status === '작성중') {
+                          if (isWorking) {
+                            displayStatus = '근무중'
+                          } else if (isWorkEnded) {
+                            displayStatus = '결제중'
+                          }
                         }
-                      >
-                        {log.status}
-                      </Badge>
+
+                        return (
+                          <Badge
+                            variant={
+                              log.status === "서명완료" ? "secondary" :
+                                log.status === "근무종료" ? "destructive" :
+                                  "default"
+                            }
+                            className={
+                              log.status === "근무종료" ? "bg-amber-500 hover:bg-amber-600" :
+                                displayStatus === "근무중" ? "bg-green-600 hover:bg-green-700" :
+                                  displayStatus === "결제중" ? "bg-orange-500 hover:bg-orange-600" :
+                                    ""
+                            }
+                          >
+                            {displayStatus}
+                          </Badge>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-center">

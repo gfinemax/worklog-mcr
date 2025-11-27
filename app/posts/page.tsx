@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MessageSquare, Eye, ThumbsUp, AlertCircle, CheckCircle, Tag, X } from "lucide-react"
+import { Search, Plus, MessageSquare, Eye, ThumbsUp, AlertCircle, CheckCircle, Tag, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -20,12 +22,15 @@ import { toast } from "sonner"
 
 export default function PostList() {
   const router = useRouter()
-  const { posts, categories, loading, fetchCategories, fetchPosts, resolvePost } = usePostStore()
+  const { posts, categories, loading, fetchCategories, fetchPosts, resolvePost, updatePost } = usePostStore()
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
   const [resolutionNote, setResolutionNote] = useState("")
+
+  // Sort State
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' })
 
   useEffect(() => {
     fetchCategories()
@@ -39,6 +44,46 @@ export default function PostList() {
       tag: selectedTag || undefined
     })
   }, [selectedCategory, searchQuery, selectedTag])
+
+  // Sorting Logic
+  const handleSort = (key: string) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }))
+  }
+
+  const sortedPosts = [...posts].sort((a, b) => {
+    const { key, direction } = sortConfig
+    let aValue: any = a
+    let bValue: any = b
+
+    // Handle nested properties
+    if (key === 'category.name') {
+      aValue = a.category?.name || ''
+      bValue = b.category?.name || ''
+    } else if (key === 'worklog.work_date') {
+      aValue = a.worklog?.work_date || ''
+      bValue = b.worklog?.work_date || ''
+    } else if (key === 'author.name') {
+      aValue = a.author?.name || ''
+      bValue = b.author?.name || ''
+    } else if (key === 'priority') {
+      // Custom priority order: 긴급 > 중요 > 일반
+      const priorityOrder = { '긴급': 3, '중요': 2, '일반': 1 }
+      aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0
+      bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0
+    } else if (key === 'comments') {
+      aValue = a.comments?.[0]?.count || 0
+      bValue = b.comments?.[0]?.count || 0
+    } else {
+      aValue = a[key as keyof Post]
+    }
+
+    if (aValue < bValue) return direction === 'asc' ? -1 : 1
+    if (aValue > bValue) return direction === 'asc' ? 1 : -1
+    return 0
+  })
 
   const handleResolveClick = (post: Post, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -64,6 +109,22 @@ export default function PostList() {
     } catch (error) {
       toast.error("처리 중 오류가 발생했습니다.")
     }
+  }
+
+  const handlePriorityChange = async (postId: string, newPriority: '일반' | '중요' | '긴급') => {
+    try {
+      await updatePost(postId, { priority: newPriority })
+      toast.success("우선순위가 변경되었습니다.")
+    } catch (error) {
+      toast.error("우선순위 변경 중 오류가 발생했습니다.")
+    }
+  }
+
+  const renderSortIcon = (key: string) => {
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />
+    }
+    return <ArrowUpDown className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
   }
 
   const getPriorityBadge = (priority: string) => {
@@ -152,31 +213,96 @@ export default function PostList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px] text-center">카테고리</TableHead>
-                  <TableHead className="w-[100px] text-center">우선순위</TableHead>
-                  <TableHead>제목</TableHead>
-                  <TableHead className="w-[100px] text-center">작성자</TableHead>
-                  <TableHead className="w-[150px] text-center">날짜</TableHead>
-                  <TableHead className="w-[80px] text-center">조회</TableHead>
-                  <TableHead className="w-[80px] text-center">좋아요</TableHead>
+                  <TableHead
+                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'category.name' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('category.name')}
+                  >
+                    <div className="flex items-center justify-center">
+                      카테고리
+                      {renderSortIcon('category.name')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'priority' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('priority')}
+                  >
+                    <div className="flex items-center justify-center">
+                      우선순위
+                      {renderSortIcon('priority')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'title' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('title')}
+                  >
+                    <div className="flex items-center">
+                      제목
+                      {renderSortIcon('title')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[120px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'worklog.work_date' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('worklog.work_date')}
+                  >
+                    <div className="flex items-center justify-center">
+                      업무일지
+                      {renderSortIcon('worklog.work_date')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'author.name' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('author.name')}
+                  >
+                    <div className="flex items-center justify-center">
+                      작성자
+                      {renderSortIcon('author.name')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('created_at')}
+                  >
+                    <div className="flex items-center justify-center">
+                      날짜
+                      {renderSortIcon('created_at')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'views' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('views')}
+                  >
+                    <div className="flex items-center justify-center">
+                      조회
+                      {renderSortIcon('views')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'comments' && "text-primary font-bold bg-muted/30")}
+                    onClick={() => handleSort('comments')}
+                  >
+                    <div className="flex items-center justify-center">
+                      댓글
+                      {renderSortIcon('comments')}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-[100px] text-center">상태</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10">
+                    <TableCell colSpan={9} className="text-center py-10">
                       로딩 중...
                     </TableCell>
                   </TableRow>
-                ) : posts.length === 0 ? (
+                ) : sortedPosts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                       등록된 포스트가 없습니다.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  posts.map((post) => (
+                  sortedPosts.map((post) => (
                     <TableRow
                       key={post.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -187,8 +313,23 @@ export default function PostList() {
                           {post.category?.name}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
-                        {getPriorityBadge(post.priority)}
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="outline-none">
+                            {getPriorityBadge(post.priority)}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handlePriorityChange(post.id, '긴급')}>
+                              <Badge variant="destructive" className="mr-2">긴급</Badge> 긴급
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePriorityChange(post.id, '중요')}>
+                              <Badge className="bg-orange-500 mr-2">중요</Badge> 중요
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePriorityChange(post.id, '일반')}>
+                              <Badge variant="secondary" className="mr-2">일반</Badge> 일반
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
@@ -221,9 +362,29 @@ export default function PostList() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {post.worklog ? (
+                          <div
+                            className="flex flex-col items-center cursor-pointer hover:bg-muted rounded p-1 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/worklog/today?id=${post.worklog?.id}`)
+                            }}
+                          >
+                            <span className="font-medium" suppressHydrationWarning>{format(new Date(post.worklog.work_date), "MM-dd")}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {post.worklog.group?.name} {post.worklog.shift_type === 'A' ? 'A' : 'N'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center text-sm">{post.author?.name}</TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
-                        {format(new Date(post.created_at), "yyyy-MM-dd HH:mm")}
+                        <span suppressHydrationWarning>
+                          {format(new Date(post.created_at), "yyyy-MM-dd HH:mm")}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
                         <div className="flex items-center justify-center gap-1">
@@ -232,7 +393,7 @@ export default function PostList() {
                       </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
                         <div className="flex items-center justify-center gap-1">
-                          <ThumbsUp className="h-3 w-3" /> {post.likes}
+                          <MessageSquare className="h-3 w-3" /> {post.comments?.[0]?.count || 0}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">

@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import dynamic from "next/dynamic"
 import "react-quill-new/dist/quill.snow.css"
 import { useAuthStore } from "@/store/auth"
+import { useWorklogStore, ChannelLog } from "@/store/worklog"
 
 // Dynamic import for React Quill to avoid SSR issues
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false })
@@ -23,6 +24,9 @@ export default function NewPostPage() {
     const searchParams = useSearchParams()
     const worklogId = searchParams.get("worklogId")
     const channelName = searchParams.get("channel")
+    const sourceField = searchParams.get("sourceField")
+    const categorySlugParam = searchParams.get("categorySlug")
+    const tagParam = searchParams.get("tag")
 
     const { categories, addPost, fetchCategories } = usePostStore()
     const { user } = useAuthStore()
@@ -30,7 +34,7 @@ export default function NewPostPage() {
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
     const [categoryId, setCategoryId] = useState("")
-    const [priority, setPriority] = useState("일반")
+    const [priority, setPriority] = useState<"일반" | "중요" | "긴급">("일반")
     const [attachments, setAttachments] = useState<File[]>([])
     const [isSaving, setIsSaving] = useState(false)
     const [tags, setTags] = useState<string[]>([])
@@ -65,14 +69,32 @@ export default function NewPostPage() {
         }
     }, [])
 
-    // Find channel-operation category to auto-select
+    // Find category to auto-select and set initial tags
     useEffect(() => {
-        if (channelName && categories.length > 0) {
-            const channelCat = categories.find(c => c.slug === 'channel-operation')
-            if (channelCat) setCategoryId(channelCat.id)
-            setTitle(`${channelName} 운행 이슈`)
+        if (categories.length > 0) {
+            if (categorySlugParam) {
+                const targetCat = categories.find(c => c.slug === categorySlugParam)
+                if (targetCat) setCategoryId(targetCat.id)
+            } else if (channelName) {
+                const channelCat = categories.find(c => c.slug === 'channel-operation')
+                if (channelCat) setCategoryId(channelCat.id)
+            }
+
+            const initialTags = []
+            if (tagParam) initialTags.push(tagParam)
+            if (channelName && !initialTags.includes(channelName)) initialTags.push(channelName)
+
+            if (initialTags.length > 0) {
+                setTags(initialTags)
+            }
+
+            if (channelName) {
+                setTitle(`${channelName} 운행 이슈`)
+            } else if (sourceField === 'systemIssues') {
+                setTitle("장비 및 시스템 주요사항")
+            }
         }
-    }, [channelName, categories])
+    }, [channelName, categorySlugParam, tagParam, sourceField, categories])
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -154,15 +176,46 @@ export default function NewPostPage() {
                 attachments: attachmentMeta,
                 summary: summary || undefined,
                 tags,
-                author_id: user?.id || null
+                author_id: user?.id || undefined
             }
 
             console.log('Sending post data:', postData)
 
-            await addPost(postData)
+            const newPost = await addPost(postData)
 
-            if (worklogId && channelName) {
-                toast.success("업무일지에 요약이 반영되었습니다.")
+            if (worklogId && sourceField) {
+                const worklogStore = useWorklogStore.getState()
+                await worklogStore.fetchWorklogs() // Refresh to get latest state
+                const currentWorklog = worklogStore.worklogs.find(w => String(w.id) === worklogId)
+
+                if (currentWorklog) {
+                    const postSummary = {
+                        id: newPost.id,
+                        summary: summary || title // Use summary if available, else title
+                    }
+
+                    if (sourceField === 'systemIssues') {
+                        const currentIssues = currentWorklog.systemIssues || []
+                        await worklogStore.updateWorklog(worklogId, {
+                            systemIssues: [...currentIssues, postSummary]
+                        })
+                    } else {
+                        // Assume sourceField is channel name
+                        const currentChannelLogs = currentWorklog.channelLogs || {}
+                        const currentChannelLog = currentChannelLogs[sourceField] || { posts: [], timecodes: {} }
+
+                        await worklogStore.updateWorklog(worklogId, {
+                            channelLogs: {
+                                ...currentChannelLogs,
+                                [sourceField]: {
+                                    ...currentChannelLog,
+                                    posts: [...(currentChannelLog.posts || []), postSummary]
+                                }
+                            }
+                        })
+                    }
+                    toast.success("업무일지에 요약이 반영되었습니다.")
+                }
             }
 
             toast.success("포스트가 저장되었습니다.")
@@ -237,7 +290,7 @@ export default function NewPostPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>우선순위</Label>
-                                    <Select value={priority} onValueChange={setPriority}>
+                                    <Select value={priority} onValueChange={(value) => setPriority(value as "일반" | "중요" | "긴급")}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="우선순위 선택" />
                                         </SelectTrigger>

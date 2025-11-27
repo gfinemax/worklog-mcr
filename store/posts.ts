@@ -39,6 +39,15 @@ export interface Post {
         name: string
         slug: string
     }
+    worklog?: {
+        id: string
+        work_date: string
+        shift_type: 'A' | 'N'
+        group: {
+            name: string
+        }
+    }
+    comments?: { count: number }[]
 }
 
 export interface Comment {
@@ -61,7 +70,7 @@ interface PostStore {
     loading: boolean
     fetchCategories: () => Promise<void>
     fetchPosts: (filters?: { categoryId?: string, priority?: string, search?: string, tag?: string }) => Promise<void>
-    addPost: (post: Partial<Post>) => Promise<void>
+    addPost: (post: Partial<Post>) => Promise<Post>
     updatePost: (id: string, updates: Partial<Post>) => Promise<void>
     resolvePost: (id: string, note: string) => Promise<void>
     fetchComments: (postId: string) => Promise<Comment[]>
@@ -97,7 +106,9 @@ export const usePostStore = create<PostStore>((set, get) => ({
             .select(`
                 *,
                 author:users!posts_author_user_id_fkey(name),
-                category:categories(name, slug)
+                category:categories(name, slug),
+                worklog:worklogs(id, work_date, shift_type, group:groups(name)),
+                comments(count)
             `)
             .order('created_at', { ascending: false })
 
@@ -127,9 +138,11 @@ export const usePostStore = create<PostStore>((set, get) => ({
 
     addPost: async (post) => {
         console.log('Store adding post:', post)
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('posts')
             .insert(post)
+            .select()
+            .single()
 
         if (error) {
             console.error('Error adding post:', JSON.stringify(error, null, 2))
@@ -137,6 +150,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
         }
 
         get().fetchPosts()
+        return data
     },
 
     updatePost: async (id, updates) => {
