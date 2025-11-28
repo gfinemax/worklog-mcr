@@ -194,6 +194,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         if (updates.channelLogs) dbUpdates.channel_logs = updates.channelLogs
         if (updates.type) dbUpdates.shift_type = updates.type === '주간' ? 'A' : 'N'
+        if (updates.aiSummary) dbUpdates.ai_summary = updates.aiSummary
         // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Column missing in DB
 
         const { error } = await supabase
@@ -202,7 +203,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .eq('id', id)
 
         if (error) {
-            console.error('Error updating worklog:', error)
+            console.error('Error updating worklog:', JSON.stringify(error, null, 2))
             // Revert optimistic update if needed? For now, we'll just log error.
             // Ideally we should fetch the original state back.
             return

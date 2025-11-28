@@ -56,6 +56,36 @@ export default function NewPostPage() {
                     const { default: QuillComponent, Quill } = await import('react-quill-new')
                     const { default: BlotFormatter } = await import('quill-blot-formatter')
 
+                    // Custom Image Blot to preserve inline styles
+                    const Image = Quill.import('formats/image') as any
+                    class CustomImage extends Image {
+                        static blotName = 'image'
+                        static tagName = 'IMG'
+
+                        static create(value: any) {
+                            const node = super.create(value)
+                            if (typeof value === 'object') {
+                                // Handle object value (e.g. from clipboard)
+                                if (value.url) node.setAttribute('src', value.url)
+                                if (value.style) node.setAttribute('style', value.style)
+                                if (value.width) node.setAttribute('width', value.width)
+                                if (value.height) node.setAttribute('height', value.height)
+                            }
+                            return node
+                        }
+
+                        static value(node: any) {
+                            return {
+                                url: node.getAttribute('src'),
+                                style: node.getAttribute('style'),
+                                width: node.getAttribute('width'),
+                                height: node.getAttribute('height')
+                            }
+                        }
+                    }
+
+                    Quill.register(CustomImage as any, true)
+
                     if (Quill && !Quill.imports['modules/blotFormatter']) {
                         Quill.register('modules/blotFormatter', BlotFormatter)
                     }
@@ -123,9 +153,41 @@ export default function NewPostPage() {
     }
 
     const generateSummary = async (text: string) => {
-        // Mock AI Summary
-        await new Promise(resolve => setTimeout(resolve, 1500)) // Simulate latency
-        return text.length > 40 ? text.substring(0, 37) + "..." : text
+        console.log('=== generateSummary called ===')
+        console.log('Text length:', text.length)
+        console.log('Text preview:', text.substring(0, 100))
+
+        try {
+            console.log('Fetching /api/post-summary...')
+            const response = await fetch('/api/post-summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    content: text,
+                    title: title,
+                    category: categories.find(c => c.id === categoryId)?.name || ''
+                }),
+            })
+
+            console.log('Response status:', response.status)
+            console.log('Response ok:', response.ok)
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                console.error('API error response:', errorData)
+                throw new Error('AI 요약 생성 실패')
+            }
+
+            const data = await response.json()
+            console.log('Received data:', data)
+            return data
+        } catch (error) {
+            console.error('=== Summary generation error ===')
+            console.error('Error:', error)
+            throw error // Rethrow to let the caller handle it
+        }
     }
 
     const handleGenerateSummary = async () => {
@@ -137,12 +199,13 @@ export default function NewPostPage() {
 
         setIsGeneratingSummary(true)
         try {
-            const generated = await generateSummary(plainText)
-            setSummary(generated)
+            const { summary, title } = await generateSummary(plainText)
+            setSummary(summary)
+            if (title) setTitle(title)
             toast.success("AI 요약이 생성되었습니다.")
         } catch (error) {
             console.error(error)
-            toast.error("요약 생성 중 오류가 발생했습니다.")
+            toast.error(`요약 생성 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
         } finally {
             setIsGeneratingSummary(false)
         }
@@ -253,7 +316,6 @@ export default function NewPostPage() {
         <MainLayout>
             <style jsx global>{`
                 .ql-editor img {
-                    display: inline-block !important;
                     vertical-align: bottom;
                 }
                 .ql-editor .image-resizer {

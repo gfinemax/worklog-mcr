@@ -226,6 +226,45 @@ export default function PostDetailPage() {
                         )}
 
                         {/* Main Content */}
+                        <style jsx global>{`
+                            /* Ensure inline styles for alignment take precedence over Prose defaults */
+                            .prose img {
+                                margin-top: 1em;
+                                margin-bottom: 1em;
+                            }
+                            
+                            /* Support for Quill Blot Formatter inline styles - permissive matching */
+                            .prose img[style*="display: block"] {
+                                display: block !important;
+                            }
+                            
+                            /* Handle margin auto variations */
+                            .prose img[style*="margin: auto"],
+                            .prose img[style*="margin:auto"],
+                            .prose img[style*="margin: 0 auto"],
+                            .prose img[style*="margin:0 auto"] {
+                                margin-left: auto !important;
+                                margin-right: auto !important;
+                                display: block !important; /* Force block if margin auto is present */
+                            }
+                            
+                            /* Support for standard Quill alignment classes */
+                            .ql-align-center {
+                                text-align: center;
+                            }
+                            .ql-align-right {
+                                text-align: right;
+                            }
+                            .ql-align-justify {
+                                text-align: justify;
+                            }
+                            
+                            /* Ensure images inside centered containers are centered */
+                            .ql-align-center img {
+                                margin: 0 auto;
+                                display: block;
+                            }
+                        `}</style>
                         <div
                             className="prose prose-sm max-w-none dark:prose-invert min-h-[200px]"
                             dangerouslySetInnerHTML={{ __html: post.content }}

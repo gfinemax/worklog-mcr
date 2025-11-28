@@ -44,24 +44,25 @@ export default function WorkLogList() {
   }
 
   const generateSummary = async (worklog: Worklog): Promise<string> => {
-    // 임시 템플릿 (향후 AI API로 대체)
-    await new Promise(resolve => setTimeout(resolve, 1000)) // 로딩 시뮬레이션
+    try {
+      const response = await fetch('/api/ai-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ worklog }),
+      })
 
-    const workers = [...worklog.workers.director, ...worklog.workers.assistant, ...worklog.workers.video]
-      .filter(Boolean)
-      .join(", ")
+      if (!response.ok) {
+        throw new Error('AI 요약 생성 실패')
+      }
 
-    return `[${worklog.date}] ${worklog.team} ${worklog.type} 근무
-
-근무자: ${workers}
-
-주요 내용:
-- 채널별 운행표 등록 완료
-- 특이사항 없음
-- 정상 운영 중
-
-상태: ${worklog.status}
-서명 진행률: ${worklog.signature}`
+      const { summary } = await response.json()
+      return summary
+    } catch (error) {
+      console.error('Summary generation error:', error)
+      return '요약을 생성할 수 없습니다. 나중에 다시 시도해주세요.'
+    }
   }
 
   const handleSummaryClick = async (worklog: Worklog) => {
@@ -70,7 +71,11 @@ export default function WorkLogList() {
     if (!worklog.aiSummary) {
       const summary = await generateSummary(worklog)
       updateWorklog(worklog.id, { aiSummary: summary })
-      setSummaryDialog(prev => ({ ...prev, loading: false }))
+      setSummaryDialog(prev => ({
+        ...prev,
+        loading: false,
+        worklog: prev.worklog ? { ...prev.worklog, aiSummary: summary } : null
+      }))
     }
   }
 
@@ -372,7 +377,41 @@ export default function WorkLogList() {
                 </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="sm:justify-between">
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    if (!summaryDialog.worklog) return
+                    setSummaryDialog(prev => ({ ...prev, loading: true }))
+                    try {
+                      const summary = await generateSummary(summaryDialog.worklog)
+                      await updateWorklog(summaryDialog.worklog.id, { aiSummary: summary })
+                      setSummaryDialog(prev => ({
+                        ...prev,
+                        loading: false,
+                        worklog: prev.worklog ? { ...prev.worklog, aiSummary: summary } : null
+                      }))
+                    } catch (error) {
+                      console.error(error)
+                      setSummaryDialog(prev => ({ ...prev, loading: false }))
+                    }
+                  }}
+                  disabled={summaryDialog.loading}
+                >
+                  {summaryDialog.loading ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      재요약
+                    </>
+                  )}
+                </Button>
+              </div>
               <Button variant="outline" onClick={() => setSummaryDialog({ open: false, worklog: null, loading: false })}>
                 닫기
               </Button>

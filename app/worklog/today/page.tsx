@@ -453,8 +453,49 @@ export default function TodayWorkLog() {
                 setWorkers(worklog.workers)
                 setStatus(worklog.status)
 
-                setChannelLogs(worklog.channelLogs || {})
-                setSystemIssues(worklog.systemIssues || [])
+                // Fetch latest posts to ensure sync
+                fetchWorklogPosts(id).then(posts => {
+                    const newChannelLogs = { ...(worklog.channelLogs || {}) }
+                    const newSystemIssues: { id: string; summary: string }[] = []
+
+                    // Reset posts in channel logs but keep timecodes
+                    Object.keys(newChannelLogs).forEach(key => {
+                        newChannelLogs[key] = {
+                            ...newChannelLogs[key],
+                            posts: []
+                        }
+                    })
+
+                    posts.forEach(post => {
+                        if (post.channel) {
+                            if (!newChannelLogs[post.channel]) {
+                                newChannelLogs[post.channel] = { posts: [], timecodes: {} }
+                            }
+                            newChannelLogs[post.channel].posts.push({
+                                id: post.id,
+                                summary: post.summary
+                            })
+                        } else {
+                            newSystemIssues.push({
+                                id: post.id,
+                                summary: post.summary
+                            })
+                        }
+                    })
+
+                    // Deep compare to avoid unnecessary re-renders/loops
+                    if (JSON.stringify(newChannelLogs) !== JSON.stringify(channelLogs)) {
+                        setChannelLogs(newChannelLogs)
+                    } else {
+                        setChannelLogs(worklog.channelLogs || {})
+                    }
+
+                    if (JSON.stringify(newSystemIssues) !== JSON.stringify(systemIssues)) {
+                        setSystemIssues(newSystemIssues)
+                    } else {
+                        setSystemIssues(worklog.systemIssues || [])
+                    }
+                })
 
                 if (worklog.status === '서명완료') {
                     toast.warning("이미 서명이 완료된 일지입니다. 수정 시 주의해주세요.", {

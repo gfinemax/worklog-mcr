@@ -89,6 +89,36 @@ export default function EditPostPage() {
                     const { default: QuillComponent, Quill } = await import('react-quill-new')
                     const { default: BlotFormatter } = await import('quill-blot-formatter')
 
+                    // Custom Image Blot to preserve inline styles
+                    const Image = Quill.import('formats/image') as any
+                    class CustomImage extends Image {
+                        static blotName = 'image'
+                        static tagName = 'IMG'
+
+                        static create(value: any) {
+                            const node = super.create(value)
+                            if (typeof value === 'object') {
+                                // Handle object value (e.g. from clipboard)
+                                if (value.url) node.setAttribute('src', value.url)
+                                if (value.style) node.setAttribute('style', value.style)
+                                if (value.width) node.setAttribute('width', value.width)
+                                if (value.height) node.setAttribute('height', value.height)
+                            }
+                            return node
+                        }
+
+                        static value(node: any) {
+                            return {
+                                url: node.getAttribute('src'),
+                                style: node.getAttribute('style'),
+                                width: node.getAttribute('width'),
+                                height: node.getAttribute('height')
+                            }
+                        }
+                    }
+
+                    Quill.register(CustomImage as any, true)
+
                     if (Quill && !Quill.imports['modules/blotFormatter']) {
                         Quill.register('modules/blotFormatter', BlotFormatter)
                     }
@@ -132,12 +162,6 @@ export default function EditPostPage() {
         setTags(tags.filter(tag => tag !== tagToRemove))
     }
 
-    const generateSummary = async (text: string) => {
-        // Mock AI Summary
-        await new Promise(resolve => setTimeout(resolve, 1500)) // Simulate latency
-        return text.length > 40 ? text.substring(0, 37) + "..." : text
-    }
-
     const handleGenerateSummary = async () => {
         const plainText = content.replace(/<[^>]*>?/gm, '').trim()
         if (!plainText) {
@@ -147,12 +171,33 @@ export default function EditPostPage() {
 
         setIsGeneratingSummary(true)
         try {
-            const generated = await generateSummary(plainText)
-            setSummary(generated)
+            // Find category name
+            const category = categories.find(c => c.id === categoryId)?.name || '일반'
+
+            const response = await fetch('/api/post-summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title,
+                    content: plainText,
+                    category,
+                }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.details || data.error || '요약 생성 실패')
+            }
+
+            setSummary(data.summary)
+            if (data.title) setTitle(data.title)
             toast.success("AI 요약이 생성되었습니다.")
-        } catch (error) {
+        } catch (error: any) {
             console.error(error)
-            toast.error("요약 생성 중 오류가 발생했습니다.")
+            toast.error(error.message || "요약 생성 중 오류가 발생했습니다.")
         } finally {
             setIsGeneratingSummary(false)
         }
@@ -230,7 +275,6 @@ export default function EditPostPage() {
         <MainLayout>
             <style jsx global>{`
                 .ql-editor img {
-                    display: inline-block !important;
                     vertical-align: bottom;
                 }
                 .ql-editor .image-resizer {
@@ -309,7 +353,7 @@ export default function EditPostPage() {
                                                 생성 중...
                                             </>
                                         ) : (
-                                            "AI 요약 생성"
+                                            summary ? "AI 요약 재생성" : "AI 요약 생성"
                                         )}
                                     </Button>
                                 </div>
