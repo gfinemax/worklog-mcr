@@ -133,14 +133,32 @@ export const usePostStore = create<PostStore>((set, get) => ({
             return
         }
 
-        set({ posts: data as any, loading: false })
+        // Map author_user_id to author_id for the frontend
+        const mappedPosts = data.map((post: any) => ({
+            ...post,
+            author_id: post.author_user_id || post.author_id, // Fallback to existing author_id if available
+        }))
+
+        set({ posts: mappedPosts as any, loading: false })
     },
 
     addPost: async (post) => {
         console.log('Store adding post:', post)
+
+        // Map author_id to author_user_id for the database
+        const dbPost = {
+            ...post,
+            author_user_id: post.author_id,
+        }
+        // Remove author_id if it's not a column in the DB, but keep it if it is. 
+        // Based on comments logic, we should probably remove it or ensure author_user_id is set.
+        // We'll set author_user_id and let Supabase ignore extra fields if configured, or delete author_id if we are sure.
+        // To be safe and consistent with addComment:
+        delete (dbPost as any).author_id
+
         const { data, error } = await supabase
             .from('posts')
-            .insert(post)
+            .insert(dbPost)
             .select()
             .single()
 
