@@ -1,0 +1,19 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뱻 add observability to secrets: https://dotenvx.com/ops
+--- Checking Tables ---
+
+--- Testing Select from worklogs ---
+Success selecting worklogs. Columns: [
+  'id',            'session_id',
+  'date',          'team',
+  'type',          'workers',
+  'status',        'signature',
+  'is_important',  'created_at',
+  'updated_at',    'channel_logs',
+  'system_issues', 'group_id'
+]
+
+--- Testing Select from worklog_staff ---
+Success selecting worklog_staff
+
+--- Testing Relation worklogs -> worklog_staff ---
+Error joining worklog_staff: Could not find a relationship between 'worklogs' and 'worklog_staff' in the schema cache

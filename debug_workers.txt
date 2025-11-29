@@ -1,0 +1,15 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?숋툘  specify custom .env file path with { path: '/custom/path/.env' }
+--- Checking Tables ---
+
+--- Testing Select from worklogs ---
+Success selecting worklogs. Workers: {
+  "video": [],
+  "director": [],
+  "assistant": []
+}
+
+--- Testing Select from worklog_staff ---
+Success selecting worklog_staff
+
+--- Testing Relation worklogs -> worklog_staff ---
+Error joining worklog_staff: Could not find a relationship between 'worklogs' and 'worklog_staff' in the schema cache

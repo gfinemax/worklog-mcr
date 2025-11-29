@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
@@ -26,29 +31,31 @@ const GROUPS = [
 
 const WORKERS = [
     // 1조
-    { name: '정광훈', group: '1조', role: '감독' },
-    { name: '오동섭', group: '1조', role: '부감독' },
-    { name: '김단언', group: '1조', role: '영상' },
+    { name: '정광훈', group: '1조', role: '감독', id: 'jungkh' },
+    { name: '오동섭', group: '1조', role: '부감독', id: 'ohds' },
+    { name: '김단언', group: '1조', role: '영상', id: 'kimde' },
     // 2조
-    { name: '황동성', group: '2조', role: '감독' },
-    { name: '이석훈', group: '2조', role: '부감독' },
-    { name: '강한강', group: '2조', role: '영상' },
+    { name: '황동성', group: '2조', role: '감독', id: 'hwangds' },
+    { name: '이석훈', group: '2조', role: '부감독', id: 'leesh' },
+    { name: '강한강', group: '2조', role: '영상', id: 'kanghk' },
     // 3조
-    { name: '남궁장', group: '3조', role: '감독' },
-    { name: '이종원', group: '3조', role: '부감독' },
-    { name: '윤주현', group: '3조', role: '영상' },
+    { name: '남궁장', group: '3조', role: '감독', id: 'namgj' },
+    { name: '이종원', group: '3조', role: '부감독', id: 'leejw' },
+    { name: '윤주현', group: '3조', role: '영상', id: 'yoonjh' },
     // 4조
-    { name: '권영춘', group: '4조', role: '감독' },
-    { name: '김희성', group: '4조', role: '부감독' },
-    { name: '심창규', group: '4조', role: '영상' },
-    { name: '천남웅', group: '4조', role: '영상' },
+    { name: '권영춘', group: '4조', role: '감독', id: 'kwonyc' },
+    { name: '김희성', group: '4조', role: '부감독', id: 'kimhs' },
+    { name: '심창규', group: '4조', role: '영상', id: 'shimcg' },
+    { name: '천남웅', group: '4조', role: '영상', id: 'cheonnu' },
     // 5조
-    { name: '김준일', group: '5조', role: '감독' },
-    { name: '박상필', group: '5조', role: '부감독' },
-    { name: '김소연', group: '5조', role: '영상' },
+    { name: '김준일', group: '5조', role: '감독', id: 'kimji' },
+    { name: '박상필', group: '5조', role: '부감독', id: 'parksp' },
+    { name: '김소연', group: '5조', role: '영상', id: 'kimsy' },
 ]
 
+// [변경점] 오학동(admin) 님을 여기에 추가했습니다.
 const SUPPORT_STAFF = [
+    { name: '오학동', role: '관리', email: 'admin@mbcplus.com' }, // 👈 추가됨
     { name: '손수민', role: '관리', email: 'son@example.com' },
     { name: '임제혁', role: '기술스텝', email: 'lim@example.com' },
     { name: '임근형', role: '기술스텝', email: 'lim2@example.com' },
@@ -60,7 +67,6 @@ async function seed() {
     // 1. Create Groups
     console.log('1. Seeding Groups...')
     for (const group of GROUPS) {
-        // Check if group exists
         const { data: existingGroup } = await supabase
             .from('groups')
             .select('id')
@@ -86,8 +92,8 @@ async function seed() {
     // 2. Create Internal Workers
     console.log('2. Seeding Internal Workers...')
     for (const worker of WORKERS) {
-        const email = `${worker.name}@mbcplus.com` // Virtual email
-        const password = 'password1234' // Default password
+        const email = `${worker.id}@mbcplus.com`
+        const password = 'password1234'
 
         // A. Sign Up (Auth)
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -102,7 +108,6 @@ async function seed() {
             console.log(`Auth signup error for ${worker.name}: ${authError.message}`)
         }
 
-        // Get User ID
         let userId = authData.user?.id
         if (!userId) {
             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
@@ -121,8 +126,8 @@ async function seed() {
                     email: email,
                     name: worker.name,
                     role: worker.role,
-                    is_active: true
-                }) // users.id is PK, so upsert works fine here
+                    // is_active: true
+                })
 
             if (profileError) console.error(`Error updating profile for ${worker.name}:`, profileError.message)
 
@@ -140,10 +145,10 @@ async function seed() {
                         group_id: groupData.id,
                         user_id: userId,
                         role: worker.role
-                    }, { onConflict: 'group_id,user_id' }) // This has UNIQUE constraint
+                    }, { onConflict: 'group_id,user_id' })
 
                 if (memberError) console.error(`Error assigning ${worker.name} to ${worker.group}:`, memberError.message)
-                else console.log(`User ${worker.name} assigned to ${worker.group}.`)
+                else console.log(`User ${worker.name} assigned to ${worker.group} (Email: ${email}).`)
             }
         } else {
             console.error(`Could not get ID for ${worker.name}`)
@@ -153,7 +158,6 @@ async function seed() {
     // 3. Create Support Staff
     console.log('3. Seeding Support Staff...')
     for (const staff of SUPPORT_STAFF) {
-        // Check if exists
         const { data: existingStaff } = await supabase
             .from('support_staff')
             .select('id')
@@ -174,7 +178,6 @@ async function seed() {
             if (error) console.error(`Error creating support staff ${staff.name}:`, error.message)
             else console.log(`Support staff ${staff.name} created.`)
         } else {
-            // Update existing staff with email/role if needed
             const { error } = await supabase
                 .from('support_staff')
                 .update({

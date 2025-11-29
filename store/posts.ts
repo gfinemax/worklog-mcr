@@ -107,7 +107,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
                 *,
                 author:users!posts_author_user_id_fkey(name),
                 category:categories(name, slug),
-                worklog:worklogs(id, work_date, shift_type, group:groups(name)),
+                worklog:worklogs(id, date, type, group:groups(name)),
                 comments(count)
             `)
             .order('created_at', { ascending: false })
@@ -137,6 +137,11 @@ export const usePostStore = create<PostStore>((set, get) => ({
         const mappedPosts = data.map((post: any) => ({
             ...post,
             author_id: post.author_user_id || post.author_id, // Fallback to existing author_id if available
+            worklog: post.worklog ? {
+                ...post.worklog,
+                work_date: post.worklog.date,
+                shift_type: post.worklog.type === '주간' ? 'A' : 'N'
+            } : undefined
         }))
 
         set({ posts: mappedPosts as any, loading: false })

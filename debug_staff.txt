@@ -1,0 +1,4 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뫁 sync secrets across teammates & machines: https://dotenvx.com/ops
+
+--- Testing Select from worklog_staff ---
+Success selecting worklog_staff. Columns: No data
