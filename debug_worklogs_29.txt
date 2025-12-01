@@ -1,0 +1,17 @@
+Found 3 worklogs for 2025-11-29.
+
+ID: c747d2fd-ee42-4d39-903f-f477c5b0e27c
+  Group: 3조 (93217bdd-fc2e-49e1-b826-333ad8e20d45)
+  Type: 주간
+  Created: 2025-11-29T03:27:45.58176+00:00
+---
+ID: 84aeeba5-b3ff-4c6d-829d-ec4aef56a66b
+  Group: 2조 (cea4955b-e312-42a1-89d7-dd96d94fbff2)
+  Type: 야간
+  Created: 2025-11-29T13:49:03.888427+00:00
+---
+ID: 2a7168d4-1159-4228-b67c-7642df15f011
+  Group: 1조 (a65653b4-2f75-4032-9875-bf6dc3b6f4c4)
+  Type: 야간
+  Created: 2025-11-29T14:25:33.7232+00:00
+---

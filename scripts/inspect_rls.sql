@@ -11,4 +11,4 @@ SELECT
 FROM
     pg_policies
 WHERE
-    tablename IN ('worklogs', 'groups');
+    tablename IN ('worklogs', 'groups', 'group_members', 'users');

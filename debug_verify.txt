@@ -1,0 +1,9 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뵍 prevent committing .env to code: https://dotenvx.com/precommit
+--- Verifying Migration ---
+User counts by type: { internal: 16, support: 4 }
+
+--- Sample Support Users ---
+- ?먯닔誘?(son@example.com)
+- ?ㅽ븰??(admin@mbcplus.com)
+- ?꾧렐??(lim2@example.com)
+- ?꾩젣??(lim@example.com)

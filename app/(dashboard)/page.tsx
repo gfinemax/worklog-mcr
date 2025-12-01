@@ -5,7 +5,7 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity, Star, AlertTriangle } from "lucide-react"
+import { FileText, AlertCircle, CheckCircle2, Clock, Users, ArrowRight, Activity, Star, AlertTriangle, LogIn, RefreshCw } from "lucide-react"
 import { useWorklogStore } from "@/store/worklog"
 import { usePostStore, Post } from "@/store/posts"
 import Link from "next/link"
@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useAuthStore } from "@/store/auth"
+import { LoginForm } from "@/components/auth/login-form"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -25,10 +27,28 @@ export default function Dashboard() {
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
   const [resolutionNote, setResolutionNote] = useState("")
 
+  const { loginMode, currentSession, nextSession } = useAuthStore()
+  const [handoverDialogOpen, setHandoverDialogOpen] = useState(false)
+
+  // Shift Info State
+  const [shiftInfo, setShiftInfo] = useState<any>(null)
+
   useEffect(() => {
     setMounted(true)
     fetchPosts({ priority: '긴급' })
-  }, [])
+
+    // Fetch Shift Info if session is active
+    const loadShiftInfo = async () => {
+      if (currentSession?.groupName) {
+        const config = await import("@/lib/shift-rotation").then(m => m.shiftService.getConfig())
+        if (config) {
+          const info = await import("@/lib/shift-rotation").then(m => m.shiftService.calculateShift(new Date(), currentSession.groupName, config))
+          setShiftInfo(info)
+        }
+      }
+    }
+    loadShiftInfo()
+  }, [currentSession])
 
   useEffect(() => {
     setEmergencyPosts(posts.filter(p => p.priority === '긴급' && p.status === 'open'))
@@ -64,13 +84,75 @@ export default function Dashboard() {
             <p className="text-muted-foreground">오늘의 주조정실 업무 현황입니다.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">2025년 11월 20일 (수)</span>
+            <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
+              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+            </span>
+
+            {loginMode === 'personal' ? (
+              <>
+                <Badge variant="outline" className="h-9 px-3 text-sm border-blue-200 text-blue-700 bg-blue-50">
+                  개인 모드
+                </Badge>
+                <Button onClick={() => router.push('/login')} className="bg-blue-600 hover:bg-blue-700">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  근무 시작하기
+                </Button>
+              </>
+            ) : (
+              <>
+                {currentSession && (
+                  <Badge variant="secondary" className="h-9 px-3 text-sm">
+                    {currentSession.groupName} 근무 중
+                  </Badge>
+                )}
+                {/* Show Handover Login button only if next session is NOT active yet */}
+                {!nextSession && (
+                  <Button variant="outline" onClick={() => setHandoverDialogOpen(true)}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    교대 근무자 로그인
+                  </Button>
+                )}
+              </>
+            )}
+
             <Button onClick={() => router.push('/worklog/today')}>
               <FileText className="mr-2 h-4 w-4" />
               일지 작성하기
             </Button>
           </div>
         </div>
+
+        {/* Handover Banner */}
+        {nextSession && (
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-4 text-white shadow-md animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-full animate-pulse">
+                  <RefreshCw className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">교대 근무 진행 중</h3>
+                  <p className="text-indigo-100 text-sm">
+                    현재 <strong>{currentSession?.groupName}</strong>에서 <strong>{nextSession.groupName}</strong>로 업무 인수인계가 진행 중입니다.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-indigo-200">다음 근무 조</p>
+                  <p className="font-bold">{nextSession.groupName}</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  className="bg-white text-indigo-600 hover:bg-indigo-50"
+                  onClick={() => router.push('/worklog/today')}
+                >
+                  업무일지 바로가기
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Emergency Issues Section */}
         {emergencyPosts.length > 0 && (
@@ -125,8 +207,28 @@ export default function Dashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3팀</div>
-              <p className="text-xs text-muted-foreground">주간 근무 (07:30 - 19:00)</p>
+              <div className="text-2xl font-bold">
+                {currentSession?.groupName || "근무 없음"}
+                {shiftInfo && (
+                  <span className={`ml-2 text-lg ${shiftInfo.shiftType === 'N' ? 'text-indigo-500' : 'text-orange-500'}`}>
+                    ({shiftInfo.shiftType === 'A' ? '주간' : shiftInfo.shiftType === 'N' ? '야간' : shiftInfo.shiftType})
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 mt-1">
+                <p className="text-xs text-muted-foreground">
+                  {currentSession ?
+                    `${new Date(currentSession.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ~`
+                    : "현재 활성 세션이 없습니다."}
+                </p>
+                {shiftInfo && currentSession && (
+                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
+                    <span className="text-slate-400">감독:</span>
+                    {/* Find the member who is assigned as Director in the current session */}
+                    {currentSession.members.find(m => m.role === '감독')?.name || "미지정"}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -187,7 +289,7 @@ export default function Dashboard() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{log.date}</p>
-                          <Badge variant="outline" className="text-xs">{log.team}</Badge>
+                          <Badge variant="outline" className="text-xs">{log.groupName}</Badge>
                           <Badge variant="outline" className="text-xs">{log.type}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -346,6 +448,24 @@ export default function Dashboard() {
                 해결 완료
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Handover Login Dialog */}
+        <Dialog open={handoverDialogOpen} onOpenChange={setHandoverDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>교대 근무자 로그인</DialogTitle>
+              <DialogDescription>
+                다음 근무 조의 계정으로 로그인해주세요. 현재 세션은 유지됩니다.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <LoginForm
+                mode="handover"
+                onSuccess={() => setHandoverDialogOpen(false)}
+              />
+            </div>
           </DialogContent>
         </Dialog>
       </div>

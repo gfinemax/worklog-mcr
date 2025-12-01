@@ -5,7 +5,7 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle, MessageSquare, Trash2, Loader2 } from "lucide-react"
+import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle, MessageSquare, Trash2, Loader2, Smile, Edit2, CornerDownRight } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import { usePostStore, Post, Comment } from "@/store/posts"
 import { useAuthStore } from "@/store/auth"
@@ -17,12 +17,24 @@ export default function PostDetailPage() {
     const params = useParams()
     const id = params.id as string
 
-    const { posts, fetchPosts, fetchComments, addComment, deleteComment, updateComment } = usePostStore()
+    const { posts, fetchPosts, fetchComments, addComment, deleteComment, updateComment, deletePost } = usePostStore()
     const { user } = useAuthStore()
     const [post, setPost] = useState<Post | null>(null)
     const [comments, setComments] = useState<Comment[]>([])
     const [newComment, setNewComment] = useState("")
     const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+
+    const handleDeletePost = async () => {
+        if (!confirm("정말로 이 포스트를 삭제하시겠습니까?")) return
+
+        try {
+            await deletePost(id)
+            toast.success("포스트가 삭제되었습니다.")
+            router.push('/posts')
+        } catch (error) {
+            toast.error("포스트 삭제 중 오류가 발생했습니다.")
+        }
+    }
 
     useEffect(() => {
         // If posts are already loaded, find it
@@ -51,9 +63,12 @@ export default function PostDetailPage() {
 
         setIsSubmittingComment(true)
         try {
+            const activeId = useAuthStore.getState().activeMemberId
+            const authorId = (activeId && activeId !== "GROUP_COMMON") ? activeId : user.id
+
             await addComment({
                 post_id: id,
-                author_id: user.id,
+                author_id: authorId,
                 content: newComment
             })
             setNewComment("")
@@ -91,9 +106,11 @@ export default function PostDetailPage() {
     const handleReplyComment = async (parentId: string, content: string) => {
         if (!user) return
         try {
+            const activeId = useAuthStore.getState().activeMemberId
+            const authorId = (activeId && activeId !== "GROUP_COMMON") ? activeId : user.id
             await addComment({
                 post_id: id,
-                author_id: user.id,
+                author_id: authorId,
                 content,
                 parent_id: parentId
             })
@@ -109,20 +126,22 @@ export default function PostDetailPage() {
         const comment = comments.find(c => c.id === commentId)
         if (!comment) return
 
+        const activeId = useAuthStore.getState().activeMemberId
+        const currentUserId = (activeId && activeId !== "GROUP_COMMON") ? activeId : user.id
         const currentReactions = comment.reactions || {}
         const userIds = currentReactions[emoji] || []
 
         let newReactions = { ...currentReactions }
 
-        if (userIds.includes(user.id)) {
+        if (userIds.includes(currentUserId)) {
             // Remove reaction
-            newReactions[emoji] = userIds.filter(uid => uid !== user.id)
+            newReactions[emoji] = userIds.filter(uid => uid !== currentUserId)
             if (newReactions[emoji].length === 0) {
                 delete newReactions[emoji]
             }
         } else {
             // Add reaction
-            newReactions[emoji] = [...userIds, user.id]
+            newReactions[emoji] = [...userIds, currentUserId]
         }
 
         try {
@@ -159,12 +178,23 @@ export default function PostDetailPage() {
                         </Button>
                         <h1 className="text-2xl font-bold">포스트 상세</h1>
                     </div>
-                    {user && post.author_id === user.id && (
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/posts/${id}/edit`)}>
-                            <Edit2 className="mr-2 h-4 w-4" />
-                            수정
-                        </Button>
-                    )}
+                    {user && (
+                        (post.author_id === user.id) ||
+                        (post.created_by === user.id) ||
+                        (useAuthStore.getState().activeMemberId && post.created_by === useAuthStore.getState().activeMemberId) ||
+                        (post.worklog?.group?.id === user.id)
+                    ) && (
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => router.push(`/posts/${id}/edit`)}>
+                                    <Edit2 className="mr-2 h-4 w-4" />
+                                    수정
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleDeletePost} className="text-destructive hover:text-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    삭제
+                                </Button>
+                            </div>
+                        )}
                 </div>
 
                 <Card>
@@ -202,7 +232,17 @@ export default function PostDetailPage() {
                         )}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground border-b pb-4 pt-2">
                             <User className="h-4 w-4" />
-                            <span>{post.author?.name || '작성자 미상'}</span>
+                            {post.author?.name ? (
+                                <span>{post.author.name}</span>
+                            ) : (
+                                <div className="flex items-center gap-1">
+                                    <Badge variant="secondary" className="h-5 px-1 text-[10px] bg-slate-100 text-slate-600">GROUP</Badge>
+                                    <span>
+                                        {post.worklog?.group?.name || '작성자 미상'}
+                                        {post.creator?.name && <span className="text-xs text-muted-foreground ml-1">({post.creator.name})</span>}
+                                    </span>
+                                </div>
+                            )}
                             {post.channel && (
                                 <>
                                     <span className="mx-1">|</span>
@@ -323,7 +363,7 @@ export default function PostDetailPage() {
                                         key={comment.id}
                                         comment={comment}
                                         replies={getReplies(comment.id)}
-                                        currentUserId={user?.id}
+                                        currentUserId={(useAuthStore.getState().activeMemberId && useAuthStore.getState().activeMemberId !== "GROUP_COMMON") ? useAuthStore.getState().activeMemberId! : user?.id}
                                         onDelete={handleDeleteComment}
                                         onUpdate={handleUpdateComment}
                                         onReply={handleReplyComment}
@@ -370,8 +410,6 @@ export default function PostDetailPage() {
     )
 }
 
-import { Smile, Edit2, CornerDownRight } from "lucide-react"
-
 interface CommentItemProps {
     comment: Comment
     replies: Comment[]
@@ -403,8 +441,6 @@ function CommentItem({ comment, replies, currentUserId, onDelete, onUpdate, onRe
             setIsReplying(false)
         }
     }
-
-
 
     return (
         <div className="group">

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
 [업무일지 정보]
 - 날짜: ${worklog.date}
-- 근무: ${worklog.team} ${worklog.type}
+- 근무: ${worklog.groupName} ${worklog.type}
 - 근무자: ${workers || '미지정'}
 
 [채널별 송출내역]

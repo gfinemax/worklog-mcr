@@ -1,0 +1,12 @@
+Testing 10-Day Shift Rotation (2025-11-06 Start)
+
+[Day 1] 2025-11-06 | 주간: 1조(NORMAL) | 야간: 4조(SWAP)
+[Day 2] 2025-11-07 | 주간: 3조(SWAP) | 야간: 1조(NORMAL)
+[Day 3] 2025-11-08 | 주간: 5조(NORMAL) | 야간: 3조(SWAP)
+[Day 4] 2025-11-09 | 주간: 2조(SWAP) | 야간: 5조(NORMAL)
+[Day 5] 2025-11-10 | 주간: 4조(NORMAL) | 야간: 2조(SWAP)
+[Day 6] 2025-11-11 | 주간: 1조(SWAP) | 야간: 4조(NORMAL)
+[Day 7] 2025-11-12 | 주간: 3조(NORMAL) | 야간: 1조(SWAP)
+[Day 8] 2025-11-13 | 주간: 5조(SWAP) | 야간: 3조(NORMAL)
+[Day 9] 2025-11-14 | 주간: 2조(NORMAL) | 야간: 5조(SWAP)
+[Day 10] 2025-11-15 | 주간: 4조(SWAP) | 야간: 2조(NORMAL)

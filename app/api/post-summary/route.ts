@@ -76,7 +76,13 @@ ${plainText.substring(0, 1500)}
             try {
                 const result = await model.generateContent(prompt)
                 const response = await result.response
-                const text = response.text().trim()
+                let text = response.text().trim()
+
+                // Remove markdown code blocks if present
+                if (text.startsWith('```')) {
+                    text = text.replace(/^```(json)?\n/, '').replace(/\n```$/, '')
+                }
+
                 resultData = JSON.parse(text)
                 break
             } catch (error: any) {

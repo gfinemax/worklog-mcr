@@ -14,18 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { useAuthStore } from "@/store/auth"
-
-// Mock data for demonstration
-// const TEAM_MEMBERS = [
-//   { id: 1, name: "오학동", role: "tech_staff" },
-//   { id: 2, name: "도널드 트럼프", role: "Former President" },
-//   { id: 3, name: "버락 오바마", role: "Former President" },
-//   { id: 4, name: "이순신", role: "장군" },
-// ]
+import { PinVerificationDialog } from "@/components/auth/pin-verification-dialog"
 
 const NOTIFICATIONS = [
   {
@@ -49,17 +42,57 @@ type LoginMode = "TEAM" | "INDIVIDUAL"
 
 export function Navbar() {
   const router = useRouter()
-  const { user, group, currentSession } = useAuthStore()
+  const { user, group, currentSession, activeMemberId, setActiveMemberId } = useAuthStore()
 
   // State to simulate different login modes for demonstration
   const [loginMode, setLoginMode] = useState<LoginMode>("TEAM")
-  // const [teamName] = useState("1조")
-  const [selectedMember, setSelectedMember] = useState<any>(null)
+  const [pinDialogOpen, setPinDialogOpen] = useState(false)
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null)
+  const [shiftType, setShiftType] = useState<string | null>(null)
 
-  // Initialize selected member with current user if available
-  // useEffect(() => {
-  //   if (user) setSelectedMember(user)
-  // }, [user])
+  // Derive selected member from activeMemberId
+  const selectedMember = activeMemberId && currentSession?.members
+    ? currentSession.members.find(m => m.id === activeMemberId) || null
+    : null
+
+  // Initialize active member with current user if available and not set
+  useEffect(() => {
+    if (user && loginMode === 'TEAM') {
+      // If activeMemberId is already set, don't overwrite it unless it's invalid
+      if (activeMemberId) {
+        return
+      }
+
+      // If not set, default to logged-in user
+      if (currentSession?.members) {
+        const sessionUser = currentSession.members.find(m => m.id === user.id)
+        if (sessionUser) {
+          setActiveMemberId(sessionUser.id)
+          return
+        }
+      }
+      // Fallback
+      if (user.id) setActiveMemberId(user.id)
+    }
+  }, [user, loginMode, currentSession, activeMemberId, setActiveMemberId])
+
+  useEffect(() => {
+    const loadShiftInfo = async () => {
+      if (currentSession?.groupName) {
+        try {
+          const { shiftService } = await import("@/lib/shift-rotation")
+          const config = await shiftService.getConfig()
+          if (config) {
+            const info = shiftService.calculateShift(new Date(), currentSession.groupName, config)
+            setShiftType(info.shiftType)
+          }
+        } catch (error) {
+          console.error("Failed to load shift info:", error)
+        }
+      }
+    }
+    loadShiftInfo()
+  }, [currentSession])
 
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -67,171 +100,248 @@ export function Navbar() {
   const toggleMode = () => {
     if (loginMode === "TEAM") {
       setLoginMode("INDIVIDUAL")
-      setSelectedMember(null)
+      setActiveMemberId(null)
     } else {
       setLoginMode("TEAM")
       // Default to first member of session or user
-      setSelectedMember(currentSession?.members[0] || null)
+      const defaultId = currentSession?.members[0]?.id || user?.id || null
+      setActiveMemberId(defaultId)
     }
   }
 
-  return (
-    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-card">
-      <div className="flex h-full items-center justify-between px-6">
-        {/* Left side - Search */}
-        <div className="flex items-center gap-4 flex-1 max-w-xl">
-          <Button variant="ghost" size="icon" className="lg:hidden">
-            <Menu className="h-5 w-5" />
-          </Button>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" placeholder="업무일지, 포스트 검색..." className="pl-9 bg-muted/50" />
-          </div>
-        </div>
+  const handleMemberSwitchRequest = (memberId: string) => {
+    // 1. Check if PIN is required
+    const requirePin = useAuthStore.getState().securitySettings?.requirePinForMemberSwitch ?? true
 
-        {/* Right side - Actions */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 border-r pr-4 mr-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-3 pl-2 pr-1 h-12 rounded-full hover:bg-accent">
-                  <div className="flex flex-col items-end gap-0.5 text-right mr-1">
-                    <div className="flex items-center gap-1.5">
-                      {loginMode === "TEAM" ? (
-                        <Badge
-                          variant="secondary"
-                          className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
-                        >
-                          {group?.name || "소속 없음"}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className="h-5 px-1.5 text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-100"
-                        >
-                          개인
-                        </Badge>
-                      )}
-                      <span className="text-sm font-semibold">
-                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : (user?.name || "조 계정")) : (user?.name || "사용자")}
+    if (!requirePin) {
+      // If PIN not required, switch immediately
+      if (memberId === "GROUP_COMMON") {
+        setActiveMemberId("GROUP_COMMON")
+      } else {
+        setActiveMemberId(memberId)
+      }
+      return
+    }
+
+    // 2. If PIN required, open dialog
+    setPendingMemberId(memberId)
+    setPinDialogOpen(true)
+  }
+
+  const handlePinSuccess = () => {
+    if (pendingMemberId) {
+      if (pendingMemberId === "GROUP_COMMON") {
+        setActiveMemberId("GROUP_COMMON")
+      } else {
+        setActiveMemberId(pendingMemberId)
+      }
+      setPendingMemberId(null)
+      setPinDialogOpen(false)
+    }
+  }
+
+  // Prepare members list for PIN dialog
+  // If switching to a specific member, show only that member
+  // If switching to Team Common, show the Group Account (user)
+  const pinTargetMembers = pendingMemberId
+    ? (pendingMemberId === "GROUP_COMMON"
+      ? (user ? [{ id: user.id, name: group?.name || user.name, role: '관리자', profile_image_url: user.profile_image_url }] : [])
+      : (currentSession?.members?.filter(m => m.id === pendingMemberId) || [])
+    )
+    : []
+
+  // Determine target ID for the dialog (for auto-selection)
+  const pinTargetId = pendingMemberId === "GROUP_COMMON" ? user?.id : pendingMemberId
+
+  return (
+    <>
+      <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-card">
+        <div className="flex h-full items-center justify-between px-6">
+          {/* Left side - Search */}
+          <div className="flex items-center gap-4 flex-1 max-w-xl">
+            <Button variant="ghost" size="icon" className="lg:hidden">
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input type="search" placeholder="업무일지, 포스트 검색..." className="pl-9 bg-muted/50" />
+            </div>
+          </div>
+
+          {/* Right side - Actions */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 border-r pr-4 mr-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={`flex items-center gap-3 pl-2 pr-1 h-12 rounded-full hover:bg-accent ${loginMode === "TEAM"
+                      ? "bg-[#006d77] hover:bg-[#005a63] text-white"
+                      : ""
+                      }`}
+                  >
+                    <div className="flex flex-col items-end gap-0.5 text-right mr-1">
+                      <div className="flex items-center gap-1.5">
+                        {loginMode === "TEAM" ? (
+                          <Badge
+                            variant="secondary"
+                            className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
+                          >
+                            {group?.name || "소속 없음"}
+                            {shiftType && (shiftType === 'A' || shiftType === 'N') && (
+                              <span className="text-blue-600 font-bold">
+                                {shiftType}
+                              </span>
+                            )}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="h-5 px-1.5 text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-100"
+                          >
+                            개인
+                          </Badge>
+                        )}
+                        <span className="text-sm font-semibold">
+                          {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "대표") : (user?.name || "사용자")}
+                        </span>
+                      </div>
+                      <span className={`text-xs ${loginMode === "TEAM" ? "text-white/80" : "text-muted-foreground"}`}>
+                        {loginMode === "TEAM" ? (selectedMember ? "멤버로 작성 중" : "멤버 전체로 작성중") : "개인 업무 모드"}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {loginMode === "TEAM" ? (selectedMember ? "조원으로 작성 중" : "조 관리 모드") : "개인 업무 모드"}
-                    </span>
-                  </div>
-                  <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-muted">
-                    <AvatarImage src={loginMode === "TEAM" ? "/placeholder-user.jpg" : "/placeholder-avatar.jpg"} />
-                    <AvatarFallback
-                      className={loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}
-                    >
-                      {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : group?.name?.[0]) : user?.name?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  {loginMode === "TEAM" ? "조원 선택 (작성자 전환)" : "계정 정보"}
-                </DropdownMenuLabel>
-
-                {loginMode === "TEAM" && (
-                  <>
-                    <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setSelectedMember(null)}>
-                      <Users className="h-4 w-4" />
-                      <span>{group?.name} (조 공통)</span>
-                      {!selectedMember && (
-                        <Badge variant="outline" className="ml-auto text-[10px]">
-                          선택됨
-                        </Badge>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {currentSession?.members.map((member) => (
-                      <DropdownMenuItem
-                        key={member.id}
-                        className="gap-2 cursor-pointer"
-                        onClick={() => setSelectedMember(member)}
+                    <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-muted">
+                      <AvatarImage src={loginMode === "TEAM" ? "/placeholder-user.jpg" : "/placeholder-avatar.jpg"} />
+                      <AvatarFallback
+                        className={loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}
                       >
-                        <User className="h-4 w-4" />
-                        <span>{member.name}</span>
-                        <span className="text-[10px] text-muted-foreground ml-1">({member.role})</span>
-                        {selectedMember?.id === member.id && (
+                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : group?.name?.[0]) : user?.name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <ChevronDown className={`h-4 w-4 opacity-50 ${loginMode === "TEAM" ? "text-white" : "text-muted-foreground"}`} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    {loginMode === "TEAM" ? "조원 선택 (작성자 전환)" : "계정 정보"}
+                  </DropdownMenuLabel>
+
+                  {loginMode === "TEAM" && (
+                    <>
+                      <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => handleMemberSwitchRequest("GROUP_COMMON")}>
+                        <Users className="h-4 w-4" />
+                        <span>{group?.name} (대표)</span>
+                        {!selectedMember && (
                           <Badge variant="outline" className="ml-auto text-[10px]">
                             선택됨
                           </Badge>
                         )}
                       </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
+                      <DropdownMenuSeparator />
+                      {currentSession?.members
+                        .sort((a, b) => {
+                          const priority = { 감독: 1, 부감독: 2, 영상: 3 }
+                          const pA = priority[a.role as keyof typeof priority] || 99
+                          const pB = priority[b.role as keyof typeof priority] || 99
+                          return pA - pB
+                        })
+                        .map((member) => (
+                          <DropdownMenuItem
+                            key={member.id}
+                            className="gap-2 cursor-pointer"
+                            onClick={() => handleMemberSwitchRequest(member.id)}
+                          >
+                            <User className="h-4 w-4" />
+                            <span>{member.name}</span>
+                            <span className="text-[10px] text-muted-foreground ml-0.5">
+                              ({member.role === "감독" ? "주조" : member.role === "부감독" ? "CMS" : member.role})
+                            </span>
+                            {selectedMember?.id === member.id && (
+                              <Badge variant="outline" className="ml-auto text-[10px]">
+                                선택됨
+                              </Badge>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                    </>
+                  )}
 
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={toggleMode} className="gap-2 text-muted-foreground cursor-pointer">
+                    <LogOut className="h-4 w-4" />
+                    <span>{loginMode === "TEAM" ? "개인 로그인으로 전환 (데모)" : "조별 로그인으로 전환 (데모)"}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600 ring-2 ring-background animate-pulse" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel className="flex items-center justify-between font-normal text-sm">
+                  <span className="font-semibold">알림</span>
+                  {unreadCount > 0 && (
+                    <span className="text-xs text-muted-foreground">{unreadCount}개의 읽지 않은 알림</span>
+                  )}
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={toggleMode} className="gap-2 text-muted-foreground cursor-pointer">
-                  <LogOut className="h-4 w-4" />
-                  <span>{loginMode === "TEAM" ? "개인 로그인으로 전환 (데모)" : "조별 로그인으로 전환 (데모)"}</span>
+                <ScrollArea className="h-[300px]">
+                  {notifications.length > 0 ? (
+                    <div className="grid gap-1 p-1">
+                      {notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className="flex flex-col items-start gap-1 p-3 cursor-pointer"
+                        >
+                          <div className="flex w-full items-start justify-between gap-2">
+                            <span
+                              className={`text-sm font-medium ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}
+                            >
+                              {notification.title}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {notification.time}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
+                          {!notification.read && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-red-600" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-muted-foreground">알림이 없습니다.</div>
+                  )}
+                </ScrollArea>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="justify-center text-xs text-muted-foreground cursor-pointer">
+                  모든 알림 지우기
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <Button variant="ghost" size="icon" onClick={() => router.push("/login")}>
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600 ring-2 ring-background animate-pulse" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="flex items-center justify-between font-normal text-sm">
-                <span className="font-semibold">알림</span>
-                {unreadCount > 0 && (
-                  <span className="text-xs text-muted-foreground">{unreadCount}개의 읽지 않은 알림</span>
-                )}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <ScrollArea className="h-[300px]">
-                {notifications.length > 0 ? (
-                  <div className="grid gap-1 p-1">
-                    {notifications.map((notification) => (
-                      <DropdownMenuItem
-                        key={notification.id}
-                        className="flex flex-col items-start gap-1 p-3 cursor-pointer"
-                      >
-                        <div className="flex w-full items-start justify-between gap-2">
-                          <span
-                            className={`text-sm font-medium ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}
-                          >
-                            {notification.title}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            {notification.time}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                        {!notification.read && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-red-600" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-sm text-muted-foreground">알림이 없습니다.</div>
-                )}
-              </ScrollArea>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="justify-center text-xs text-muted-foreground cursor-pointer">
-                모든 알림 지우기
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button variant="ghost" size="icon" onClick={() => router.push("/login")}>
-            <LogOut className="h-5 w-5" />
-          </Button>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <PinVerificationDialog
+        open={pinDialogOpen}
+        onOpenChange={setPinDialogOpen}
+        title="작성자 전환 인증"
+        description="작성자를 전환하기 위해 PIN 번호를 입력해주세요."
+        members={pinTargetMembers as any}
+        onSuccess={handlePinSuccess}
+        defaultSelectedId={pinTargetId}
+      />
+    </>
   )
 }

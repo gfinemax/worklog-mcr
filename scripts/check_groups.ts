@@ -1,10 +1,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
-import path from 'path'
 
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
+dotenv.config({ path: '.env.local' })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -16,16 +14,43 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-async function checkGroups() {
-    console.log('Checking groups table...')
-    const { data, error } = await supabase.from('groups').select('*')
+async function checkGroupsAndMembers() {
+    console.log('Checking groups...')
+    const { data: groups, error: groupsError } = await supabase
+        .from('groups')
+        .select('*')
 
-    if (error) {
-        console.error('Error fetching groups:', error)
-    } else {
-        console.log(`Found ${data.length} groups:`)
-        data.forEach(g => console.log(`- ${g.name} (ID: ${g.id})`))
+    if (groupsError) {
+        console.error('Error fetching groups:', groupsError)
+        return
+    }
+
+    console.log('Groups found:', groups)
+
+    for (const group of groups) {
+        console.log(`\nChecking members for group: ${group.name} (${group.id})`)
+        const { data: members, error: membersError } = await supabase
+            .from('group_members')
+            .select(`
+        user_id,
+        role,
+        users (
+          id,
+          name
+        )
+      `)
+            .eq('group_id', group.id)
+
+        if (membersError) {
+            console.error(`Error fetching members for ${group.name}:`, membersError)
+        } else {
+            console.log(`Members count: ${members.length}`)
+            members.forEach(m => {
+                // @ts-ignore
+                console.log(`- ${m.users?.name} (${m.role})`)
+            })
+        }
     }
 }
 
-checkGroups()
+checkGroupsAndMembers()

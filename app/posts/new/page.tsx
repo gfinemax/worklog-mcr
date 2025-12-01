@@ -15,6 +15,16 @@ import dynamic from "next/dynamic"
 import "react-quill-new/dist/quill.snow.css"
 import { useAuthStore } from "@/store/auth"
 import { useWorklogStore, ChannelLog } from "@/store/worklog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Dynamic import for React Quill to avoid SSR issues
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false })
@@ -29,7 +39,9 @@ export default function NewPostPage() {
     const tagParam = searchParams.get("tag")
 
     const { categories, addPost, fetchCategories } = usePostStore()
-    const { user } = useAuthStore()
+    const { user, currentSession } = useAuthStore()
+
+    const [authorId, setAuthorId] = useState("")
 
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
@@ -43,6 +55,10 @@ export default function NewPostPage() {
     const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
     const [isModuleLoaded, setIsModuleLoaded] = useState(false)
     const [quillClass, setQuillClass] = useState<any>(null)
+
+    // Confirmation Dialog State
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+    const [displayAuthorName, setDisplayAuthorName] = useState("")
 
     useEffect(() => {
         fetchCategories()
@@ -125,6 +141,16 @@ export default function NewPostPage() {
             }
         }
     }, [channelName, categorySlugParam, tagParam, sourceField, categories])
+
+    // Set default author and worklog
+    useEffect(() => {
+        // Default to Group (represented by "GROUP" value) if session exists
+        if (currentSession && !authorId) {
+            setAuthorId("GROUP")
+        } else if (user && !authorId) {
+            setAuthorId(user.id)
+        }
+    }, [currentSession, user])
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -211,14 +237,33 @@ export default function NewPostPage() {
         }
     }
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handlePreSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (!title || !content || !categoryId) {
             toast.error("필수 항목을 입력해주세요.")
             return
         }
 
+        // Calculate Display Author Name
+        let name = ""
+        if (currentSession) {
+            if (authorId === 'GROUP') {
+                name = `${currentSession.groupName} (공동대표)`
+            } else {
+                const member = currentSession.members.find(m => m.id === authorId)
+                name = member ? member.name : "알 수 없음"
+            }
+        } else {
+            name = user?.name || "알 수 없음"
+        }
+        setDisplayAuthorName(name)
+        setShowConfirmDialog(true)
+    }
+
+    const handleFinalSubmit = async () => {
         setIsSaving(true)
+        setShowConfirmDialog(false)
+
         try {
             // 1. Upload files (Mock for now, just storing metadata)
             const attachmentMeta = attachments.map(file => ({
@@ -228,18 +273,36 @@ export default function NewPostPage() {
                 size: file.size
             }))
 
-            // 2. Create Post
+            // 2. Determine author_id and created_by
+            let finalAuthorId: string | undefined = undefined;
+            let finalCreatedBy: string | undefined = user?.id;
+
+            if (currentSession) {
+                // Group Session: Always a group post (author_id = null/undefined)
+                // created_by reflects the actual writer (selected member or logged-in user)
+                finalAuthorId = undefined;
+                if (authorId && authorId !== 'GROUP') {
+                    finalCreatedBy = authorId;
+                }
+            } else {
+                // Individual Session
+                finalAuthorId = user?.id;
+                finalCreatedBy = user?.id;
+            }
+
+            // 3. Create Post
             const postData = {
                 title,
                 content,
                 category_id: categoryId,
                 priority,
-                worklog_id: worklogId || undefined,
+                worklog_id: worklogId || currentSession?.id || undefined,
                 channel: channelName || undefined,
                 attachments: attachmentMeta,
                 summary: summary || undefined,
                 tags,
-                author_id: user?.id || undefined
+                author_id: finalAuthorId,
+                created_by: finalCreatedBy
             }
 
             console.log('Sending post data:', postData)
@@ -335,8 +398,33 @@ export default function NewPostPage() {
                         <CardTitle>포스트 내용</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
+                        <form onSubmit={handlePreSubmit} className="space-y-6">
+                            <div className="grid gap-6 md:grid-cols-3">
+                                <div className="space-y-2">
+                                    <Label>작성자</Label>
+                                    <Select value={authorId} onValueChange={setAuthorId}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="작성자 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {currentSession && (
+                                                <SelectItem value="GROUP">
+                                                    {currentSession.groupName} (공동대표)
+                                                </SelectItem>
+                                            )}
+                                            {currentSession?.members?.map(member => (
+                                                <SelectItem key={member.id} value={member.id}>
+                                                    {member.name} ({member.role})
+                                                </SelectItem>
+                                            ))}
+                                            {!currentSession && user && (
+                                                <SelectItem value={user.id}>
+                                                    {user.name}
+                                                </SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div className="space-y-2">
                                     <Label>카테고리</Label>
                                     <Select value={categoryId} onValueChange={setCategoryId}>
@@ -499,9 +587,25 @@ export default function NewPostPage() {
                                 </Button>
                             </div>
                         </form>
-                    </CardContent>
-                </Card>
-            </div>
-        </MainLayout>
+                    </CardContent >
+                </Card >
+
+                <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>포스트 작성 확인</AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                                <p>이 포스트는 <span className="font-bold text-foreground">{displayAuthorName}</span> 명의로 등록됩니다.</p>
+                                <p>계속 진행하시겠습니까?</p>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleFinalSubmit}>등록</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div >
+        </MainLayout >
     )
 }

@@ -19,10 +19,9 @@ interface WorkerData {
     name: string
     email: string
     role: string
-    team: string
+    groupName: string
     type: 'internal' | 'external'
     profile_image_url?: string
-    // Added for external staff email
 }
 
 interface WorkerRegistrationDialogProps {
@@ -75,7 +74,6 @@ export function WorkerRegistrationDialog({
         email: string
         name: string
         role: string[]
-        // organization is removed from UI but kept for DB compatibility if needed, or we just use default
         organization: string
     }>({
         email: "",
@@ -115,7 +113,7 @@ export function WorkerRegistrationDialog({
                         email: workerToEdit.email || "", // Load email if exists
                         name: workerToEdit.name,
                         role: roles.length > 0 ? roles : ["기술스텝"],
-                        organization: workerToEdit.team,
+                        organization: workerToEdit.groupName,
                     })
                 }
             } else {
@@ -128,7 +126,7 @@ export function WorkerRegistrationDialog({
 
     useEffect(() => {
         if (open && workerToEdit?.type === 'internal' && groups.length > 0) {
-            const group = groups.find(g => g.name === workerToEdit.team)
+            const group = groups.find(g => g.name === workerToEdit.groupName)
             if (group) {
                 setInternalForm(prev => ({ ...prev, groupId: group.id }))
             }
@@ -330,9 +328,9 @@ export function WorkerRegistrationDialog({
                         if (memberError) throw memberError
                     }
 
-                    // 4. Delete from support_staff
+                    // 4. Delete from users (old support record)
                     const { error: deleteError } = await supabase
-                        .from("support_staff")
+                        .from("users")
                         .delete()
                         .eq("id", workerToEdit.id)
 
@@ -452,12 +450,13 @@ export function WorkerRegistrationDialog({
             if (workerToEdit) {
                 // Check for Type Switch: Internal -> External
                 if (workerToEdit.type === 'internal') {
-                    // 1. Insert into support_staff (New ID)
-                    const { data, error } = await supabase.from("support_staff").insert({
+                    // 1. Insert into users as support (New ID)
+                    const { data, error } = await supabase.from("users").insert({
                         name: externalForm.name,
                         email: externalForm.email,
                         role: roleString,
                         organization: externalForm.organization,
+                        type: 'support',
                         is_active: true,
                         profile_image_url: imageUrl
                     }).select().single()
@@ -468,11 +467,11 @@ export function WorkerRegistrationDialog({
                     if (imageFile && data) {
                         const uploadedUrl = await uploadImage(data.id)
                         if (uploadedUrl) {
-                            await supabase.from("support_staff").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
+                            await supabase.from("users").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
                         }
                     }
 
-                    // 3. Delete from users (Public table)
+                    // 3. Delete from users (Old Internal Record)
                     const { error: deleteError } = await supabase
                         .from("users")
                         .delete()
@@ -491,7 +490,7 @@ export function WorkerRegistrationDialog({
                     }
 
                     const { error } = await supabase
-                        .from("support_staff")
+                        .from("users")
                         .update({
                             name: externalForm.name,
                             email: externalForm.email,
@@ -506,11 +505,12 @@ export function WorkerRegistrationDialog({
                 }
             } else {
                 // Create New External
-                const { data, error } = await supabase.from("support_staff").insert({
+                const { data, error } = await supabase.from("users").insert({
                     name: externalForm.name,
                     email: externalForm.email,
                     role: roleString,
                     organization: externalForm.organization,
+                    type: 'support',
                     is_active: true,
                 }).select().single()
 
@@ -519,7 +519,7 @@ export function WorkerRegistrationDialog({
                 if (imageFile && data) {
                     const uploadedUrl = await uploadImage(data.id)
                     if (uploadedUrl) {
-                        await supabase.from("support_staff").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
+                        await supabase.from("users").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
                     }
                 }
                 toast.success("지원 근무자가 등록되었습니다.")

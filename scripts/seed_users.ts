@@ -153,39 +153,41 @@ async function seed() {
     // 3. Create Support Staff
     console.log('3. Seeding Support Staff...')
     for (const staff of SUPPORT_STAFF) {
-        // Check if exists
-        const { data: existingStaff } = await supabase
-            .from('support_staff')
+        // Check if exists in users
+        const { data: existingUser } = await supabase
+            .from('users')
             .select('id')
-            .eq('name', staff.name)
+            .eq('email', staff.email)
             .single()
 
-        if (!existingStaff) {
+        if (!existingUser) {
             const { error } = await supabase
-                .from('support_staff')
+                .from('users')
                 .insert({
                     name: staff.name,
                     email: staff.email,
                     role: staff.role,
                     organization: '지원',
+                    type: 'support',
                     is_active: true
                 })
 
             if (error) console.error(`Error creating support staff ${staff.name}:`, error.message)
-            else console.log(`Support staff ${staff.name} created.`)
+            else console.log(`Support staff ${staff.name} created (in users).`)
         } else {
-            // Update existing staff with email/role if needed
+            // Update existing user
             const { error } = await supabase
-                .from('support_staff')
+                .from('users')
                 .update({
-                    email: staff.email,
+                    name: staff.name,
                     role: staff.role,
-                    organization: '지원'
+                    organization: '지원',
+                    type: 'support'
                 })
-                .eq('name', staff.name)
+                .eq('email', staff.email)
 
             if (error) console.error(`Error updating support staff ${staff.name}:`, error.message)
-            else console.log(`Support staff ${staff.name} updated.`)
+            else console.log(`Support staff ${staff.name} updated (in users).`)
         }
     }
 

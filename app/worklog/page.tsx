@@ -197,11 +197,11 @@ export default function WorkLogList() {
                     </Button>
                   </TableHead>
                   <TableHead className="text-center">
-                    <Button variant="ghost" onClick={() => requestSort('team')} className="group h-8 p-0 font-bold hover:bg-transparent hover:text-foreground w-full justify-center">
+                    <Button variant="ghost" onClick={() => requestSort('groupName')} className="group h-8 p-0 font-bold hover:bg-transparent hover:text-foreground w-full justify-center">
                       <span className="relative flex items-center">
                         근무조
                         <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2">
-                          {getSortIcon('team')}
+                          {getSortIcon('groupName')}
                         </span>
                       </span>
                     </Button>
@@ -258,7 +258,7 @@ export default function WorkLogList() {
                     onClick={() => router.push(`/worklog/today?id=${log.id}`)}
                   >
                     <TableCell className="font-medium text-center">{log.date}</TableCell>
-                    <TableCell className="text-center">{log.team}</TableCell>
+                    <TableCell className="text-center">{log.groupName}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">{log.type}</Badge>
                     </TableCell>
@@ -282,7 +282,7 @@ export default function WorkLogList() {
                         }
                         const isWorkEnded = new Date() > end
 
-                        let displayStatus = log.status
+                        let displayStatus: string = log.status
                         if (log.status === '작성중') {
                           if (isWorking) {
                             displayStatus = '근무중'
@@ -357,7 +357,7 @@ export default function WorkLogList() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm">
                   <Badge variant="outline">{summaryDialog.worklog.date}</Badge>
-                  <Badge variant="outline">{summaryDialog.worklog.team}</Badge>
+                  <Badge variant="outline">{summaryDialog.worklog.groupName}</Badge>
                   <Badge variant="outline">{summaryDialog.worklog.type}</Badge>
                 </div>
 

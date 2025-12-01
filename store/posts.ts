@@ -19,6 +19,7 @@ export interface Post {
     id: string
     category_id: string
     author_id: string
+    created_by?: string
     worklog_id?: string
     title: string
     content: string
@@ -35,6 +36,9 @@ export interface Post {
     author?: {
         name: string
     }
+    creator?: {
+        name: string
+    }
     category?: {
         name: string
         slug: string
@@ -42,8 +46,9 @@ export interface Post {
     worklog?: {
         id: string
         work_date: string
-        shift_type: 'A' | 'N'
+        type: string
         group: {
+            id: string
             name: string
         }
     }
@@ -73,6 +78,7 @@ interface PostStore {
     addPost: (post: Partial<Post>) => Promise<Post>
     updatePost: (id: string, updates: Partial<Post>) => Promise<void>
     resolvePost: (id: string, note: string) => Promise<void>
+    deletePost: (id: string) => Promise<void>
     fetchComments: (postId: string) => Promise<Comment[]>
     addComment: (comment: Partial<Comment>) => Promise<void>
     updateComment: (id: string, updates: Partial<Comment>) => Promise<void>
@@ -107,7 +113,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
                 *,
                 author:users!posts_author_user_id_fkey(name),
                 category:categories(name, slug),
-                worklog:worklogs(id, work_date, shift_type, group:groups(name)),
+                worklog:worklogs(id, work_date:date, type, group:groups(id, name)),
                 comments(count)
             `)
             .order('created_at', { ascending: false })
@@ -133,7 +139,27 @@ export const usePostStore = create<PostStore>((set, get) => ({
             return
         }
 
-        set({ posts: data as any, loading: false })
+        // Manually fetch creator info for posts with created_by
+        const posts = data as any[]
+        const creatorIds = [...new Set(posts.filter(p => p.created_by).map(p => p.created_by))]
+
+        if (creatorIds.length > 0) {
+            const { data: creators, error: creatorError } = await supabase
+                .from('users')
+                .select('id, name')
+                .in('id', creatorIds)
+
+            if (!creatorError && creators) {
+                const creatorMap = new Map(creators.map(c => [c.id, c.name]))
+                posts.forEach(post => {
+                    if (post.created_by && creatorMap.has(post.created_by)) {
+                        post.creator = { name: creatorMap.get(post.created_by) }
+                    }
+                })
+            }
+        }
+
+        set({ posts: posts, loading: false })
     },
 
     addPost: async (post) => {
@@ -175,6 +201,20 @@ export const usePostStore = create<PostStore>((set, get) => ({
 
         if (error) {
             console.error('Error resolving post:', error)
+            throw error
+        }
+
+        get().fetchPosts()
+    },
+
+    deletePost: async (id) => {
+        const { error } = await supabase
+            .from('posts')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            console.error('Error deleting post:', error)
             throw error
         }
 
