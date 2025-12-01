@@ -139,7 +139,6 @@ export const usePostStore = create<PostStore>((set, get) => ({
             return
         }
 
-<<<<<<< HEAD
         // Map author_user_id to author_id for the frontend
         const mappedPosts = data.map((post: any) => ({
             ...post,
@@ -147,7 +146,7 @@ export const usePostStore = create<PostStore>((set, get) => ({
         }))
 
         set({ posts: mappedPosts as any, loading: false })
-=======
+
         // Manually fetch creator info for posts with created_by
         const posts = data as any[]
         const creatorIds = [...new Set(posts.filter(p => p.created_by).map(p => p.created_by))]
@@ -169,7 +168,6 @@ export const usePostStore = create<PostStore>((set, get) => ({
         }
 
         set({ posts: posts, loading: false })
->>>>>>> feat/workloglist
     },
 
     addPost: async (post) => {
