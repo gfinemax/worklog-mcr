@@ -11,7 +11,7 @@ export interface ChannelLog {
 export interface Worklog {
     id: string | number
     date: string
-    team: string // "1조", "2조", etc.
+    groupName: string // "1조", "2조", etc. (Renamed from team)
     type: '주간' | '야간'
     workers: {
         director: string[]
@@ -29,8 +29,8 @@ export interface Worklog {
 interface WorklogStore {
     worklogs: Worklog[]
     fetchWorklogs: () => Promise<void>
-    addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | null>
-    updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<void>
+    addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | { error: any } | null>
+    updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any }>
     fetchWorklogPosts: (worklogId: string) => Promise<{ id: string; summary: string; channel?: string }[]>
     fetchWorklogById: (id: string) => Promise<void>
 }
@@ -42,14 +42,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .from('worklogs')
             .select(`
                 *,
-                group:groups(name),
-                worklog_staff(
-                    role,
-                    user:users(name),
-                    support_staff(name)
-                )
+                group:groups(name)
             `)
-            .order('work_date', { ascending: false })
+            .order('date', { ascending: false })
 
         if (error) {
             console.error('Error fetching worklogs:', error)
@@ -58,14 +53,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         const formattedWorklogs: Worklog[] = data.map((log: any) => ({
             id: log.id,
-            date: log.work_date,
-            team: log.group?.name || 'Unknown',
-            type: log.shift_type === 'A' ? '주간' : '야간',
-            workers: {
-                director: log.worklog_staff?.filter((s: any) => s.role === 'main_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
-                assistant: log.worklog_staff?.filter((s: any) => s.role === 'sub_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
-                video: log.worklog_staff?.filter((s: any) => s.role === 'tech_staff').map((s: any) => s.user?.name || s.support_staff?.name) || []
-            },
+            date: log.date,
+            groupName: log.group_name || log.group?.name || 'Unknown', // Map group_name column
+            type: log.type,
+            workers: log.workers || { director: [], assistant: [], video: [] },
             status: log.status,
             signature: "0/4",
             isImportant: false,
@@ -81,7 +72,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         const { data: groupData, error: groupError } = await supabase
             .from('groups')
             .select('id')
-            .eq('name', worklog.team)
+            .eq('name', worklog.groupName)
             .single()
 
         if (groupError || !groupData) {
@@ -91,24 +82,59 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         // 2. Insert or Update worklog (Upsert)
         const payload = {
-            work_date: worklog.date,
-            shift_type: worklog.type === '주간' ? 'A' : 'N',
+            date: worklog.date,
+            type: worklog.type,
             status: worklog.status,
             channel_logs: worklog.channelLogs,
+            workers: worklog.workers,
             // system_issues: worklog.systemIssues, // Column missing in DB, disabling for now
-            group_id: groupData.id
+            group_id: groupData.id,
+            group_name: worklog.groupName // Renamed column
         }
 
-        const { data, error } = await supabase
+        // Check if worklog exists
+        const { data: existingLog, error: fetchError } = await supabase
             .from('worklogs')
-            .upsert(payload, {
-                onConflict: 'group_id, work_date, shift_type',
-                ignoreDuplicates: false
-            })
-            .select()
+            .select('id')
+            .eq('group_id', groupData.id)
+            .eq('date', worklog.date)
+            .eq('type', worklog.type)
+            .maybeSingle()
+
+        if (fetchError) {
+            console.error('Error checking existing worklog:', fetchError)
+            return null
+        }
+
+        let data, error
+
+        if (existingLog) {
+            // Update
+            const { data: updatedData, error: updateError } = await supabase
+                .from('worklogs')
+                .update(payload)
+                .eq('id', existingLog.id)
+                .select()
+
+            data = updatedData
+            error = updateError
+        } else {
+            // Insert
+            const { data: insertedData, error: insertError } = await supabase
+                .from('worklogs')
+                .insert(payload)
+                .select()
+
+            data = insertedData
+            error = insertError
+        }
 
         if (error) {
-            console.error('Error adding/updating worklog:', error)
+            console.error('Error adding/updating worklog:', JSON.stringify(error, null, 2))
+            return { error }
+        }
+        if (!data || data.length === 0) {
+            console.error('No data returned from insert/update')
             return null
         }
         const createdLog = data[0]
@@ -117,9 +143,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         return {
             id: createdLog.id,
-            date: createdLog.work_date,
-            team: worklog.team,
-            type: createdLog.shift_type === 'A' ? '주간' : '야간',
+            date: createdLog.date,
+            groupName: worklog.groupName,
+            type: createdLog.type,
             workers: worklog.workers,
             status: createdLog.status,
             signature: "0/4",
@@ -133,12 +159,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .from('worklogs')
             .select(`
                 *,
-                group:groups(name),
-                worklog_staff(
-                    role,
-                    user:users(name),
-                    support_staff(name)
-                )
+                group:groups(name)
             `)
             .eq('id', id)
             .single()
@@ -151,14 +172,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         if (data) {
             const formattedLog: Worklog = {
                 id: data.id,
-                date: data.work_date,
-                team: data.group?.name || 'Unknown',
-                type: data.shift_type === 'A' ? '주간' : '야간',
-                workers: {
-                    director: data.worklog_staff?.filter((s: any) => s.role === 'main_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
-                    assistant: data.worklog_staff?.filter((s: any) => s.role === 'sub_director').map((s: any) => s.user?.name || s.support_staff?.name) || [],
-                    video: data.worklog_staff?.filter((s: any) => s.role === 'tech_staff').map((s: any) => s.user?.name || s.support_staff?.name) || []
-                },
+                date: data.date,
+                groupName: data.group_name || data.group?.name || 'Unknown',
+                type: data.type,
+                workers: data.workers || { director: [], assistant: [], video: [] },
                 status: data.status,
                 signature: "0/4",
                 isImportant: false,
@@ -193,7 +210,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         }
 
         if (updates.channelLogs) dbUpdates.channel_logs = updates.channelLogs
-        if (updates.type) dbUpdates.shift_type = updates.type === '주간' ? 'A' : 'N'
+        if (updates.type) dbUpdates.type = updates.type
+        if (updates.workers) dbUpdates.workers = updates.workers
         if (updates.aiSummary) dbUpdates.ai_summary = updates.aiSummary
         // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Column missing in DB
 
@@ -204,13 +222,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         if (error) {
             console.error('Error updating worklog:', JSON.stringify(error, null, 2))
-            // Revert optimistic update if needed? For now, we'll just log error.
-            // Ideally we should fetch the original state back.
-            return
+            return { error }
         }
-        // We don't need to fetch all worklogs again if we trust our optimistic update.
-        // But to be safe and sync with other users, we could. 
-        // For now, let's skip the heavy fetchWorklogs() call to prevent overwriting with stale data if it's slow.
+        return { error: null }
     },
 
     fetchWorklogPosts: async (worklogId: string) => {

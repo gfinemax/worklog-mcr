@@ -371,16 +371,30 @@ export default function PostList() {
                               router.push(`/worklog/today?id=${post.worklog?.id}`)
                             }}
                           >
-                            <span className="font-medium" suppressHydrationWarning>{format(new Date(post.worklog.work_date), "MM-dd")}</span>
+                            <span className="font-medium" suppressHydrationWarning>
+                              {post.worklog.work_date ? format(new Date(post.worklog.work_date), "MM-dd") : '-'}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              {post.worklog.group?.name} {post.worklog.shift_type === 'A' ? 'A' : 'N'}
+                              {post.worklog.group?.name} {post.worklog.type === '주간' ? 'A' : 'N'}
                             </span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-center text-sm">{post.author?.name}</TableCell>
+                      <TableCell className="text-center text-sm">
+                        {post.author?.name ? (
+                          post.author.name
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            <Badge variant="secondary" className="h-5 px-1 text-[10px] bg-slate-100 text-slate-600">GROUP</Badge>
+                            <span>
+                              {post.worklog?.group?.name || '-'}
+                              {post.creator?.name && <span className="text-xs text-muted-foreground ml-1">({post.creator.name})</span>}
+                            </span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
                         <span suppressHydrationWarning>
                           {format(new Date(post.created_at), "yyyy-MM-dd HH:mm")}
@@ -458,6 +472,6 @@ export default function PostList() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
+    </MainLayout >
   )
 }

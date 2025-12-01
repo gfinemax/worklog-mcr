@@ -1,0 +1,14 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?숋툘  load multiple .env files with { path: ['.env.local', '.env'] }
+--- Checking support_staff columns ---
+Columns: [
+  'id',
+  'name',
+  'phone',
+  'email',
+  'organization',
+  'role',
+  'is_active',
+  'created_at',
+  'profile_image_url',
+  'profile_image'
+]

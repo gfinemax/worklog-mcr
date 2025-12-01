@@ -15,22 +15,36 @@ import { useAuthStore } from "@/store/auth"
 
 export default function NewWorkLog() {
   const { currentSession } = useAuthStore()
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
+  const [isDuplicate, setIsDuplicate] = useState(false)
+  const [existingLogId, setExistingLogId] = useState<string | null>(null)
 
   // Form State
   const [director, setDirector] = useState("")
   const [cms, setCms] = useState("")
   const [backup, setBackup] = useState("")
   const [video, setVideo] = useState("")
-  const [team, setTeam] = useState("team3") // Default fallback
+  const [team, setTeam] = useState("")
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [shiftType, setShiftType] = useState("주간")
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      const { data } = await import("@/lib/supabase").then(m => m.supabase.from("groups").select("id, name").order("name"))
+      if (data) {
+        setGroups(data)
+        // Set default team if currentSession exists
+        if (currentSession) {
+          const matchingGroup = data.find(g => g.id === currentSession.groupId)
+          if (matchingGroup) setTeam(matchingGroup.id)
+        }
+      }
+    }
+    fetchGroups()
+  }, [currentSession])
 
   useEffect(() => {
     if (currentSession) {
-      // Map Team Name to Value (Simple mapping for demo)
-      if (currentSession.groupName.includes("1")) setTeam("team1")
-      else if (currentSession.groupName.includes("2")) setTeam("team2")
-      else if (currentSession.groupName.includes("3")) setTeam("team3")
-      else if (currentSession.groupName.includes("4")) setTeam("team4")
-
       // Map Workers
       const directors = currentSession.members.filter(m => m.role === '감독').map(m => m.name)
       const assistants = currentSession.members.filter(m => m.role === '부감독').map(m => m.name)
@@ -42,6 +56,31 @@ export default function NewWorkLog() {
       if (videos.length > 0) setVideo(videos[0])
     }
   }, [currentSession])
+
+  // Check for duplicates
+  useEffect(() => {
+    const checkDuplicate = async () => {
+      if (!team || !date || !shiftType) return
+
+      const { data } = await import("@/lib/supabase").then(m => m.supabase
+        .from("worklogs")
+        .select("id")
+        .eq("group_id", team)
+        .eq("date", date)
+        .eq("type", shiftType)
+        .maybeSingle()
+      )
+
+      if (data) {
+        setIsDuplicate(true)
+        setExistingLogId(data.id)
+      } else {
+        setIsDuplicate(false)
+        setExistingLogId(null)
+      }
+    }
+    checkDuplicate()
+  }, [team, date, shiftType])
 
   return (
     <MainLayout>
@@ -60,12 +99,28 @@ export default function NewWorkLog() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline">임시저장</Button>
-            <Button>
+            <Button disabled={isDuplicate}>
               <Save className="mr-2 h-4 w-4" />
               저장하기
             </Button>
           </div>
         </div>
+
+        {isDuplicate && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">주의:</span>
+              <span>이미 작성된 업무일지가 존재합니다 ({date} {shiftType}).</span>
+            </div>
+            {existingLogId && (
+              <Link href={`/worklog/${existingLogId}`}>
+                <Button variant="outline" size="sm" className="bg-white hover:bg-red-50 border-red-200 text-red-700">
+                  기존 일지 보러가기
+                </Button>
+              </Link>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
@@ -76,7 +131,7 @@ export default function NewWorkLog() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="date">근무일자</Label>
-                  <Input id="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="shift">근무조</Label>
@@ -85,23 +140,22 @@ export default function NewWorkLog() {
                       <SelectValue placeholder="근무조 선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="team1">1팀</SelectItem>
-                      <SelectItem value="team2">2팀</SelectItem>
-                      <SelectItem value="team3">3팀</SelectItem>
-                      <SelectItem value="team4">4팀</SelectItem>
+                      {groups.map(g => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="type">근무 형태</Label>
-                <Select defaultValue="day">
+                <Select value={shiftType} onValueChange={setShiftType}>
                   <SelectTrigger id="type">
                     <SelectValue placeholder="근무 형태 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="day">주간 (07:30 - 19:00)</SelectItem>
-                    <SelectItem value="night">야간 (18:30 - 08:00)</SelectItem>
+                    <SelectItem value="주간">주간 (07:30 - 19:00)</SelectItem>
+                    <SelectItem value="야간">야간 (18:30 - 08:00)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

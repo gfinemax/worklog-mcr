@@ -56,7 +56,14 @@ export default function EditPostPage() {
 
             if (post) {
                 // Check authorization
-                if (user && post.author_id !== user.id) {
+                // Check authorization
+                const hasPermission =
+                    (user && post.author_id === user.id) ||
+                    (user && post.created_by === user.id) ||
+                    (useAuthStore.getState().activeMemberId && useAuthStore.getState().activeMemberId !== "GROUP_COMMON" && post.created_by === useAuthStore.getState().activeMemberId) ||
+                    (user && post.worklog?.group?.id === user.id)
+
+                if (!hasPermission) {
                     toast.error("수정 권한이 없습니다.")
                     router.push(`/posts/${id}`)
                     return

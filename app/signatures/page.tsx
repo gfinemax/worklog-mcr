@@ -83,7 +83,7 @@ export default function SignaturesPage() {
                 {[
                   {
                     date: "2025-11-20",
-                    team: "3팀",
+                    groupName: "3팀",
                     op: { status: "done", name: "김운행", time: "18:45" },
                     leader: { status: "pending", name: "-", time: "-" },
                     mcr: { status: "done", name: "이주조", time: "18:50" },
@@ -92,7 +92,7 @@ export default function SignaturesPage() {
                   },
                   {
                     date: "2025-11-19",
-                    team: "2팀",
+                    groupName: "2팀",
                     op: { status: "done", name: "최운행", time: "08:10" },
                     leader: { status: "done", name: "정팀장", time: "08:30" },
                     mcr: { status: "done", name: "강주조", time: "08:15" },
@@ -102,7 +102,7 @@ export default function SignaturesPage() {
                 ].map((row, i) => (
                   <TableRow key={i}>
                     <TableCell className="font-medium">{row.date}</TableCell>
-                    <TableCell>{row.team}</TableCell>
+                    <TableCell>{row.groupName}</TableCell>
                     <TableCell>
                       <div className="flex flex-col text-xs">
                         {row.op.status === "done" ? (

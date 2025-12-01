@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "PGRST200",
+    "details": "Searched for a foreign key relationship between 'posts' and 'users' using the hint 'posts_created_by_fkey' in the schema 'public', but no matches were found.",
+    "hint": null,
+    "message": "Could not find a relationship between 'posts' and 'users' in the schema cache"
+  }
+}

@@ -1,0 +1,50 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?숋툘  specify custom .env file path with { path: '/custom/path/.env' }
+--- Checking Group Members ---
+
+[吏?먰?]
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (愿由? - No Email
+  - Unknown User (愿由? - No Email
+  - Unknown User (?쒖뒪?쒓?由? - No Email
+
+[5議?
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (媛먮룆) - No Email
+  - 源以??(媛먮룆, 遺媛먮룆) - kimji@mbcplus.com
+  - 諛뺤긽??(遺媛먮룆, 媛먮룆) - parksp@mbcplus.com
+  - 源?뚯뿰 (?곸긽) - kimsy@mbcplus.com
+  - Unknown User (?곸긽) - No Email
+
+[4議?
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (媛먮룆) - No Email
+  - 沅뚯쁺異?(媛먮룆, 遺媛먮룆) - kwonyc@mbcplus.com
+  - 源?ъ꽦 (遺媛먮룆, 媛먮룆) - kimhs@mbcplus.com
+  - Unknown User (?곸긽) - No Email
+  - 泥쒕궓??(?곸긽) - cheonnu@mbcplus.com
+  - ?ъ갹洹?(?곸긽) - shimcg@mbcplus.com
+  - Unknown User (?곸긽) - No Email
+
+[3議?
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (媛먮룆) - No Email
+  - ?④턿??(媛먮룆, 遺媛먮룆) - namgj@mbcplus.com
+  - ?댁쥌??(遺媛먮룆, 媛먮룆) - leejw@mbcplus.com
+  - Unknown User (?곸긽) - No Email
+  - ?ㅼ＜??(?곸긽) - yoonjh@mbcplus.com
+
+[1議?
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (媛먮룆) - No Email
+  - ?뺢킅??(媛먮룆, 遺媛먮룆) - jungkh@mbcplus.com
+  - ?ㅻ룞??(遺媛먮룆, 媛먮룆) - ohds@mbcplus.com
+  - 源?⑥뼵 (?곸긽) - kimde@mbcplus.com
+  - Unknown User (?곸긽) - No Email
+
+[2議?
+  - Unknown User (媛먮룆) - No Email
+  - Unknown User (媛먮룆) - No Email
+  - ?⑸룞??(媛먮룆, 遺媛먮룆) - hwangds@mbcplus.com
+  - ?댁꽍??(遺媛먮룆, 媛먮룆) - leesh@mbcplus.com
+  - 媛뺥븳媛?(?곸긽) - kanghk@mbcplus.com
+  - Unknown User (?곸긽) - No Email

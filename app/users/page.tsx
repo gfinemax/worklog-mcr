@@ -34,7 +34,7 @@ interface Worker {
   name: string
   email: string
   role: string
-  team: string
+  groupName: string
   status: string
   lastLogin: string
   type: 'internal' | 'external'
@@ -94,13 +94,13 @@ export default function UsersPage() {
     try {
       setLoading(true)
 
-      // 1. Fetch Internal Users
-      const { data: internalData, error: internalError } = await supabase
+      // 1. Fetch All Users
+      const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('*')
         .order('name')
 
-      if (internalError) throw internalError
+      if (usersError) throw usersError
 
       // 2. Fetch Group Memberships (to link users to groups)
       const { data: membershipData, error: membershipError } = await supabase
@@ -122,39 +122,23 @@ export default function UsersPage() {
         })
       }
 
-      // 3. Fetch Support Staff
-      const { data: externalData, error: externalError } = await supabase
-        .from('support_staff')
-        .select('*')
-        .order('name')
+      // 3. Transform
+      const allWorkers: Worker[] = (usersData || []).map((u: any) => {
+        const type = u.type || 'internal'
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email || "-",
+          role: sortRoles(u.role),
+          groupName: type === 'internal' ? (userGroupMap[u.id] || "소속 없음") : (u.organization || "지원"),
+          status: u.is_active ? "active" : "inactive",
+          lastLogin: "-",
+          type: type,
+          profile_image_url: u.profile_image_url
+        }
+      })
 
-      if (externalError) throw externalError
-
-      // 4. Transform and Combine
-      const internalWorkers: Worker[] = (internalData || []).map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: sortRoles(u.role),
-        team: userGroupMap[u.id] || "소속 없음",
-        status: u.is_active ? "active" : "inactive",
-        lastLogin: "-",
-        type: 'internal',
-        profile_image_url: u.profile_image_url
-      }))
-
-      const externalWorkers: Worker[] = (externalData || []).map((e: any) => ({
-        id: e.id,
-        name: e.name,
-        email: e.email || "-",
-        role: sortRoles(e.role),
-        team: e.organization || "지원",
-        status: e.is_active ? "active" : "inactive",
-        lastLogin: "-",
-        type: 'external'
-      }))
-
-      setWorkers([...internalWorkers, ...externalWorkers])
+      setWorkers(allWorkers)
 
     } catch (error) {
       console.error("Error fetching workers:", error)
@@ -181,25 +165,15 @@ export default function UsersPage() {
     if (!deleteTarget) return
 
     try {
-      if (deleteTarget.type === 'internal') {
-        // Delete internal user (from users table - cascade should handle group_members)
-        // Note: We are NOT deleting from auth.users via API here as it requires service role key or admin API.
-        // We are just removing from public.users which effectively "deletes" them from the app view.
-        const { error } = await supabase
-          .from('users')
-          .delete()
-          .eq('id', deleteTarget.id)
+      // Delete user (from users table - cascade should handle group_members)
+      // Note: We are NOT deleting from auth.users via API here as it requires service role key or admin API.
+      // We are just removing from public.users which effectively "deletes" them from the app view.
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', deleteTarget.id)
 
-        if (error) throw error
-      } else {
-        // Delete support staff
-        const { error } = await supabase
-          .from('support_staff')
-          .delete()
-          .eq('id', deleteTarget.id)
-
-        if (error) throw error
-      }
+      if (error) throw error
 
       toast.success(`${deleteTarget.name} 근무자가 삭제되었습니다.`)
       fetchWorkers()
@@ -225,7 +199,7 @@ export default function UsersPage() {
   const filteredWorkers = workers.filter(worker =>
     worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     worker.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    worker.team.toLowerCase().includes(searchQuery.toLowerCase())
+    worker.groupName.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const sortedWorkers = [...filteredWorkers].sort((a, b) => {
@@ -242,7 +216,7 @@ export default function UsersPage() {
     }
 
     // Secondary Sort: If sorting by Team and values are equal, sort by Role Priority
-    if (sortConfig.key === 'team') {
+    if (sortConfig.key === 'groupName') {
       const priorityA = getRolePriorityValue(a.role)
       const priorityB = getRolePriorityValue(b.role)
       return priorityA - priorityB
@@ -283,7 +257,7 @@ export default function UsersPage() {
                 <TableRow>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>근무자</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort("role")}>역할</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("team")}>소속</TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("groupName")}>소속</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")}>상태</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort("type")}>유형</TableHead>
                   <TableHead className="text-right">관리</TableHead>
@@ -322,7 +296,7 @@ export default function UsersPage() {
                           {worker.role}
                         </Badge>
                       </TableCell>
-                      <TableCell>{worker.team}</TableCell>
+                      <TableCell>{worker.groupName}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div

@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Printer, Save } from "lucide-react"
+import { Printer, Save, RefreshCw, PenTool } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Input } from "@/components/ui/input"
+import { supabase } from "@/lib/supabase"
+import { PinVerificationDialog } from "@/components/auth/pin-verification-dialog"
 import {
     Dialog,
     DialogContent,
@@ -25,6 +27,8 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
+import { useAuthStore } from "@/store/auth"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Channel Abbreviations
 const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
@@ -379,23 +383,31 @@ export default function TodayWorkLog() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const id = searchParams.get('id')
+    const paramTeam = searchParams.get('team')
+    const paramType = searchParams.get('type')
 
-    const { worklogs, addWorklog, updateWorklog, fetchWorklogPosts } = useWorklogStore()
+    const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts } = useWorklogStore()
+    const { currentSession, nextSession, promoteNextSession, logout } = useAuthStore()
+
     const [date, setDate] = useState<string>("")
     const [shiftType, setShiftType] = useState<'day' | 'night'>('night')
-    const [selectedTeam, setSelectedTeam] = useState<string>("1조")
+    const [selectedTeam, setSelectedTeam] = useState<string>("")
     const [workers, setWorkers] = useState<{
         director: string[];
         assistant: string[];
         video: string[];
     }>({
-        director: ['김철수'],
-        assistant: ['이영희'],
-        video: ['박민수']
+        director: [],
+        assistant: [],
+        video: []
     })
     const [status, setStatus] = useState<Worklog['status']>('작성중')
     const [channelLogs, setChannelLogs] = useState<{ [key: string]: ChannelLog }>({})
     const [systemIssues, setSystemIssues] = useState<{ id: string; summary: string }[]>([])
+
+    // PIN Verification State
+    const [pinDialogOpen, setPinDialogOpen] = useState(false)
+    const [pendingAction, setPendingAction] = useState<'handover' | 'sign' | null>(null)
 
     // Post Creation Confirmation State
     const [pendingPost, setPendingPost] = useState<{
@@ -405,6 +417,20 @@ export default function TodayWorkLog() {
         channel?: string;
     } | null>(null)
 
+    // Determine Active Tab
+    const [activeTab, setActiveTab] = useState<string>("current")
+
+    useEffect(() => {
+        if (nextSession) {
+            // If we are viewing the next session's team, active tab is 'next'
+            if (selectedTeam === nextSession.groupName) {
+                setActiveTab("next")
+            } else {
+                setActiveTab("current")
+            }
+        }
+    }, [selectedTeam, nextSession])
+
     // Auto-save effect
     useEffect(() => {
         if (!id) return
@@ -412,7 +438,7 @@ export default function TodayWorkLog() {
         const timer = setTimeout(() => {
             // @ts-ignore
             updateWorklog(id, {
-                team: selectedTeam,
+                groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
                 channelLogs: channelLogs,
@@ -426,14 +452,47 @@ export default function TodayWorkLog() {
     // Initial fetch logic
     useEffect(() => {
         if (id) {
-            // If we have an ID, only fetch that specific worklog to ensure we get the latest data
-            // and avoid race conditions with the full list fetch
-            useWorklogStore.getState().fetchWorklogById(id)
+            fetchWorklogById(id)
         } else {
-            // If no ID, fetch all to check for existing worklogs for today
-            useWorklogStore.getState().fetchWorklogs()
+            fetchWorklogs()
         }
-    }, [id])
+    }, [id, fetchWorklogById, fetchWorklogs])
+
+    // Fetch current user's team on mount (if no ID and no params)
+    useEffect(() => {
+        if (id || paramTeam) return
+
+        if (currentSession) {
+            setSelectedTeam(currentSession.groupName)
+            return
+        }
+
+        const fetchUserTeam = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Get user's group
+            const { data: memberData } = await supabase
+                .from('group_members')
+                .select('groups(name)')
+                .eq('user_id', user.id)
+                .single()
+
+            if (memberData && memberData.groups) {
+                // @ts-ignore
+                setSelectedTeam(memberData.groups.name)
+            }
+        }
+
+        fetchUserTeam()
+    }, [id, paramTeam, currentSession])
+
+    // Handle Query Params Override
+    useEffect(() => {
+        if (paramTeam) setSelectedTeam(paramTeam)
+        if (paramType) setShiftType(paramType as 'day' | 'night')
+    }, [paramTeam, paramType])
+
 
     // Sync state from store
     useEffect(() => {
@@ -449,7 +508,7 @@ export default function TodayWorkLog() {
 
                 setDate(`${yearStr}년 ${Number(monthStr)}월 ${Number(dayStr)}일 ${weekDay}요일`)
                 setShiftType(worklog.type === '주간' ? 'day' : 'night')
-                setSelectedTeam(worklog.team)
+                setSelectedTeam(worklog.groupName)
                 setWorkers(worklog.workers)
                 setStatus(worklog.status)
 
@@ -483,7 +542,6 @@ export default function TodayWorkLog() {
                         }
                     })
 
-                    // Deep compare to avoid unnecessary re-renders/loops
                     if (JSON.stringify(newChannelLogs) !== JSON.stringify(channelLogs)) {
                         setChannelLogs(newChannelLogs)
                     } else {
@@ -517,16 +575,19 @@ export default function TodayWorkLog() {
             setDate(`${year}년 ${month}월 ${day}일 ${weekDay}요일`)
 
             // Determine shift based on current time (Day: 07:30 ~ 07:30 next day)
-            const currentHour = now.getHours()
-            const currentMinute = now.getMinutes()
-            const currentTime = currentHour * 60 + currentMinute
+            // If paramType is present, use it. Otherwise calculate.
+            if (!paramType) {
+                const currentHour = now.getHours()
+                const currentMinute = now.getMinutes()
+                const currentTime = currentHour * 60 + currentMinute
 
-            const dayStart = 7 * 60 + 30 // 07:30
-            const dayEnd = 18 * 60 + 30 // 18:30
+                const dayStart = 7 * 60 + 30 // 07:30
+                const dayEnd = 18 * 60 + 30 // 18:30
 
-            const isDayShift = currentTime >= dayStart && currentTime < dayEnd
-            const currentShiftType = isDayShift ? 'day' : 'night'
-            setShiftType(currentShiftType)
+                const isDayShift = currentTime >= dayStart && currentTime < dayEnd
+                const currentShiftType = isDayShift ? 'day' : 'night'
+                setShiftType(currentShiftType)
+            }
 
             // Check if a worklog already exists for today, this team, and this shift
             // We need to format date as YYYY-MM-DD to match DB
@@ -534,8 +595,8 @@ export default function TodayWorkLog() {
 
             const existingWorklog = worklogs.find(w =>
                 w.date === dateStr &&
-                w.team === selectedTeam &&
-                (w.type === '주간' ? 'day' : 'night') === currentShiftType
+                w.groupName === selectedTeam &&
+                (w.type === '주간' ? 'day' : 'night') === shiftType
             )
 
             if (existingWorklog) {
@@ -543,8 +604,114 @@ export default function TodayWorkLog() {
                 router.replace(`/worklog/today?id=${existingWorklog.id}`)
                 return // Stop execution here, let the redirect happen
             }
+
+            // If no existing worklog, we might need to populate workers from session members if available
+            // This is handled by the useEffect below, but we can optimize for Next Session
+            if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) {
+                const newWorkers = {
+                    director: [] as string[],
+                    assistant: [] as string[],
+                    video: [] as string[]
+                }
+                nextSession.members.forEach(m => {
+                    if (m.role === '감독') newWorkers.director.push(m.name)
+                    else if (m.role === '부감독') newWorkers.assistant.push(m.name)
+                    else newWorkers.video.push(m.name)
+                })
+                setWorkers(newWorkers)
+            }
         }
-    }, [id, worklogs, selectedTeam])
+    }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession])
+
+    // Fetch group members when team changes (only if no ID or creating new)
+    useEffect(() => {
+        // If we are in Next Session tab, we already set workers from session members in the previous effect
+        if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) return
+
+        // [Modified] Use currentSession members if available and matches selectedTeam
+        // We do this EVEN IF id exists, to ensure the displayed workers match the logged-in session (user request)
+        if (currentSession && selectedTeam === currentSession.groupName) {
+            const newWorkers = {
+                director: [] as string[],
+                assistant: [] as string[],
+                video: [] as string[]
+            }
+            currentSession.members.forEach(m => {
+                // Map roles to worker categories
+                // Note: currentSession roles might be '감독', '부감독', '영상' etc.
+                if (m.role === '감독') newWorkers.director.push(m.name)
+                else if (m.role === '부감독') newWorkers.assistant.push(m.name)
+                else newWorkers.video.push(m.name)
+            })
+            setWorkers(newWorkers)
+            return
+        }
+
+        if (id) return // If editing existing log, don't overwrite workers with default group members from DB
+
+        const fetchGroupMembers = async () => {
+            if (!selectedTeam) return
+
+            // 1. Get Group ID
+            const { data: groupData } = await supabase
+                .from('groups')
+                .select('id')
+                .eq('name', selectedTeam)
+                .single()
+
+            if (!groupData) {
+                setWorkers({ director: [], assistant: [], video: [] })
+                return
+            }
+
+            // 2. Get Members (Fetch separately to avoid join issues)
+            const { data: members, error: membersError } = await supabase
+                .from('group_members')
+                .select('user_id, role')
+                .eq('group_id', groupData.id)
+
+            if (membersError || !members) {
+                console.error('Error fetching group members:', membersError)
+                return
+            }
+
+            // 3. Get User Details
+            const userIds = members.map(m => m.user_id)
+            const { data: users, error: usersError } = await supabase
+                .from('users')
+                .select('id, name, role')
+                .in('id', userIds)
+
+            if (usersError || !users) {
+                console.error('Error fetching users for group:', usersError)
+                return
+            }
+
+            const newWorkers = {
+                director: [] as string[],
+                assistant: [] as string[],
+                video: [] as string[]
+            }
+
+            members.forEach((m: any) => {
+                const user = users.find(u => u.id === m.user_id)
+                if (!user) return
+                const roleStr = (m.role || user.role || '').toLowerCase()
+
+                if (roleStr.includes('감독') && !roleStr.includes('부감독')) {
+                    newWorkers.director.push(user.name)
+                } else if (roleStr.includes('부감독')) {
+                    newWorkers.assistant.push(user.name)
+                } else if (roleStr.includes('영상') || roleStr.includes('기술')) {
+                    newWorkers.video.push(user.name)
+                }
+            })
+
+            setWorkers(newWorkers)
+        }
+
+        fetchGroupMembers()
+    }, [selectedTeam, id, activeTab, nextSession, currentSession])
 
     const updateTitle = () => {
         const now = new Date()
@@ -570,13 +737,19 @@ export default function TodayWorkLog() {
     const handleSave = async (silent = false) => {
         if (id) {
             // @ts-ignore - ID type mismatch (number vs string)
-            await updateWorklog(id, {
-                team: selectedTeam,
+            const { error } = await updateWorklog(id, {
+                groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
                 channelLogs: channelLogs,
                 systemIssues: systemIssues
             })
+
+            if (error) {
+                if (!silent) toast.error("저장에 실패했습니다.")
+                return null
+            }
+
             if (!silent) toast.success("저장되었습니다.")
             return id
         } else {
@@ -588,7 +761,7 @@ export default function TodayWorkLog() {
 
             const newLog = await addWorklog({
                 date: dateStr,
-                team: selectedTeam,
+                groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
                 status: "작성중",
@@ -598,28 +771,29 @@ export default function TodayWorkLog() {
                 systemIssues: systemIssues
             })
 
+            if (!newLog || 'error' in newLog) {
+                if (!silent) toast.error("일지 생성에 실패했습니다.")
+                return null
+            }
+
             if (newLog) {
-                if (!silent) toast.success("새 일지가 생성되었습니다.")
-                // Update URL without reloading
-                const newUrl = `/worklog/today?id=${newLog.id}`
-                window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
-                // Force a router replace to ensure Next.js context is updated if needed, 
-                // but window.history is faster for immediate UI feedback if we were using it for state.
-                // Actually, let's use router.replace to be safe with Next.js hooks.
-                router.replace(newUrl)
+                if (!silent) {
+                    toast.success("새 일지가 생성되었습니다.")
+                    const newUrl = `/worklog/today?id=${newLog.id}`
+                    window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                    router.replace(newUrl)
+                } else {
+                    // Just update history for back button support, don't trigger navigation
+                    const newUrl = `/worklog/today?id=${newLog.id}`
+                    window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                }
                 return newLog.id
             }
             return null
         }
     }
 
-    const handleNewPostRequest = (sourceField: string, categorySlug: string, tag: string, channel?: string) => {
-        setPendingPost({ sourceField, categorySlug, tag, channel })
-    }
-
-    const confirmNewPost = async () => {
-        if (!pendingPost) return
-
+    const handleNewPostRequest = async (sourceField: string, categorySlug: string, tag: string, channel?: string) => {
         let currentId = id
         if (!currentId) {
             // Auto-save first
@@ -633,16 +807,15 @@ export default function TodayWorkLog() {
 
         const params = new URLSearchParams({
             worklogId: currentId!,
-            categorySlug: pendingPost.categorySlug,
-            tag: pendingPost.tag,
-            sourceField: pendingPost.sourceField
+            categorySlug: categorySlug,
+            tag: tag,
+            sourceField: sourceField
         })
-        if (pendingPost.channel) {
-            params.append('channel', pendingPost.channel)
+        if (channel) {
+            params.append('channel', channel)
         }
 
         router.push(`/posts/new?${params.toString()}`)
-        setPendingPost(null)
     }
 
     const handlePrint = () => {
@@ -664,12 +837,11 @@ export default function TodayWorkLog() {
         }
         setChannelLogs(newChannelLogs)
 
-        // Immediate save if ID exists to prevent data loss on navigation
         if (id) {
             try {
                 // @ts-ignore
                 await updateWorklog(id, {
-                    team: selectedTeam,
+                    groupName: selectedTeam,
                     type: shiftType === 'day' ? '주간' : '야간',
                     workers: workers,
                     channelLogs: newChannelLogs,
@@ -683,10 +855,66 @@ export default function TodayWorkLog() {
         }
     }
 
+    const handleTabChange = (val: string) => {
+        if (val === 'current') {
+            // Revert to current session logic
+            // We can just push to /worklog/today and let it auto-detect based on current user
+            router.push('/worklog/today')
+        } else if (val === 'next' && nextSession) {
+            // Switch to next session
+            // Calculate next shift type
+            const nextShift = shiftType === 'day' ? 'night' : 'day'
+            router.push(`/worklog/today?team=${nextSession.groupName}&type=${nextShift}`)
+        }
+    }
+
+    const handlePromoteSession = () => {
+        setPendingAction('handover')
+        setPinDialogOpen(true)
+    }
+
+    const handleSign = () => {
+        setPendingAction('sign')
+        setPinDialogOpen(true)
+    }
+
+    const handlePinSuccess = async (user: any) => {
+        if (pendingAction === 'handover') {
+            promoteNextSession()
+            router.push('/')
+            toast.success(`${user.name}님의 승인으로 근무 교대가 완료되었습니다.`)
+        } else if (pendingAction === 'sign') {
+            if (id) {
+                // @ts-ignore
+                await updateWorklog(id, { status: '서명완료' })
+                setStatus('서명완료')
+                toast.success(`${user.name}님의 서명이 완료되었습니다.`)
+            }
+        }
+        setPendingAction(null)
+    }
+
     return (
         <MainLayout>
-            <div className="min-h-screen bg-gray-100 p-8 print:bg-white print:p-0 font-sans">
+            <div className={cn("min-h-screen p-8 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
                 <div className="mx-auto max-w-[210mm] print:max-w-none">
+
+                    {/* Tabs for Handover Mode */}
+                    {nextSession && (
+                        <div className="mb-6 print:hidden">
+                            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2 h-12">
+                                    <TabsTrigger value="current" className="text-base">
+                                        [현재] {currentSession?.groupName || "현재 근무"}
+                                    </TabsTrigger>
+                                    <TabsTrigger value="next" className="text-base data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900">
+                                        [다음] {nextSession.groupName} (준비 중)
+                                    </TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                    )}
+
                     {/* Action Buttons - Hidden in print */}
                     <div className="mb-6 flex justify-between items-center print:hidden">
                         <div className="flex items-center gap-4">
@@ -702,20 +930,24 @@ export default function TodayWorkLog() {
                             <Button variant="outline" onClick={() => router.push('/worklog')}>
                                 목록으로
                             </Button>
-                            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                                <SelectTrigger className="w-[120px]">
-                                    <SelectValue placeholder="근무조 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {[...Array(10)].map((_, i) => (
-                                        <SelectItem key={i + 1} value={`${i + 1}조`}>
-                                            {i + 1}조
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+
                         </div>
                         <div className="flex gap-2">
+                            {/* Promote Session Button (Only visible in Current tab if next session exists) */}
+                            {activeTab === 'current' && nextSession && (
+                                <Button onClick={handlePromoteSession} className="bg-indigo-600 hover:bg-indigo-700">
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    근무 교대 (세션 넘기기)
+                                </Button>
+                            )}
+
+                            {status !== '서명완료' && (
+                                <Button variant="outline" onClick={handleSign} className="border-teal-600 text-teal-700 hover:bg-teal-50">
+                                    <PenTool className="mr-2 h-4 w-4" />
+                                    결재(서명)
+                                </Button>
+                            )}
+
                             <Button variant="outline" onClick={() => handleSave()}>
                                 <Save className="mr-2 h-4 w-4" />
                                 저장
@@ -726,6 +958,17 @@ export default function TodayWorkLog() {
                             </Button>
                         </div>
                     </div>
+
+                    <PinVerificationDialog
+                        open={pinDialogOpen}
+                        onOpenChange={setPinDialogOpen}
+                        members={currentSession?.members || []}
+                        onSuccess={handlePinSuccess}
+                        title={pendingAction === 'handover' ? "근무 교대 승인" : "업무일지 결재"}
+                        description={pendingAction === 'handover'
+                            ? "근무를 종료하고 다음 조에게 인계하시겠습니까? 책임자의 확인이 필요합니다."
+                            : "업무일지를 최종 승인하시겠습니까? 서명 후에는 수정이 제한될 수 있습니다."}
+                    />
 
                     {/* A4 Page Container */}
                     <div className="bg-white p-[10mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] mx-auto relative box-border flex flex-col">
@@ -780,15 +1023,15 @@ export default function TodayWorkLog() {
                                 <div className="flex-1 py-1">영 상</div>
                             </div>
                             <div className="flex text-center text-sm min-h-[2rem]">
-                                <div className="w-[180px] border-r border-black flex items-center justify-center font-bold">
+                                <div className="w-[180px] border-r border-black flex items-center justify-center font-handwriting text-base">
                                     {shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
                                 </div>
                                 {/* Director */}
-                                <div className="flex-1 border-r border-black p-1 flex flex-col justify-center gap-1 relative group">
+                                <div className={`flex-1 border-r border-black p-1 flex ${workers.director.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
                                     {workers.director.map((name, index) => (
                                         <Input
                                             key={index}
-                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-base"
+                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.director.length === 2 ? 'flex-1' : 'w-full'}`}
                                             value={name}
                                             onChange={(e) => {
                                                 const newWorkers = [...workers.director];
@@ -808,11 +1051,11 @@ export default function TodayWorkLog() {
                                     )}
                                 </div>
                                 {/* Assistant Director */}
-                                <div className="flex-1 border-r border-black p-1 flex flex-col justify-center gap-1 relative group">
+                                <div className={`flex-1 border-r border-black p-1 flex ${workers.assistant.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
                                     {workers.assistant.map((name, index) => (
                                         <Input
                                             key={index}
-                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-base"
+                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.assistant.length === 2 ? 'flex-1' : 'w-full'}`}
                                             value={name}
                                             onChange={(e) => {
                                                 const newWorkers = [...workers.assistant];
@@ -832,11 +1075,11 @@ export default function TodayWorkLog() {
                                     )}
                                 </div>
                                 {/* Video */}
-                                <div className="flex-1 p-1 flex flex-col justify-center gap-1 relative group">
+                                <div className={`flex-1 p-1 flex ${workers.video.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
                                     {workers.video.map((name, index) => (
                                         <Input
                                             key={index}
-                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-base"
+                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.video.length === 2 ? 'flex-1' : 'w-full'}`}
                                             value={name}
                                             onChange={(e) => {
                                                 const newWorkers = [...workers.video];
@@ -979,22 +1222,6 @@ export default function TodayWorkLog() {
                     </div>
                 </div>
             </div>
-
-            <Dialog open={!!pendingPost} onOpenChange={(open) => !open && setPendingPost(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>새 포스트 작성</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <p>새 포스트를 작성하시겠습니까?</p>
-                        {!id && <p className="text-sm text-gray-500 mt-2">* 포스트 작성을 위해 현재 일지가 자동으로 저장됩니다.</p>}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setPendingPost(null)}>취소</Button>
-                        <Button onClick={confirmNewPost}>확인</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </MainLayout>
     )
 }

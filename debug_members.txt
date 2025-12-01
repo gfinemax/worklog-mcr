@@ -1,0 +1,8 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?썱截? run anywhere with `dotenvx run -- yourcommand`
+--- Checking Group Members ---
+Error fetching members: {
+  code: 'PGRST200',
+  details: "Searched for a foreign key relationship between 'group_members' and 'users' in the schema 'public', but no matches were found.",
+  hint: null,
+  message: "Could not find a relationship between 'group_members' and 'users' in the schema cache"
+}

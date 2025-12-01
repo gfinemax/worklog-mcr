@@ -1,0 +1,11 @@
+Starting FK Hint Test
+Testing hint: created_by
+Failed with hint 'created_by': Could not find a relationship between 'posts' and 'users' in the schema cache
+Testing hint: posts_created_by_fkey
+Failed with hint 'posts_created_by_fkey': Could not find a relationship between 'posts' and 'users' in the schema cache
+Testing hint: posts_created_by_fkey1
+Failed with hint 'posts_created_by_fkey1': Could not find a relationship between 'posts' and 'users' in the schema cache
+Testing hint: posts_users_created_by_fkey
+Failed with hint 'posts_users_created_by_fkey': Could not find a relationship between 'posts' and 'users' in the schema cache
+Testing hint: posts_created_by_user_id_fkey
+Failed with hint 'posts_created_by_user_id_fkey': Could not find a relationship between 'posts' and 'users' in the schema cache

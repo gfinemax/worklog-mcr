@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ArrowLeft, Check, Users, User, Lock, LogIn, Info, Search, Plus, X } from "lucide-react"
+import { ArrowLeft, Check, Users, User, Lock, LogIn, Info, Search, Plus, X, Briefcase, Monitor } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -16,13 +16,13 @@ import { authService } from "@/lib/auth"
 import { toast } from "sonner"
 import { useAuthStore, SessionMember } from "@/store/auth"
 import { supabase } from "@/lib/supabase"
-import { WorkerRegistrationDialog } from "@/components/worker-registration-dialog"
+import { shiftService, ShiftInfo } from "@/lib/shift-rotation"
+import { LoginForm } from "@/components/auth/login-form"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -36,18 +36,20 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [step, setStep] = useState<"login" | "session-setup">("login")
+  const [step, setStep] = useState<"login" | "mode-selection" | "session-setup">("login")
   const [loading, setLoading] = useState(false)
 
-  const { setUser: setGlobalUser, setGroup: setGlobalGroup, setSession: setGlobalSession } = useAuthStore()
-
-  // Login Form State
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const {
+    user: globalUser,
+    group: globalGroup,
+    setUser: setGlobalUser,
+    setGroup: setGlobalGroup,
+    setSession: setGlobalSession,
+    setLoginMode,
+    logout
+  } = useAuthStore()
 
   // Session Setup State
-  const [user, setUser] = useState<any>(null)
-  const [group, setGroup] = useState<any>(null)
   const [sessionMembers, setSessionMembers] = useState<SessionMember[]>([])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchMode, setSearchMode] = useState<'substitute' | 'add'>('add')
@@ -55,13 +57,13 @@ export default function LoginPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [availableRoles, setAvailableRoles] = useState<string[]>(["감독", "부감독", "영상"])
+  const [currentShiftType, setCurrentShiftType] = useState<string | null>(null)
 
   // Fetch Roles on Mount
   useEffect(() => {
     const fetchRoles = async () => {
       const { data } = await supabase.from("roles").select("name").eq("type", "both").order("order")
       if (data) {
-        // Ensure we have the basic roles if DB is empty or different
         const roleNames = data.map(r => r.name)
         if (roleNames.length > 0) setAvailableRoles(roleNames)
       }
@@ -69,26 +71,42 @@ export default function LoginPage() {
     fetchRoles()
   }, [])
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleLoginSuccess = () => {
+    checkUserGroup()
+  }
+
+  const checkUserGroup = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const userGroup = await authService.getUserGroup(user.id)
+    if (userGroup) {
+      const groupData = Array.isArray(userGroup) ? userGroup[0] : userGroup
+      setGlobalGroup(groupData)
+      setStep("mode-selection")
+    } else {
+      setLoginMode('personal')
+      router.push("/")
+    }
+  }
+
+  const handleModeSelect = (mode: 'shift' | 'personal') => {
+    if (mode === 'personal') {
+      setLoginMode('personal')
+      router.push("/")
+    } else {
+      prepareSessionSetup()
+    }
+  }
+
+  const prepareSessionSetup = async () => {
+    if (!globalGroup) return
+
     setLoading(true)
     try {
-      const { user, profile } = await authService.login(email, password)
-      setUser(profile)
-      setGlobalUser(profile)
-
-      // Check if user belongs to a group
-      const userGroup = await authService.getUserGroup(user.id)
-
-      if (userGroup) {
-        const groupData = Array.isArray(userGroup) ? userGroup[0] : userGroup
-        setGroup(groupData)
-        setGlobalGroup(groupData)
-
-        // Fetch Group Members
-        const { data: memberData, error: memberError } = await supabase
-          .from('group_members')
-          .select(`
+      const { data: memberData } = await supabase
+        .from('group_members')
+        .select(`
                 user_id,
                 role,
                 users (
@@ -97,40 +115,74 @@ export default function LoginPage() {
                     profile_image_url
                 )
             `)
-          .eq('group_id', groupData.id)
+        .eq('group_id', globalGroup.id)
 
-        if (memberData) {
-          const initialMembers: SessionMember[] = memberData.map((m: any) => ({
-            id: m.users.id,
-            name: m.users.name,
-            role: m.role || "영상", // Default role from DB or fallback
-            profile_image_url: m.users.profile_image_url
-          }))
+      if (memberData) {
+        const today = new Date()
+        const shiftConfig = await shiftService.getConfig(today)
+        let shiftInfo: ShiftInfo | null = null
 
-          // Sort by role priority for display (Director first)
-          // Simple sort: Director > Assistant > Video
-          const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
-          initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
-
-          setSessionMembers(initialMembers)
+        if (shiftConfig) {
+          shiftInfo = shiftService.calculateShift(today, globalGroup.name, shiftConfig)
+          if (shiftInfo) {
+            setCurrentShiftType(shiftInfo.shiftType)
+          }
+        } else {
+          setCurrentShiftType(null)
         }
 
-        setStep("session-setup")
-      } else {
-        // No group, go straight to dashboard
-        router.push("/")
+        const initialMembers: SessionMember[] = memberData.map((m: any) => ({
+          id: m.users.id,
+          name: m.users.name,
+          role: "영상", // Default role
+          profile_image_url: m.users.profile_image_url
+        }))
+
+        const roleOrder: Record<string, number> = { "감독": 0, "부감독": 1, "영상": 2 }
+
+        initialMembers.sort((a, b) => {
+          const roleA = memberData.find((m: any) => m.users.id === a.id)?.role || "영상"
+          const roleB = memberData.find((m: any) => m.users.id === b.id)?.role || "영상"
+
+          const mainRoleA = roleA.split(',')[0].trim()
+          const mainRoleB = roleB.split(',')[0].trim()
+
+          const orderA = roleOrder[mainRoleA] ?? 99
+          const orderB = roleOrder[mainRoleB] ?? 99
+
+          if (orderA !== orderB) return orderA - orderB
+
+          return a.name.localeCompare(b.name)
+        })
+
+        if (shiftInfo) {
+          const { director, assistant, video } = shiftInfo.roles
+          if (initialMembers[director]) initialMembers[director].role = "감독"
+          if (initialMembers[assistant]) initialMembers[assistant].role = "부감독"
+        } else {
+          const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
+          memberData.forEach((m: any, i: number) => {
+            if (m.role) initialMembers[i].role = m.role
+          })
+          initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+        }
+
+        const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
+        initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+
+        setSessionMembers(initialMembers)
       }
-    } catch (error: any) {
-      toast.error("로그인 실패: " + error.message)
+      setStep("session-setup")
+    } catch (error) {
+      toast.error("멤버 정보를 불러오는데 실패했습니다.")
     } finally {
       setLoading(false)
     }
   }
 
   const handleStartSession = async () => {
-    if (!group || !user) return
+    if (!globalGroup || !globalUser) return
 
-    // Validation: Check for Director
     const hasDirector = sessionMembers.some(m => m.role === '감독')
     if (!hasDirector) {
       const confirmStart = confirm("감독이 지정되지 않았습니다. 그래도 근무를 시작하시겠습니까?")
@@ -139,11 +191,10 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      // 1. Create Work Session in DB
       const { data: sessionData, error: sessionError } = await supabase
         .from('work_sessions')
         .insert({
-          group_id: group.id,
+          group_id: globalGroup.id,
           date: new Date().toISOString().split('T')[0],
           start_time: new Date().toISOString(),
           status: 'active'
@@ -153,7 +204,6 @@ export default function LoginPage() {
 
       if (sessionError) throw sessionError
 
-      // 2. Insert Session Members
       const membersToInsert = sessionMembers.map(m => ({
         session_id: sessionData.id,
         user_id: m.id,
@@ -169,16 +219,16 @@ export default function LoginPage() {
 
       if (membersError) throw membersError
 
-      // 3. Update Global Store
+      setLoginMode('shift')
       setGlobalSession({
         id: sessionData.id,
-        groupId: group.id,
-        groupName: group.name,
+        groupId: globalGroup.id,
+        groupName: globalGroup.name,
         members: sessionMembers,
         startedAt: sessionData.start_time
       })
 
-      toast.success(`${group.name} 근무 세션이 시작되었습니다.`)
+      toast.success(`${globalGroup.name} 근무 세션이 시작되었습니다.`)
       router.push("/")
     } catch (error: any) {
       console.error("Session Start Error:", error)
@@ -209,7 +259,6 @@ export default function LoginPage() {
       return
     }
 
-    // Search in both users and support_staff
     const { data: users } = await supabase
       .from('users')
       .select('id, name, role, profile_image_url')
@@ -218,7 +267,7 @@ export default function LoginPage() {
 
     const { data: staff } = await supabase
       .from('support_staff')
-      .select('id, name, role') // support_staff doesn't have profile_image_url yet in types but let's handle it
+      .select('id, name, role')
       .ilike('name', `%${query}%`)
       .limit(5)
 
@@ -231,13 +280,12 @@ export default function LoginPage() {
 
   const handleSelectWorker = (worker: any) => {
     if (searchMode === 'substitute' && targetMemberId) {
-      // Substitute logic
       setSessionMembers(prev => prev.map(m => {
         if (m.id === targetMemberId) {
           return {
             id: worker.id,
             name: worker.name,
-            role: m.role, // Keep original role
+            role: m.role,
             isSubstitute: true,
             originalMemberId: m.id,
             profile_image_url: worker.profile_image_url
@@ -247,7 +295,6 @@ export default function LoginPage() {
       }))
       toast.success(`${worker.name}님으로 교체되었습니다.`)
     } else {
-      // Add logic
       if (sessionMembers.find(m => m.id === worker.id)) {
         toast.error("이미 목록에 있는 근무자입니다.")
         return
@@ -255,7 +302,7 @@ export default function LoginPage() {
       setSessionMembers(prev => [...prev, {
         id: worker.id,
         name: worker.name,
-        role: '영상', // Default role
+        role: '영상',
         isSubstitute: false,
         profile_image_url: worker.profile_image_url
       }])
@@ -266,6 +313,14 @@ export default function LoginPage() {
 
   const handleRemoveMember = (memberId: string) => {
     setSessionMembers(prev => prev.filter(m => m.id !== memberId))
+  }
+
+  const handleSessionReset = () => {
+    if (confirm("세션 정보를 강제로 초기화하시겠습니까? 로그인 상태가 해제됩니다.")) {
+      logout()
+      setStep("login")
+      toast.info("세션이 초기화되었습니다.")
+    }
   }
 
   return (
@@ -326,101 +381,14 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-white dark:bg-zinc-950">
         <div className="w-full max-w-[420px] space-y-8">
 
-          {step === "login" ? (
-            // Login Form
+          {step === "login" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="space-y-2 text-center lg:text-left">
                 <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">로그인</h2>
                 <p className="text-slate-500 dark:text-slate-400">업무일지 시스템 접속을 위해 인증해주세요</p>
               </div>
 
-              <div className="space-y-4">
-                <Button
-                  variant="outline"
-                  className="w-full h-12 rounded-xl border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-medium transition-all shadow-sm"
-                  onClick={async () => {
-                    try {
-                      await authService.loginWithGoogle()
-                    } catch (error: any) {
-                      toast.error("Google 로그인 실패: " + error.message)
-                    }
-                  }}
-                >
-                  <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Google 계정으로 로그인
-                </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-slate-100" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-slate-400 font-medium">Or continue with email</span>
-                  </div>
-                </div>
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-600 font-medium pl-1">
-                    사번 / 이메일
-                  </Label>
-                  <div className="relative group">
-                    <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                    <Input
-                      id="email"
-                      type="text"
-                      placeholder="name@mbcplus.com"
-                      className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="relative group">
-                    <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                    <Input
-                      id="password"
-                      type="password"
-                      className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex justify-end px-1">
-                    <Link href="#" className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
-                      비밀번호 찾기
-                    </Link>
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-12 mt-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-lg hover:shadow-xl transition-all text-base"
-                >
-                  {loading ? "로그인 중..." : "로그인"}
-                </Button>
-              </form>
+              <LoginForm onSuccess={handleLoginSuccess} />
 
               <div className="flex flex-col space-y-4 mt-10 pt-6 border-t border-slate-100">
                 <p className="text-center text-sm text-slate-500">
@@ -429,23 +397,82 @@ export default function LoginPage() {
                     계정 만들기
                   </Link>
                 </p>
+                <div className="flex justify-center">
+                  <Button variant="link" className="text-xs text-slate-400" onClick={handleSessionReset}>
+                    세션 초기화 (비상용)
+                  </Button>
+                </div>
                 <p className="text-center text-xs text-slate-400 font-light">Copyright © MBC PLUS. All rights reserved.</p>
               </div>
             </div>
-          ) : (
-            // Session Setup Form
+          )}
+
+          {step === "mode-selection" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-2 text-center">
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">접속 모드 선택</h2>
+                <p className="text-slate-500 text-sm">원하시는 업무 모드를 선택해주세요.</p>
+              </div>
+
+              <div className="grid gap-4">
+                <div
+                  onClick={() => handleModeSelect('shift')}
+                  className="cursor-pointer group relative flex flex-col gap-2 rounded-xl border-2 border-slate-200 p-6 hover:border-blue-500 hover:bg-blue-50/50 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-3 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      <Monitor className="h-6 w-6" />
+                    </div>
+                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">현장 근무</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-lg text-slate-900">조별 모드 (Shift Mode)</h3>
+                    <p className="text-sm text-slate-500">
+                      근무를 시작하고 업무일지를 작성합니다.<br />
+                      근무자 확정 및 운행표 관리가 가능합니다.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleModeSelect('personal')}
+                  className="cursor-pointer group relative flex flex-col gap-2 rounded-xl border-2 border-slate-200 p-6 hover:border-slate-500 hover:bg-slate-50 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-3 bg-slate-100 text-slate-600 rounded-lg group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                      <Briefcase className="h-6 w-6" />
+                    </div>
+                    <Badge variant="outline">개인 업무</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-lg text-slate-900">개인 모드 (Personal Mode)</h3>
+                    <p className="text-sm text-slate-500">
+                      개인 업무를 처리하거나 지난 일지를 확인합니다.<br />
+                      결재, 댓글 작성, 본인 글 수정이 가능합니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Button variant="ghost" className="w-full" onClick={() => setStep("login")}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> 다른 계정으로 로그인
+              </Button>
+            </div>
+          )}
+
+          {step === "session-setup" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setStep("login")}
+                  onClick={() => setStep("mode-selection")}
                   className="text-slate-500 hover:text-slate-900"
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" /> 뒤로가기
                 </Button>
                 <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                  {group?.name || "소속 없음"}
+                  {globalGroup?.name || "소속 없음"} {currentShiftType && `(${currentShiftType})`}
                 </span>
               </div>
 
