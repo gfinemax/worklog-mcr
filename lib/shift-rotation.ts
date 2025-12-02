@@ -122,5 +122,45 @@ export const shiftService = {
         }
 
         return results
+    },
+
+    // Calculate the expected next team based on current team and shift
+    getNextTeam(currentTeam: string, currentShift: 'day' | 'night', config: ShiftPatternConfig): string | null {
+        // 1. Find the day index in the cycle where the current team is working the current shift
+        // Note: This assumes the current team is working correctly according to the pattern.
+        // If the pattern has multiple days with the same team/shift (unlikely in this rotation), it picks the first one.
+        // A more robust approach would be to pass the current date, but for now we follow the pattern logic.
+
+        // However, since we might be in a state where the current date's pattern is what matters, 
+        // let's try to find the pattern entry that matches.
+
+        // Actually, we need to know "which day of the cycle" we are currently in to be precise.
+        // But if we only have currentTeam and currentShift, we have to search the pattern.
+
+        const currentPatternIndex = config.pattern_json.findIndex(p => {
+            if (currentShift === 'day') return p.A.team === currentTeam
+            return p.N.team === currentTeam
+        })
+
+        if (currentPatternIndex === -1) return null
+
+        let nextTeam = ''
+
+        if (currentShift === 'day') {
+            // Next is Night of the SAME day index
+            const pattern = config.pattern_json.find(p => p.day === currentPatternIndex)
+            if (pattern) {
+                nextTeam = pattern.N.team
+            }
+        } else {
+            // Next is Day of the NEXT day index
+            const nextDayIndex = (currentPatternIndex + 1) % config.cycle_length
+            const pattern = config.pattern_json.find(p => p.day === nextDayIndex)
+            if (pattern) {
+                nextTeam = pattern.A.team
+            }
+        }
+
+        return nextTeam || null
     }
 }

@@ -20,9 +20,8 @@ const menuItems = [
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
   { icon: BarChart3, label: "통계 및 보고서", href: "/reports" },
-  { icon: Users, label: "근무자 관리", href: "/users" },
-  { icon: Settings, label: "설정", href: "/settings" },
-  { icon: RotateCcw, label: "근무 패턴 설정", href: "/settings/shift-rotation" },
+  { icon: Users, label: "근무자 패턴 설정", href: "/settings/worker-pattern" },
+  { icon: Settings, label: "프로그램 설정", href: "/settings", exact: true },
 ]
 
 export function Sidebar() {

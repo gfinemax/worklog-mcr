@@ -614,8 +614,9 @@ export default function TodayWorkLog() {
                     video: [] as string[]
                 }
                 nextSession.members.forEach(m => {
-                    if (m.role === '감독') newWorkers.director.push(m.name)
-                    else if (m.role === '부감독') newWorkers.assistant.push(m.name)
+                    const primaryRole = (m.role || '').split(',')[0].trim()
+                    if (primaryRole === '감독') newWorkers.director.push(m.name)
+                    else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
                     else newWorkers.video.push(m.name)
                 })
                 setWorkers(newWorkers)
@@ -639,8 +640,9 @@ export default function TodayWorkLog() {
             currentSession.members.forEach(m => {
                 // Map roles to worker categories
                 // Note: currentSession roles might be '감독', '부감독', '영상' etc.
-                if (m.role === '감독') newWorkers.director.push(m.name)
-                else if (m.role === '부감독') newWorkers.assistant.push(m.name)
+                const primaryRole = (m.role || '').split(',')[0].trim()
+                if (primaryRole === '감독') newWorkers.director.push(m.name)
+                else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
                 else newWorkers.video.push(m.name)
             })
             setWorkers(newWorkers)
@@ -692,22 +694,6 @@ export default function TodayWorkLog() {
                 assistant: [] as string[],
                 video: [] as string[]
             }
-
-            members.forEach((m: any) => {
-                const user = users.find(u => u.id === m.user_id)
-                if (!user) return
-                const roleStr = (m.role || user.role || '').toLowerCase()
-
-                if (roleStr.includes('감독') && !roleStr.includes('부감독')) {
-                    newWorkers.director.push(user.name)
-                } else if (roleStr.includes('부감독')) {
-                    newWorkers.assistant.push(user.name)
-                } else if (roleStr.includes('영상') || roleStr.includes('기술')) {
-                    newWorkers.video.push(user.name)
-                }
-            })
-
-            setWorkers(newWorkers)
         }
 
         fetchGroupMembers()
@@ -869,6 +855,23 @@ export default function TodayWorkLog() {
     }
 
     const handlePromoteSession = () => {
+        // 1. Check if operation signature exists
+        const currentWorklog = worklogs.find(w => String(w.id) === id)
+
+        // Note: We check 'operation' signature.
+        if (currentWorklog) {
+            // If signatures object exists (new schema)
+            if (currentWorklog.signatures && !currentWorklog.signatures.operation) {
+                toast.error("운행 결재가 완료되지 않아 로그아웃할 수 없습니다.")
+                return
+            }
+            // Fallback for old schema if signatures is undefined but signature string exists?
+            // If signatures is undefined, we might assume it's old data.
+            // But we migrated DB. So signatures should be there.
+            // However, the store might not have fetched it if I didn't reload the page/store.
+            // But I updated the store logic.
+        }
+
         setPendingAction('handover')
         setPinDialogOpen(true)
     }
@@ -894,6 +897,23 @@ export default function TodayWorkLog() {
         setPendingAction(null)
     }
 
+    const handleCancelHandover = () => {
+        const { setNextSession, setNextUser } = useAuthStore.getState()
+        setNextSession(null)
+        setNextUser(null)
+        window.location.reload()
+    }
+
+    // Auto-save workers changes
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (id) {
+                handleSave(true)
+            }
+        }, 1000)
+        return () => clearTimeout(timer)
+    }, [workers])
+
     return (
         <MainLayout>
             <div className={cn("min-h-screen p-8 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
@@ -905,10 +925,10 @@ export default function TodayWorkLog() {
                             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                                 <TabsList className="grid w-full grid-cols-2 h-12">
                                     <TabsTrigger value="current" className="text-base">
-                                        [현재] {currentSession?.groupName || "현재 근무"}
+                                        [현재] {currentSession?.groupName || "현재 근무"}{activeTab === 'next' ? (shiftType === 'day' ? 'N' : 'A') : (shiftType === 'day' ? 'A' : 'N')} (근무 중)
                                     </TabsTrigger>
                                     <TabsTrigger value="next" className="text-base data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900">
-                                        [다음] {nextSession.groupName} (준비 중)
+                                        [다음] {nextSession.groupName}{activeTab === 'next' ? (shiftType === 'day' ? 'A' : 'N') : (shiftType === 'day' ? 'N' : 'A')} (근무준비 중)
                                     </TabsTrigger>
                                 </TabsList>
                             </Tabs>
@@ -927,18 +947,21 @@ export default function TodayWorkLog() {
                                 )}
                                 <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
                             </div>
-                            <Button variant="outline" onClick={() => router.push('/worklog')}>
-                                목록으로
-                            </Button>
+                            {/* 목록으로 버튼 삭제됨 */}
 
                         </div>
                         <div className="flex gap-2">
                             {/* Promote Session Button (Only visible in Current tab if next session exists) */}
                             {activeTab === 'current' && nextSession && (
-                                <Button onClick={handlePromoteSession} className="bg-indigo-600 hover:bg-indigo-700">
-                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                    근무 교대 (세션 넘기기)
-                                </Button>
+                                <>
+                                    <Button onClick={handleCancelHandover} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
+                                        근무교대취소
+                                    </Button>
+                                    <Button onClick={handlePromoteSession} className="bg-indigo-600 hover:bg-indigo-700">
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        근무교대하기
+                                    </Button>
+                                </>
                             )}
 
                             {status !== '서명완료' && (
@@ -948,10 +971,7 @@ export default function TodayWorkLog() {
                                 </Button>
                             )}
 
-                            <Button variant="outline" onClick={() => handleSave()}>
-                                <Save className="mr-2 h-4 w-4" />
-                                저장
-                            </Button>
+                            {/* 저장 버튼 삭제됨 (자동 저장 적용) */}
                             <Button onClick={handlePrint}>
                                 <Printer className="mr-2 h-4 w-4" />
                                 인쇄하기

@@ -20,7 +20,14 @@ export interface Worklog {
     }
     status: '작성중' | '근무종료' | '서명완료'
     signature: string
+    signatures?: {
+        operation: string | null
+        mcr: string | null
+        team_leader: string | null
+        network: string | null
+    }
     isImportant: boolean
+    isAutoCreated?: boolean
     aiSummary?: string
     channelLogs?: { [key: string]: ChannelLog }
     systemIssues?: { id: string; summary: string }[]
@@ -58,8 +65,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             type: log.type,
             workers: log.workers || { director: [], assistant: [], video: [] },
             status: log.status,
-            signature: "0/4",
+            signature: log.signature || "0/4",
+            signatures: log.signatures || { operation: null, mcr: null, team_leader: null, network: null },
             isImportant: false,
+            isAutoCreated: log.is_auto_created || false,
             aiSummary: log.ai_summary,
             channelLogs: log.channel_logs || {},
             systemIssues: log.system_issues || []
@@ -89,7 +98,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             workers: worklog.workers,
             // system_issues: worklog.systemIssues, // Column missing in DB, disabling for now
             group_id: groupData.id,
-            group_name: worklog.groupName // Renamed column
+            group_name: worklog.groupName, // Renamed column
+            signatures: worklog.signatures,
+            is_auto_created: worklog.isAutoCreated
         }
 
         // Check if worklog exists
@@ -130,6 +141,35 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         }
 
         if (error) {
+            // Check for unique constraint violation
+            if (error.code === '23505') { // unique_violation
+                console.log('Worklog already exists, fetching existing one...')
+                const { data: existing, error: fetchError } = await supabase
+                    .from('worklogs')
+                    .select('*')
+                    .eq('group_id', groupData.id)
+                    .eq('date', worklog.date)
+                    .eq('type', worklog.type)
+                    .single()
+
+                if (!fetchError && existing) {
+                    return {
+                        id: existing.id,
+                        date: existing.date,
+                        groupName: worklog.groupName,
+                        type: existing.type,
+                        workers: existing.workers || { director: [], assistant: [], video: [] },
+                        status: existing.status,
+                        signature: existing.signature || "0/4",
+                        signatures: existing.signatures || { operation: null, mcr: null, team_leader: null, network: null },
+                        isImportant: false,
+                        isAutoCreated: existing.is_auto_created || false,
+                        channelLogs: existing.channel_logs || {},
+                        systemIssues: existing.system_issues || []
+                    } as Worklog
+                }
+            }
+
             console.error('Error adding/updating worklog:', JSON.stringify(error, null, 2))
             return { error }
         }
@@ -148,8 +188,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             type: createdLog.type,
             workers: worklog.workers,
             status: createdLog.status,
-            signature: "0/4",
+            signature: createdLog.signature || "0/4",
+            signatures: createdLog.signatures || { operation: null, mcr: null, team_leader: null, network: null },
             isImportant: false,
+            isAutoCreated: createdLog.is_auto_created || false,
             channelLogs: createdLog.channel_logs || {},
             systemIssues: createdLog.system_issues || []
         } as Worklog
@@ -177,8 +219,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 type: data.type,
                 workers: data.workers || { director: [], assistant: [], video: [] },
                 status: data.status,
-                signature: "0/4",
+                signature: data.signature || "0/4",
+                signatures: data.signatures || { operation: null, mcr: null, team_leader: null, network: null },
                 isImportant: false,
+                isAutoCreated: data.is_auto_created || false,
                 aiSummary: data.ai_summary,
                 channelLogs: data.channel_logs || {},
                 systemIssues: data.system_issues || []
@@ -213,6 +257,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         if (updates.type) dbUpdates.type = updates.type
         if (updates.workers) dbUpdates.workers = updates.workers
         if (updates.aiSummary) dbUpdates.ai_summary = updates.aiSummary
+        if (updates.signatures) dbUpdates.signatures = updates.signatures
+        if (updates.isAutoCreated !== undefined) dbUpdates.is_auto_created = updates.isAutoCreated
         // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Column missing in DB
 
         const { error } = await supabase
