@@ -601,8 +601,8 @@ export default function NewPostPage() {
                         <AlertDialogHeader>
                             <AlertDialogTitle>포스트 작성 확인</AlertDialogTitle>
                             <AlertDialogDescription className="space-y-2">
-                                <p>이 포스트는 <span className="font-bold text-foreground">{displayAuthorName}</span> 명의로 등록됩니다.</p>
-                                <p>계속 진행하시겠습니까?</p>
+                                <div>이 포스트는 <span className="font-bold text-foreground">{displayAuthorName}</span> 명의로 등록됩니다.</div>
+                                <div>계속 진행하시겠습니까?</div>
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

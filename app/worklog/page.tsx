@@ -10,9 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from "lucide-react"
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useWorklogStore, Worklog } from "@/store/worklog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { format } from "date-fns"
 
 type SortConfig = {
   key: keyof Worklog
@@ -98,8 +103,39 @@ export default function WorkLogList() {
     return now >= start && now <= end
   }
 
+  const [teamFilter, setTeamFilter] = useState<string>("all")
+  const [shiftFilter, setShiftFilter] = useState<string>("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [dateQuery, setDateQuery] = useState("")
+
+  const filteredWorklogs = useMemo(() => {
+    return worklogs.filter(log => {
+      // Team Filter
+      if (teamFilter !== "all" && log.groupName !== teamFilter) return false
+      // Shift Filter
+      if (shiftFilter !== "all" && (shiftFilter === 'day' ? log.type !== '주간' : log.type !== '야간')) return false
+
+      // Date Filter
+      if (dateQuery && !log.date.includes(dateQuery)) return false
+
+      // Search Filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase().trim()
+        return (
+          log.date.includes(query) ||
+          (log.groupName && log.groupName.toLowerCase().includes(query)) ||
+          (log.type && log.type.includes(query)) ||
+          log.workers.director.some(w => w.toLowerCase().includes(query)) ||
+          log.workers.assistant.some(w => w.toLowerCase().includes(query)) ||
+          log.workers.video.some(w => w.toLowerCase().includes(query))
+        )
+      }
+      return true
+    })
+  }, [worklogs, teamFilter, shiftFilter, searchQuery, dateQuery])
+
   const sortedWorklogs = useMemo(() => {
-    let sortableWorklogs = [...worklogs]
+    let sortableWorklogs = [...filteredWorklogs]
     if (sortConfig !== null) {
       sortableWorklogs.sort((a, b) => {
         let aValue: any = a[sortConfig.key]
@@ -131,7 +167,14 @@ export default function WorkLogList() {
       })
     }
     return sortableWorklogs
-  }, [worklogs, sortConfig])
+  }, [filteredWorklogs, sortConfig])
+
+  const statusSummary = useMemo(() => {
+    const total = filteredWorklogs.length
+    const active = filteredWorklogs.filter(log => log.status === '작성중').length
+    const signed = filteredWorklogs.filter(log => log.status === '서명완료').length
+    return { total, active, signed }
+  }, [filteredWorklogs])
 
   const requestSort = (key: keyof Worklog) => {
     let direction: 'asc' | 'desc' = 'asc'
@@ -157,7 +200,7 @@ export default function WorkLogList() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">업무일지</h1>
+            <h1 className="text-2xl font-bold tracking-tight">업무일지 저장소</h1>
             <p className="text-muted-foreground">주조정실 업무일지 목록입니다.</p>
           </div>
           <Link href="/worklog/today">
@@ -169,16 +212,59 @@ export default function WorkLogList() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>일지 목록</CardTitle>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Left Side: Filters */}
+              <div className="flex flex-1 items-center gap-2">
                 <div className="relative w-64">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="검색..." className="pl-8" />
+                  <Input
+                    placeholder="검색..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-[200px] justify-start text-left font-normal",
+                          !dateQuery && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateQuery ? dateQuery : "날짜 선택"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateQuery ? new Date(dateQuery) : undefined}
+                        onSelect={(date) => setDateQuery(date ? format(date, "yyyy-MM-dd") : "")}
+                        initialFocus
+                      />
+                      <div className="p-3 border-t border-border">
+                        <Button variant="ghost" className="w-full" onClick={() => setDateQuery("")}>
+                          전체
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Right Side: Summary */}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <span>전체 <span className="font-bold text-foreground">{statusSummary.total}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>작성중 <span className="font-bold text-amber-600">{statusSummary.active}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>완료 <span className="font-bold text-teal-600">{statusSummary.signed}</span></span>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -418,7 +504,7 @@ export default function WorkLogList() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </MainLayout>
+      </div >
+    </MainLayout >
   )
 }

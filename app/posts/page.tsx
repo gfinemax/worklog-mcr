@@ -19,6 +19,10 @@ import { usePostStore, Post } from "@/store/posts"
 import { format } from "date-fns"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { useAuthStore } from "@/store/auth"
 
 export default function PostList() {
   const router = useRouter()
@@ -45,6 +49,11 @@ export default function PostList() {
     })
   }, [selectedCategory, searchQuery, selectedTag])
 
+  const { user } = useAuthStore()
+  const [priorityFilter, setPriorityFilter] = useState<string>("all")
+  const [hideResolved, setHideResolved] = useState(false)
+  const [showMyPosts, setShowMyPosts] = useState(false)
+
   // Sorting Logic
   const handleSort = (key: string) => {
     setSortConfig(current => ({
@@ -53,7 +62,20 @@ export default function PostList() {
     }))
   }
 
-  const sortedPosts = [...posts].sort((a, b) => {
+  const filteredPosts = posts.filter(post => {
+    // Priority Filter
+    if (priorityFilter !== "all" && post.priority !== priorityFilter) return false
+
+    // Hide Resolved Filter
+    if (hideResolved && post.status === 'resolved') return false
+
+    // My Posts Filter
+    if (showMyPosts && user && post.author_id !== user.id) return false
+
+    return true
+  })
+
+  const sortedPosts = [...filteredPosts].sort((a, b) => {
     const { key, direction } = sortConfig
     let aValue: any = a
     let bValue: any = b
@@ -196,16 +218,47 @@ export default function PostList() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>포스트 목록</CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="검색..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-1 items-center gap-4 flex-wrap">
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="검색..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue placeholder="우선순위" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="긴급">긴급</SelectItem>
+                    <SelectItem value="중요">중요</SelectItem>
+                    <SelectItem value="일반">일반</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="hide-resolved"
+                    checked={hideResolved}
+                    onCheckedChange={setHideResolved}
+                  />
+                  <Label htmlFor="hide-resolved" className="text-sm font-medium cursor-pointer">해결됨 숨기기</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="my-posts"
+                    checked={showMyPosts}
+                    onCheckedChange={setShowMyPosts}
+                  />
+                  <Label htmlFor="my-posts" className="text-sm font-medium cursor-pointer">내 포스트</Label>
+                </div>
               </div>
             </div>
           </CardHeader>

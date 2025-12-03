@@ -29,13 +29,17 @@ interface WorkerRegistrationDialogProps {
     workerToEdit?: WorkerData | null
     open?: boolean
     onOpenChange?: (open: boolean) => void
+    triggerClassName?: string
+    triggerVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
 }
 
 export function WorkerRegistrationDialog({
     onSuccess,
     workerToEdit,
     open: controlledOpen,
-    onOpenChange: setControlledOpen
+    onOpenChange: setControlledOpen,
+    triggerClassName,
+    triggerVariant = "default"
 }: WorkerRegistrationDialogProps) {
     const [internalOpen, setInternalOpen] = useState(false)
     const nodeRef = useRef(null)
@@ -556,7 +560,7 @@ export function WorkerRegistrationDialog({
         <Dialog open={open} onOpenChange={setOpen}>
             {!isControlled && (
                 <DialogTrigger asChild>
-                    <Button>
+                    <Button variant={triggerVariant} className={triggerClassName}>
                         <Plus className="mr-2 h-4 w-4" />
                         근무자 추가
                     </Button>

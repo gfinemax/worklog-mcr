@@ -1,0 +1,3 @@
+- Name: 김소연, Role: '영상', Email: kimsy@mbcplus.com
+- Name: 김준일, Role: '감독, 부감독', Email: kimji@mbcplus.com
+- Name: 박상필, Role: '부감독, 감독', Email: parksp@mbcplus.com
