@@ -8,6 +8,7 @@ export type AuditAction =
     | 'UPDATE_WORKER'
     | 'LOGIN'
     | 'LOGOUT'
+    | 'CREATE_SHIFT_CONFIG'
 
 export type TargetType =
     | 'SHIFT_CONFIG'

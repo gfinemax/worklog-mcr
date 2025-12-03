@@ -29,6 +29,11 @@ import { toast } from "sonner"
 import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
 import { useAuthStore } from "@/store/auth"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { shiftService } from "@/lib/shift-rotation"
+import { format, subDays, isToday, isYesterday } from "date-fns"
+import { ko } from "date-fns/locale"
 
 // Channel Abbreviations
 const CHANNEL_ABBREVIATIONS: { [key: string]: string } = {
@@ -161,10 +166,11 @@ function ChannelRow({
         const seconds = parseInt(ss)
         const frames = parseInt(ff)
 
-        if (hours > 23) {
-            setValidationError("시간은 00~23 범위여야 합니다")
-            return false
+        // Reset to 00:00:00:00 if hours >= 24 (Max is 23:59:59:29)
+        if (hours >= 24) {
+            return true // Will be handled in handleDialogConfirm
         }
+
         if (minutes > 59) {
             setValidationError("분은 00~59 범위여야 합니다")
             return false
@@ -173,8 +179,8 @@ function ChannelRow({
             setValidationError("초는 00~59 범위여야 합니다")
             return false
         }
-        if (frames > 23) {
-            setValidationError("프레임은 00~23 범위여야 합니다")
+        if (frames > 29) {
+            setValidationError("프레임은 00~29 범위여야 합니다")
             return false
         }
 
@@ -224,10 +230,22 @@ function ChannelRow({
             return
         }
 
+        let finalValue = dialogValue
+
+        // Check for rollover condition (Hours >= 24)
+        const match = dialogValue.match(/(\d{2}):(\d{2}):(\d{2}):(\d{2})/)
+        if (match) {
+            const hours = parseInt(match[1])
+            if (hours >= 24) {
+                finalValue = `${parsedPrefix}00:00:00:00${parsedSuffix}`
+                toast.info("최대 시간(23:59:59:29)을 초과하여 00:00:00:00으로 초기화되었습니다.")
+            }
+        }
+
         if (selectedType !== null) {
             onTimecodesChange({
                 ...timecodeEntries,
-                [selectedType]: dialogValue
+                [selectedType]: finalValue
             })
         }
 
@@ -389,7 +407,7 @@ export default function TodayWorkLog() {
     const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts } = useWorklogStore()
     const { currentSession, nextSession, promoteNextSession, logout } = useAuthStore()
 
-    const [date, setDate] = useState<string>("")
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date())
     const [shiftType, setShiftType] = useState<'day' | 'night'>('night')
     const [selectedTeam, setSelectedTeam] = useState<string>("")
     const [workers, setWorkers] = useState<{
@@ -420,6 +438,7 @@ export default function TodayWorkLog() {
     // Determine Active Tab
     const [activeTab, setActiveTab] = useState<string>("current")
 
+    // Sync activeTab with selectedTeam
     useEffect(() => {
         if (nextSession) {
             // If we are viewing the next session's team, active tab is 'next'
@@ -494,7 +513,7 @@ export default function TodayWorkLog() {
     }, [paramTeam, paramType])
 
 
-    // Sync state from store
+    // Sync state from store (Existing Worklogs)
     useEffect(() => {
         if (id) {
             const worklog = worklogs.find(w => String(w.id) === id)
@@ -503,10 +522,7 @@ export default function TodayWorkLog() {
                 const [yearStr, monthStr, dayStr] = worklog.date.split('-')
                 const dateObj = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr))
 
-                const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
-                const weekDay = weekDays[dateObj.getDay()]
-
-                setDate(`${yearStr}년 ${Number(monthStr)}월 ${Number(dayStr)}일 ${weekDay}요일`)
+                setSelectedDate(dateObj)
                 setShiftType(worklog.type === '주간' ? 'day' : 'night')
                 setSelectedTeam(worklog.groupName)
                 setWorkers(worklog.workers)
@@ -566,32 +582,9 @@ export default function TodayWorkLog() {
                 }
             }
         } else {
-            const now = new Date()
-            const year = now.getFullYear()
-            const month = now.getMonth() + 1
-            const day = now.getDate()
-            const weekDays = ["일", "월", "화", "수", "목", "금", "토"]
-            const weekDay = weekDays[now.getDay()]
-            setDate(`${year}년 ${month}월 ${day}일 ${weekDay}요일`)
-
-            // Determine shift based on current time (Day: 07:30 ~ 07:30 next day)
-            // If paramType is present, use it. Otherwise calculate.
-            if (!paramType) {
-                const currentHour = now.getHours()
-                const currentMinute = now.getMinutes()
-                const currentTime = currentHour * 60 + currentMinute
-
-                const dayStart = 7 * 60 + 30 // 07:30
-                const dayEnd = 18 * 60 + 30 // 18:30
-
-                const isDayShift = currentTime >= dayStart && currentTime < dayEnd
-                const currentShiftType = isDayShift ? 'day' : 'night'
-                setShiftType(currentShiftType)
-            }
-
-            // Check if a worklog already exists for today, this team, and this shift
-            // We need to format date as YYYY-MM-DD to match DB
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            // New Worklog: Check if a worklog already exists for today/team/shift
+            // Note: Initialization of date/shift is now handled in a separate effect
+            const dateStr = format(selectedDate, 'yyyy-MM-dd')
 
             const existingWorklog = worklogs.find(w =>
                 w.date === dateStr &&
@@ -606,7 +599,6 @@ export default function TodayWorkLog() {
             }
 
             // If no existing worklog, we might need to populate workers from session members if available
-            // This is handled by the useEffect below, but we can optimize for Next Session
             if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) {
                 const newWorkers = {
                     director: [] as string[],
@@ -624,6 +616,75 @@ export default function TodayWorkLog() {
         }
     }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession])
 
+    // Smart Initialization: Determine initial Date and Shift Type
+    // Prioritizes logged-in user's active shift over strict time-based shift to prevent auto-switching during handover.
+    useEffect(() => {
+        if (id || paramType) return // Skip if ID or params exist
+
+        const initializeSmartShift = async () => {
+            const now = new Date()
+            let { date: targetDate, shiftType: logicalShiftType } = shiftService.getLogicalShiftInfo(now)
+
+            // If user is logged in, check if we should stick to their shift
+            if (currentSession) {
+                const config = await shiftService.getConfig(targetDate)
+                if (config) {
+                    const teams = shiftService.getTeamsForDate(targetDate, config)
+                    if (teams) {
+                        // Case 1: Time is Night, but User is Day Team (e.g. 18:31 Handover)
+                        if (logicalShiftType === 'night' && currentSession.groupName === teams.A) {
+                            logicalShiftType = 'day'
+                            // Date remains Today
+                        }
+                        // Case 2: Time is Day (Next Morning), but User is Night Team (e.g. 08:00 Handover)
+                        else if (logicalShiftType === 'day' && currentSession.groupName === teams.N) {
+                            // Check if they were Night Team for YESTERDAY
+                            // (Since teams.N is Night Team for TODAY)
+                            // Actually, if I am Night Team, I work Today Night.
+                            // But if it is 08:00, I might be finishing Yesterday Night.
+                            // Let's check Yesterday's schedule
+                            const yesterday = subDays(targetDate, 1)
+                            const prevConfig = await shiftService.getConfig(yesterday)
+                            if (prevConfig) {
+                                const prevTeams = shiftService.getTeamsForDate(yesterday, prevConfig)
+                                if (prevTeams && prevTeams.N === currentSession.groupName) {
+                                    logicalShiftType = 'night'
+                                    targetDate = yesterday
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            setSelectedDate(targetDate)
+            setShiftType(logicalShiftType)
+        }
+
+        initializeSmartShift()
+    }, [currentSession, id, paramType])
+
+    // Auto-select team based on pattern when date or shift changes (Only for new logs)
+    useEffect(() => {
+        if (id) return // Don't auto-change for existing logs
+
+        const updateTeamFromPattern = async () => {
+            const config = await shiftService.getConfig(selectedDate)
+            if (config) {
+                const teams = shiftService.getTeamsForDate(selectedDate, config)
+                if (teams) {
+                    const targetTeam = shiftType === 'day' ? teams.A : teams.N
+                    if (targetTeam && targetTeam !== selectedTeam) {
+                        setSelectedTeam(targetTeam)
+                        toast.info(`${format(selectedDate, 'MM/dd')} ${shiftType === 'day' ? 'A' : 'N'}근무조(${targetTeam})로 자동 설정되었습니다.`)
+                    }
+                }
+            }
+        }
+
+        updateTeamFromPattern()
+    }, [selectedDate, shiftType, id])
+
     // Fetch group members when team changes (only if no ID or creating new)
     useEffect(() => {
         // If we are in Next Session tab, we already set workers from session members in the previous effect
@@ -631,15 +692,13 @@ export default function TodayWorkLog() {
 
         // [Modified] Use currentSession members if available and matches selectedTeam
         // We do this EVEN IF id exists, to ensure the displayed workers match the logged-in session (user request)
-        if (currentSession && selectedTeam === currentSession.groupName) {
+        if (!id && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current') {
             const newWorkers = {
                 director: [] as string[],
                 assistant: [] as string[],
                 video: [] as string[]
             }
             currentSession.members.forEach(m => {
-                // Map roles to worker categories
-                // Note: currentSession roles might be '감독', '부감독', '영상' etc.
                 const primaryRole = (m.role || '').split(',')[0].trim()
                 if (primaryRole === '감독') newWorkers.director.push(m.name)
                 else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
@@ -649,55 +708,74 @@ export default function TodayWorkLog() {
             return
         }
 
-        if (id) return // If editing existing log, don't overwrite workers with default group members from DB
+        if (id) return // Don't fetch for existing logs (they have their own workers saved)
 
         const fetchGroupMembers = async () => {
             if (!selectedTeam) return
 
-            // 1. Get Group ID
-            const { data: groupData } = await supabase
-                .from('groups')
-                .select('id')
-                .eq('name', selectedTeam)
-                .single()
+            // 1. Try to fetch from Configuration Roster (Future/Past Roster Snapshot)
+            const config = await shiftService.getConfig(selectedDate)
+            if (config && config.roster_json && config.roster_json[selectedTeam]) {
+                const userIds = config.roster_json[selectedTeam]
+                if (userIds && userIds.length > 0) {
+                    // Fetch user details for these IDs
+                    const { data: rosterUsers } = await supabase
+                        .from('users')
+                        .select('id, name, role')
+                        .in('id', userIds)
+                        .order('name')
 
-            if (!groupData) {
-                setWorkers({ director: [], assistant: [], video: [] })
-                return
+                    if (rosterUsers) {
+                        // Sort by the order in userIds array to preserve roster order
+                        rosterUsers.sort((a, b) => userIds.indexOf(a.id) - userIds.indexOf(b.id))
+
+                        const newWorkers = {
+                            director: [] as string[],
+                            assistant: [] as string[],
+                            video: [] as string[]
+                        }
+                        rosterUsers.forEach((u: any) => {
+                            const primaryRole = (u.role || '').split(',')[0].trim()
+                            if (primaryRole === '감독') newWorkers.director.push(u.name)
+                            else if (primaryRole === '부감독') newWorkers.assistant.push(u.name)
+                            else newWorkers.video.push(u.name)
+                        })
+                        setWorkers(newWorkers)
+                        return // Exit if successful
+                    }
+                }
             }
 
-            // 2. Get Members (Fetch separately to avoid join issues)
-            const { data: members, error: membersError } = await supabase
+            // 2. Fallback to Current Live Roster (group_members)
+            const { data: members } = await supabase
                 .from('group_members')
-                .select('user_id, role')
-                .eq('group_id', groupData.id)
+                .select(`
+                    user:users(name, role),
+                    group:groups!inner(name)
+                `)
+                .eq('group.name', selectedTeam)
+                .order('display_order', { ascending: true })
 
-            if (membersError || !members) {
-                console.error('Error fetching group members:', membersError)
-                return
-            }
-
-            // 3. Get User Details
-            const userIds = members.map(m => m.user_id)
-            const { data: users, error: usersError } = await supabase
-                .from('users')
-                .select('id, name, role')
-                .in('id', userIds)
-
-            if (usersError || !users) {
-                console.error('Error fetching users for group:', usersError)
-                return
-            }
-
-            const newWorkers = {
-                director: [] as string[],
-                assistant: [] as string[],
-                video: [] as string[]
+            if (members) {
+                const newWorkers = {
+                    director: [] as string[],
+                    assistant: [] as string[],
+                    video: [] as string[]
+                }
+                members.forEach((m: any) => {
+                    if (m.user) {
+                        const primaryRole = (m.user.role || '').split(',')[0].trim()
+                        if (primaryRole === '감독') newWorkers.director.push(m.user.name)
+                        else if (primaryRole === '부감독') newWorkers.assistant.push(m.user.name)
+                        else newWorkers.video.push(m.user.name)
+                    }
+                })
+                setWorkers(newWorkers)
             }
         }
 
         fetchGroupMembers()
-    }, [selectedTeam, id, activeTab, nextSession, currentSession])
+    }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate])
 
     const updateTitle = () => {
         const now = new Date()
@@ -716,8 +794,16 @@ export default function TodayWorkLog() {
     }, [shiftType])
 
     const getPageTitle = () => {
-        if (status === '근무종료' || status === '서명완료') return '업무일지'
-        return 'TODAY 업무일지'
+        if (isToday(selectedDate)) {
+            if (status === '근무종료' || status === '서명완료') {
+                return `오늘 ${shiftType === 'day' ? '주간' : '야간'} 업무일지`
+            }
+            return 'TODAY 업무일지'
+        }
+        if (isYesterday(selectedDate)) {
+            return '어제 업무일지'
+        }
+        return `${format(selectedDate, 'M월 d일')} 업무일지`
     }
 
     const handleSave = async (silent = false) => {
@@ -739,7 +825,7 @@ export default function TodayWorkLog() {
             if (!silent) toast.success("저장되었습니다.")
             return id
         } else {
-            const now = new Date()
+            const now = selectedDate
             const year = now.getFullYear()
             const month = now.getMonth() + 1
             const day = now.getDate()
@@ -848,8 +934,9 @@ export default function TodayWorkLog() {
             router.push('/worklog/today')
         } else if (val === 'next' && nextSession) {
             // Switch to next session
-            // Calculate next shift type
-            const nextShift = shiftType === 'day' ? 'night' : 'day'
+            // Calculate next shift type based on CURRENT logical shift, not the displayed shiftType
+            const currentLogicalShift = shiftService.getLogicalShiftInfo(new Date()).shiftType
+            const nextShift = currentLogicalShift === 'day' ? 'night' : 'day'
             router.push(`/worklog/today?team=${nextSession.groupName}&type=${nextShift}`)
         }
     }
@@ -1008,7 +1095,25 @@ export default function TodayWorkLog() {
                                 {/* Title & Date */}
                                 <div className="flex flex-col items-center justify-between h-32">
                                     <div className="mt-2 text-3xl font-bold tracking-[0.03em] text-black text-center">주 조 정 실 &nbsp; 업 무 일 지</div>
-                                    <div className="text-base font-bold">{date}</div>
+                                    <div className="text-base font-bold">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="ghost" className={cn("text-base font-bold hover:bg-transparent p-0 h-auto", !id && "cursor-pointer hover:underline")}>
+                                                    {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            {!id && (
+                                                <PopoverContent className="w-auto p-0" align="center">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={selectedDate}
+                                                        onSelect={(date) => date && setSelectedDate(date)}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            )}
+                                        </Popover>
+                                    </div>
                                 </div>
 
                                 {/* Approval Box */}
@@ -1033,10 +1138,9 @@ export default function TodayWorkLog() {
                         <div className="mb-2 w-full border border-black">
                             <div className="flex bg-gray-100 text-center text-sm font-bold border-b border-black">
                                 <div
-                                    className="w-[180px] border-r border-black py-1 cursor-pointer hover:bg-gray-200"
-                                    onClick={() => setShiftType(prev => prev === 'day' ? 'night' : 'day')}
+                                    className="w-[180px] border-r border-black py-1"
                                 >
-                                    {shiftType === 'day' ? '주간근무시간' : '야간근무시간'}
+                                    {shiftType === 'day' ? 'A 근무시간' : 'N 근무시간'}
                                 </div>
                                 <div className="flex-1 border-r border-black py-1">감 독</div>
                                 <div className="flex-1 border-r border-black py-1">부 감 독</div>

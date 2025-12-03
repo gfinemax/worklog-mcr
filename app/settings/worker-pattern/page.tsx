@@ -10,8 +10,11 @@ import { FolderTabsList, FolderTabsTrigger } from "@/components/ui/folder-tabs"
 import { useShiftWizardStore } from "@/store/shift-wizard-store"
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
 
-export default function WorkerPatternSettingsPage() {
+import { Suspense } from "react"
+
+function WorkerPatternSettingsContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const currentTab = searchParams.get('tab') || 'history'
@@ -54,7 +57,7 @@ export default function WorkerPatternSettingsPage() {
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">근무자 패턴 설정</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">근무패턴 설정</h1>
                         <p className="text-muted-foreground">근무자 관리 및 순환 근무 패턴을 통합 설정, 관리합니다.</p>
                     </div>
                     {isWizardActive && (
@@ -84,6 +87,16 @@ export default function WorkerPatternSettingsPage() {
                             <FolderTabsTrigger value="history" className={getTabZIndex('history')}>
                                 {isWizardActive ? "Step 3. 설정 확인" : "설정 이력 (History)"}
                             </FolderTabsTrigger>
+                            {!isWizardActive && (
+                                <Button
+                                    size="sm"
+                                    className="ml-auto bg-blue-600 hover:bg-blue-700 text-white gap-2 mb-1 mr-1"
+                                    onClick={() => router.push('/settings/worker-pattern?tab=pattern')}
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    근무패턴 추가하기
+                                </Button>
+                            )}
                         </FolderTabsList>
                         {/* Progress Line - Only visible in Wizard Mode */}
                         {isWizardActive && (
@@ -112,5 +125,13 @@ export default function WorkerPatternSettingsPage() {
                 </Tabs>
             </div>
         </MainLayout>
+    )
+}
+
+export default function WorkerPatternSettingsPage() {
+    return (
+        <Suspense fallback={<MainLayout><div className="p-6">Loading...</div></MainLayout>}>
+            <WorkerPatternSettingsContent />
+        </Suspense>
     )
 }

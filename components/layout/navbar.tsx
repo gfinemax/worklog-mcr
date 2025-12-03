@@ -156,7 +156,7 @@ export function Navbar() {
   return (
     <>
       <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-card">
-        <div className="flex h-full items-center justify-between px-6">
+        <div className="flex h-full items-center justify-between px-6 gap-4">
           {/* Left side - Search */}
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             <Button variant="ghost" size="icon" className="lg:hidden">
@@ -175,50 +175,43 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className={`flex items-center gap-3 pl-2 pr-1 h-12 rounded-full hover:bg-accent ${loginMode === "TEAM"
-                      ? "bg-[#006d77] hover:bg-[#005a63] text-white"
-                      : ""
-                      }`}
+                    className="flex items-center gap-2 pl-2 pr-1 h-9 rounded-full border shadow-sm bg-white hover:bg-slate-50 text-foreground"
                   >
-                    <div className="flex flex-col items-end gap-0.5 text-right mr-1">
-                      <div className="flex items-center gap-1.5">
-                        {loginMode === "TEAM" ? (
-                          <Badge
-                            variant="secondary"
-                            className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
-                          >
-                            {group?.name || "소속 없음"}
-                            {shiftType && (shiftType === 'A' || shiftType === 'N') && (
-                              <span className="text-blue-600 font-bold">
-                                {shiftType}
-                              </span>
-                            )}
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="h-5 px-1.5 text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-100"
-                          >
-                            개인
-                          </Badge>
-                        )}
-                        <span className="text-sm font-semibold">
-                          {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "대표") : (user?.name || "사용자")}
-                        </span>
-                      </div>
-                      <span className={`text-xs ${loginMode === "TEAM" ? "text-white/80" : "text-muted-foreground"}`}>
-                        {loginMode === "TEAM" ? (selectedMember ? "멤버로 작성 중" : "멤버 전체로 작성중") : "개인 업무 모드"}
+                    <div className="flex items-center gap-2 mr-1">
+                      {loginMode === "TEAM" ? (
+                        <Badge
+                          variant="secondary"
+                          className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
+                        >
+                          {group?.name || "소속 없음"}
+                          {shiftType && (shiftType === 'A' || shiftType === 'N') && (
+                            <span className="text-blue-600 font-bold ml-0.5">
+                              {shiftType}
+                            </span>
+                          )}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="h-5 px-1.5 text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-100"
+                        >
+                          개인
+                        </Badge>
+                      )}
+                      <span className="text-xs font-semibold text-foreground">
+                        {loginMode === "TEAM" ? (selectedMember ? selectedMember.name : "대표") : (user?.name || "사용자")}
+                        <span className="font-normal ml-1 text-muted-foreground">작성중</span>
                       </span>
                     </div>
-                    <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-muted">
+                    <Avatar className="h-6 w-6 border border-background ring-1 ring-muted">
                       <AvatarImage src={loginMode === "TEAM" ? "/placeholder-user.jpg" : "/placeholder-avatar.jpg"} />
                       <AvatarFallback
-                        className={loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}
+                        className={`text-[10px] ${loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}
                       >
                         {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : group?.name?.[0]) : user?.name?.[0]}
                       </AvatarFallback>
                     </Avatar>
-                    <ChevronDown className={`h-4 w-4 opacity-50 ${loginMode === "TEAM" ? "text-white" : "text-muted-foreground"}`} />
+                    <ChevronDown className="h-3 w-3 opacity-50 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -269,7 +262,7 @@ export function Navbar() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={toggleMode} className="gap-2 text-muted-foreground cursor-pointer">
                     <LogOut className="h-4 w-4" />
-                    <span>{loginMode === "TEAM" ? "개인 로그인으로 전환 (데모)" : "조별 로그인으로 전환 (데모)"}</span>
+                    <span>{loginMode === "TEAM" ? "개인 로그인으로 전환" : "조별 로그인으로 전환"}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

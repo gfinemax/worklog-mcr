@@ -93,7 +93,7 @@ export function ShiftDetailDialog({ config, open, onOpenChange, teamMembers = {}
                     {/* Pattern Grid */}
                     <Card className="shadow-sm">
                         <CardHeader className="py-3 px-4 border-b">
-                            <CardTitle className="text-sm">순환 패턴 (Day/Night)</CardTitle>
+                            <CardTitle className="text-sm">순환패턴(A/N)</CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <ScrollArea className="h-[240px]">
@@ -107,7 +107,7 @@ export function ShiftDetailDialog({ config, open, onOpenChange, teamMembers = {}
                                                 {/* Day Team */}
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded border border-yellow-200">주간</span>
+                                                        <span className="text-[10px] font-bold bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded border border-yellow-200">주간(A)</span>
                                                         <span className="font-semibold text-slate-900">{day.A.team}</span>
                                                     </div>
                                                     <div className="text-xs text-muted-foreground pl-1 break-keep leading-snug">
@@ -120,7 +120,7 @@ export function ShiftDetailDialog({ config, open, onOpenChange, teamMembers = {}
                                                 {/* Night Team */}
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded border border-slate-700">야간</span>
+                                                        <span className="text-[10px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded border border-slate-700">야간(S)</span>
                                                         <span className="font-semibold text-slate-900">{day.N.team}</span>
                                                     </div>
                                                     <div className="text-xs text-muted-foreground pl-1 break-keep leading-snug">

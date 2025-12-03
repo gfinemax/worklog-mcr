@@ -16,6 +16,22 @@ interface Worker {
     current_team?: string
 }
 
+const ROLE_PRIORITY: Record<string, number> = {
+    "감독": 1,
+    "부감독": 2,
+    "영상": 3,
+    "시스템관리": 4,
+    "관리": 5,
+    "기술스텝": 6,
+    "조원": 7
+}
+
+const getRolePriorityValue = (roleString: string) => {
+    if (!roleString) return 99
+    const priorities = roleString.split(',').map(r => ROLE_PRIORITY[r.trim()] || 99)
+    return Math.min(...priorities)
+}
+
 export function LiveRosterView() {
     const [workers, setWorkers] = useState<Worker[]>([])
     const [loading, setLoading] = useState(true)
@@ -53,13 +69,14 @@ export function LiveRosterView() {
             const sortedTeams = Array.from(activeTeams).sort()
             setTeams(sortedTeams)
 
-            // 2. Fetch Users and Groups
+            // 2. Fetch Users and Groups with Display Order
             const { data: users } = await supabase
                 .from('users')
                 .select(`
                     id, name, role,
-                    group_members(groups(id, name))
+                    group_members(groups(id, name), display_order)
                 `)
+                .eq('is_active', true)
                 .order('name')
 
             if (users) {
@@ -67,8 +84,24 @@ export function LiveRosterView() {
                     id: u.id,
                     name: u.name,
                     role: u.role,
-                    current_team: u.group_members?.[0]?.groups?.name || 'Unassigned'
+                    current_team: u.group_members?.[0]?.groups?.name || 'Unassigned',
+                    display_order: u.group_members?.[0]?.display_order ?? 999
                 }))
+
+                // Sort by Display Order -> Role Priority -> Name
+                formattedWorkers.sort((a, b) => {
+                    // 1. Display Order (if valid)
+                    if (a.display_order !== 999 || b.display_order !== 999) {
+                        return a.display_order - b.display_order
+                    }
+                    // 2. Role Priority
+                    const priorityA = getRolePriorityValue(a.role)
+                    const priorityB = getRolePriorityValue(b.role)
+                    if (priorityA !== priorityB) return priorityA - priorityB
+                    // 3. Name
+                    return a.name.localeCompare(b.name)
+                })
+
                 setWorkers(formattedWorkers)
 
                 // Group by team
@@ -163,7 +196,7 @@ export function LiveRosterView() {
                 <Card className="col-span-3 flex flex-col h-full border-slate-200 bg-slate-50/50">
                     <CardHeader className="py-3">
                         <CardTitle className="text-sm flex justify-between">
-                            미배정 (Unassigned)
+                            미배정
                             <Badge variant="secondary">{assignments['Unassigned']?.length || 0}</Badge>
                         </CardTitle>
                     </CardHeader>

@@ -16,6 +16,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { MainLayout } from "@/components/layout/main-layout"
 
 interface ShiftConfig {
     id: string
@@ -51,6 +52,7 @@ export default function ShiftDetailPage() {
                 user:users(name),
                 group:groups(name)
             `)
+            .order('display_order', { ascending: true })
 
         if (members) {
             const teamMap: Record<string, string[]> = {}
@@ -78,174 +80,180 @@ export default function ShiftDetailPage() {
             .single()
 
         if (!error && data) {
-            // Determine status (simplified logic, ideally passed or recalculated)
-            // For display purposes, we might need to fetch all to determine 'active' correctly if it depends on others
-            // But for now let's just display what we have. 
-            // To get accurate status, we'd need to compare with others or pass it.
-            // Since this is a detail page, we can just show the date.
-            // If status is critical, we can fetch all and find this one.
-            // Let's keep it simple for now.
             setConfig(data)
         }
         setLoading(false)
     }
 
-    if (loading) {
-        return <div className="p-8 flex justify-center">Loading...</div>
-    }
-
-    if (!config) {
-        return <div className="p-8 text-center">Config not found</div>
-    }
-
     return (
-        <div className="container mx-auto py-6 space-y-6 max-w-5xl">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-                        근무형태 상세 정보
-                        {/* Status badge could be added here if we calculate it */}
-                    </h1>
-                    <p className="text-muted-foreground">
-                        설정된 근무 패턴의 상세 내용을 확인합니다.
-                    </p>
+        <MainLayout>
+            <div className="container mx-auto py-6 max-w-5xl">
+                <div className="mb-6 flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">근무형태 상세 정보</h1>
+                        <p className="text-muted-foreground">
+                            설정된 근무 패턴의 상세 내용을 확인합니다.
+                        </p>
+                    </div>
                 </div>
+
+                {loading ? (
+                    <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    </div>
+                ) : !config ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                        설정 정보를 찾을 수 없습니다.
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {/* Summary Card */}
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Calendar className="h-4 w-4" />
+                                            적용 시작일
+                                        </div>
+                                        <div className="font-semibold text-lg">
+                                            {format(parseISO(config.valid_from), 'yyyy.MM.dd')}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Clock className="h-4 w-4" />
+                                            순환 주기
+                                        </div>
+                                        <div className="font-semibold text-lg">
+                                            {config.cycle_length}일
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <User className="h-4 w-4" />
+                                            등록자
+                                        </div>
+                                        <div className="font-semibold text-lg">
+                                            {config.created_by_user?.name || '-'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Calendar className="h-4 w-4" />
+                                            등록일시
+                                        </div>
+                                        <div className="font-semibold text-lg">
+                                            {config.created_at ? format(parseISO(config.created_at), 'yyyy.MM.dd HH:mm') : "-"}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <MessageSquare className="h-4 w-4" />
+                                            변경 사유 / 비고
+                                        </div>
+                                        <div className="bg-slate-50 p-3 rounded-md text-sm min-h-[40px]">
+                                            {config.memo || '-'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Pattern Table */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>순환패턴(A/N)</CardTitle>
+                                {config.pattern_json && config.pattern_json.length > 0 && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        적용일({format(parseISO(config.valid_from), 'yyyy.MM.dd')})기준으로 1일차는 {config.pattern_json[0].A.team}부터 시작합니다.
+                                    </p>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-slate-50 hover:bg-slate-50">
+                                            <TableHead className="w-[100px] text-center font-bold text-slate-700">Day</TableHead>
+                                            <TableHead className="font-bold text-slate-700">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                                                    주간(A)
+                                                </span>
+                                            </TableHead>
+                                            <TableHead className="font-bold text-slate-700">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <span className="h-2 w-2 rounded-full bg-slate-800"></span>
+                                                    야간(N)
+                                                </span>
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {config.pattern_json?.map((day: any, i: number) => (
+                                            <TableRow key={i}>
+                                                <TableCell className="text-center font-medium text-slate-500 bg-slate-50/30">
+                                                    {i + 1}일차
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1.5">
+                                                        <div className="font-semibold text-base flex items-center gap-2">
+                                                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                                                {day.A.team}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-sm text-slate-600 pl-1">
+                                                            {teamMembers?.[day.A.team]?.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {teamMembers[day.A.team].map((member, idx) => (
+                                                                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
+                                                                            {member}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300">-</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1.5">
+                                                        <div className="font-semibold text-base flex items-center gap-2">
+                                                            <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">
+                                                                {day.N.team}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-sm text-slate-600 pl-1">
+                                                            {teamMembers?.[day.N.team]?.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {teamMembers[day.N.team].map((member, idx) => (
+                                                                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
+                                                                            {member}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300">-</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
-
-            {/* Summary Section */}
-            <Card>
-                <CardContent className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                <Calendar className="h-4 w-4" /> 적용 시작일
-                            </div>
-                            <div className="text-lg font-bold">
-                                {format(parseISO(config.valid_from), 'yyyy.MM.dd')}
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                <Clock className="h-4 w-4" /> 순환 주기
-                            </div>
-                            <div className="text-lg font-bold">
-                                {config.cycle_length}일
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                <User className="h-4 w-4" /> 등록자
-                            </div>
-                            <div className="text-lg font-medium">
-                                {config.created_by_user?.name || "-"}
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                <Calendar className="h-4 w-4" /> 등록일시
-                            </div>
-                            <div className="text-lg font-medium">
-                                {config.created_at ? format(parseISO(config.created_at), 'yyyy.MM.dd HH:mm') : "-"}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 pt-6 border-t flex gap-4">
-                        <MessageSquare className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                        <div className="space-y-1 w-full">
-                            <div className="text-sm font-medium text-muted-foreground">변경 사유 / 비고</div>
-                            <div className="text-sm whitespace-pre-wrap leading-relaxed bg-slate-50 p-3 rounded-md border">
-                                {config.memo || "입력된 내용이 없습니다."}
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Pattern Table */}
-            <Card>
-                <CardHeader className="pb-3 border-b">
-                    <CardTitle className="text-base">순환 패턴 (Day/Night)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="bg-slate-50 hover:bg-slate-50">
-                                <TableHead className="w-[100px] text-center">Day</TableHead>
-                                <TableHead className="w-[45%]">
-                                    <div className="flex items-center gap-2">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-yellow-400"></span>
-                                        주간 (Day Shift)
-                                    </div>
-                                </TableHead>
-                                <TableHead className="w-[45%]">
-                                    <div className="flex items-center gap-2">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-slate-800"></span>
-                                        야간 (Night Shift)
-                                    </div>
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {config.pattern_json?.map((day: any, i: number) => (
-                                <TableRow key={i}>
-                                    <TableCell className="text-center font-medium text-slate-500 bg-slate-50/30">
-                                        D+{i}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="space-y-1.5">
-                                            <div className="font-semibold text-base flex items-center gap-2">
-                                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                                                    {day.A.team}
-                                                </Badge>
-                                            </div>
-                                            <div className="text-sm text-slate-600 pl-1">
-                                                {teamMembers?.[day.A.team]?.length > 0 ? (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {teamMembers[day.A.team].map((member, idx) => (
-                                                            <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
-                                                                {member}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-300">-</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="space-y-1.5">
-                                            <div className="font-semibold text-base flex items-center gap-2">
-                                                <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">
-                                                    {day.N.team}
-                                                </Badge>
-                                            </div>
-                                            <div className="text-sm text-slate-600 pl-1">
-                                                {teamMembers?.[day.N.team]?.length > 0 ? (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {teamMembers[day.N.team].map((member, idx) => (
-                                                            <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
-                                                                {member}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-300">-</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        </div>
+        </MainLayout>
     )
 }

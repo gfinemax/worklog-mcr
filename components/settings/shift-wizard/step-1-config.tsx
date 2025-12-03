@@ -4,12 +4,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { format, startOfMonth, endOfMonth, parseISO } from "date-fns"
-import { ko } from "date-fns/locale"
-import { DailyShiftPattern, ShiftInfo, shiftService, ShiftPatternConfig } from "@/lib/shift-rotation"
+import { format } from "date-fns"
+import { DailyShiftPattern } from "@/lib/shift-rotation"
 import { ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -24,11 +22,6 @@ interface Step1ConfigProps {
 }
 
 export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
-    const [previewDate, setPreviewDate] = useState<Date>(new Date())
-    const [previewTeam, setPreviewTeam] = useState<string>("1조")
-    const [previewData, setPreviewData] = useState<ShiftInfo[]>([])
-
-
     // Completion State
     const [isComplete, setIsComplete] = useState(false)
 
@@ -55,7 +48,17 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
 
     // Initialize pattern if empty
     useEffect(() => {
-        if (data.pattern.length !== data.cycleLength) {
+        // Only initialize if pattern is empty (length 0) OR length doesn't match cycle length
+        // AND we are not in edit mode (checking if data.pattern has content)
+        if (data.pattern.length === 0 || data.pattern.length !== data.cycleLength) {
+            // If we have data.pattern but length mismatch, we might want to preserve it or reset.
+            // For now, if length mismatch, we reset.
+
+            // But wait, if we are loading an existing config, data.pattern should be populated.
+            // If data.pattern is populated but length matches, we do nothing.
+
+            if (data.pattern.length > 0 && data.pattern.length === data.cycleLength) return
+
             const newPattern = Array.from({ length: data.cycleLength }, (_, i) => ({
                 day: i,
                 A: { team: `${(i % 5) + 1}조`, is_swap: false },
@@ -65,32 +68,11 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
         }
     }, [data.cycleLength])
 
-    // Update preview & Check completion
+    // Check completion
     useEffect(() => {
-        if (!data.validFrom) {
-            setIsComplete(false)
-            return
-        }
-
-        const start = startOfMonth(previewDate)
-        const end = endOfMonth(previewDate)
-
-        const tempConfig: ShiftPatternConfig = {
-            id: 'preview',
-            valid_from: format(data.validFrom, 'yyyy-MM-dd'),
-            valid_to: null,
-            cycle_length: data.cycleLength,
-            pattern_json: data.pattern,
-            roles_json: ["감독", "부감독", "영상"]
-        }
-
-        const shifts = shiftService.calculateShiftRange(start, end, previewTeam, tempConfig)
-        setPreviewData(shifts)
-
         // Simple completion check: validFrom exists and pattern has length
         setIsComplete(!!data.validFrom && data.pattern.length > 0)
-
-    }, [data, previewDate, previewTeam])
+    }, [data])
 
     const handlePatternChange = (dayIndex: number, type: 'A' | 'N', field: 'team' | 'is_swap', value: any) => {
         const newPattern = [...data.pattern]
@@ -163,16 +145,15 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
                 </div>
             </div>
 
-            {/* Main Content Split View */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-
-                {/* Left: Pattern Table */}
-                <Card className="flex flex-col overflow-hidden transition-all duration-500">
+            {/* Main Content */}
+            <div className="flex-1 overflow-hidden">
+                {/* Pattern Table */}
+                <Card className="flex flex-col h-full overflow-hidden transition-all duration-500">
                     <CardHeader className="py-3 bg-slate-50 border-b flex flex-row justify-between items-center">
                         <CardTitle className="text-sm">패턴 정의</CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 p-4 overflow-y-auto bg-slate-50/50">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {data.pattern.map((dayPattern, i) => (
                                 <div key={i} className="bg-white rounded-lg border shadow-sm p-4 flex flex-col gap-3 transition-all hover:shadow-md">
                                     <div className="flex items-center gap-2 border-b pb-2">
@@ -181,7 +162,7 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4">
                                         {/* Day Shift (A) */}
                                         <div className="flex flex-col gap-1.5">
                                             <span className="text-xs font-semibold text-slate-500">주간 (A)</span>
@@ -191,7 +172,7 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
                                                     onValueChange={v => handlePatternChange(i, 'A', 'team', v)}
                                                 >
                                                     <SelectTrigger className="h-9 flex-1">
-                                                        <SelectValue placeholder="팀 선택" />
+                                                        <SelectValue placeholder="조 선택" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {["1조", "2조", "3조", "4조", "5조"].map(t => (
@@ -227,7 +208,7 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
                                                     onValueChange={v => handlePatternChange(i, 'N', 'team', v)}
                                                 >
                                                     <SelectTrigger className="h-9 flex-1">
-                                                        <SelectValue placeholder="팀 선택" />
+                                                        <SelectValue placeholder="조 선택" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {["1조", "2조", "3조", "4조", "5조"].map(t => (
@@ -256,71 +237,6 @@ export function Step1Config({ data, onChange, onNext }: Step1ConfigProps) {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Right: Preview */}
-                <Card className="flex flex-col overflow-hidden transition-all duration-500">
-                    <CardHeader className="py-3 bg-slate-50 border-b flex flex-row justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <CardTitle className="text-sm">미리보기</CardTitle>
-                            <Select value={previewTeam} onValueChange={(v) => { setPreviewTeam(v); updateInteraction(); }}>
-                                <SelectTrigger className="h-7 w-[80px] text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {["1조", "2조", "3조", "4조", "5조"].map(t => (
-                                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-4">
-                        <div className="flex justify-center mb-4">
-                            <Calendar
-                                mode="single"
-                                selected={previewDate}
-                                onSelect={(d) => { if (d) { setPreviewDate(d); updateInteraction(); } }}
-                                className="rounded-md border shadow-sm"
-                                locale={ko}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <h3 className="font-bold text-sm border-b pb-2">
-                                {format(previewDate, 'yyyy년 MM월', { locale: ko })} 근무표 ({previewTeam})
-                            </h3>
-                            <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
-                                <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1">
-                                {Array.from({ length: startOfMonth(previewDate).getDay() }).map((_, i) => (
-                                    <div key={`empty-${i}`} className="h-12 bg-gray-50 rounded"></div>
-                                ))}
-                                {previewData.map((day, i) => (
-                                    <div
-                                        key={i}
-                                        className={cn(
-                                            "h-14 p-1 rounded border flex flex-col items-center justify-between text-xs transition-colors",
-                                            day.shiftType === 'A' ? "bg-yellow-50 border-yellow-200 text-yellow-900" :
-                                                day.shiftType === 'N' ? "bg-slate-800 text-white border-slate-700" :
-                                                    "bg-white border-gray-100 text-gray-400"
-                                        )}
-                                    >
-                                        <span className="font-bold">{format(parseISO(day.date), 'd')}</span>
-                                        <div className="flex flex-col items-center">
-                                            <span className="font-bold text-lg leading-none">{day.shiftType}</span>
-                                            {day.isSwap && (
-                                                <span className="text-[10px] font-bold text-red-500 bg-white/90 px-1 rounded mt-0.5">
-                                                    SWAP
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </CardContent>
                 </Card>

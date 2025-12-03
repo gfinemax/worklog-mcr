@@ -215,8 +215,8 @@ export function ShiftPatternSettings() {
                                         const dayPattern = config.pattern_json.find(p => p.day === i) || { A: { team: '', is_swap: false }, N: { team: '', is_swap: false } }
                                         return (
                                             <div key={i} className="flex items-center gap-4 p-3 border rounded-lg bg-slate-50">
-                                                <div className="w-12 font-bold text-center border-r border-slate-200 pr-4">
-                                                    D+{i}
+                                                <div className="w-16 font-bold text-center border-r border-slate-200 pr-4">
+                                                    {i + 1}일차
                                                 </div>
                                                 <div className="flex-1 grid grid-cols-2 gap-4">
                                                     {/* Day Shift */}

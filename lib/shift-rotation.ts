@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { addDays, differenceInDays, parseISO, format } from 'date-fns'
+import { addDays, differenceInDays, parseISO, format, subDays } from 'date-fns'
 
 export interface ShiftPatternConfig {
     id: string
@@ -8,6 +8,7 @@ export interface ShiftPatternConfig {
     cycle_length: number
     pattern_json: DailyShiftPattern[]
     roles_json: string[]
+    roster_json?: Record<string, string[]> // team -> userIds
 }
 
 export interface DailyShiftPattern {
@@ -127,16 +128,6 @@ export const shiftService = {
     // Calculate the expected next team based on current team and shift
     getNextTeam(currentTeam: string, currentShift: 'day' | 'night', config: ShiftPatternConfig): string | null {
         // 1. Find the day index in the cycle where the current team is working the current shift
-        // Note: This assumes the current team is working correctly according to the pattern.
-        // If the pattern has multiple days with the same team/shift (unlikely in this rotation), it picks the first one.
-        // A more robust approach would be to pass the current date, but for now we follow the pattern logic.
-
-        // However, since we might be in a state where the current date's pattern is what matters, 
-        // let's try to find the pattern entry that matches.
-
-        // Actually, we need to know "which day of the cycle" we are currently in to be precise.
-        // But if we only have currentTeam and currentShift, we have to search the pattern.
-
         const currentPatternIndex = config.pattern_json.findIndex(p => {
             if (currentShift === 'day') return p.A.team === currentTeam
             return p.N.team === currentTeam
@@ -162,5 +153,52 @@ export const shiftService = {
         }
 
         return nextTeam || null
+    },
+
+    // Determine the logical date and shift type based on current time
+    // Rule: A Shift starts at 07:30. Before 07:30 belongs to previous day's Night Shift.
+    getLogicalShiftInfo(now: Date = new Date()): { date: Date; shiftType: 'day' | 'night' } {
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
+        const currentTime = currentHour * 60 + currentMinute
+
+        const dayStart = 7 * 60 + 30 // 07:30
+        const dayEnd = 18 * 60 + 30 // 18:30
+
+        let targetDate = now
+        let shiftType: 'day' | 'night' = 'day'
+
+        if (currentTime < dayStart) {
+            // Early morning (00:00 ~ 07:29) -> Belongs to Yesterday's Night Shift
+            targetDate = subDays(now, 1)
+            shiftType = 'night'
+        } else if (currentTime >= dayEnd) {
+            // Evening (18:30 ~ 23:59) -> Belongs to Today's Night Shift
+            shiftType = 'night'
+        } else {
+            // Day time (07:30 ~ 18:29) -> Belongs to Today's Day Shift
+            shiftType = 'day'
+        }
+
+        return { date: targetDate, shiftType }
+    },
+
+    // Get teams for a specific date based on the pattern
+    getTeamsForDate(date: Date | string, config: ShiftPatternConfig): { A: string, N: string } | null {
+        const targetDate = typeof date === 'string' ? parseISO(date) : date
+        const anchorDate = parseISO(config.valid_from)
+
+        const diff = differenceInDays(targetDate, anchorDate)
+        let index = diff % config.cycle_length
+        if (index < 0) index += config.cycle_length
+
+        const dailyPattern = config.pattern_json.find(p => p.day === index)
+
+        if (!dailyPattern) return null
+
+        return {
+            A: dailyPattern.A.team,
+            N: dailyPattern.N.team
+        }
     }
 }

@@ -101,6 +101,7 @@ export function ConfigHistoryList() {
         }
 
         const step3Data = {
+            id: draftConfig?.id,
             validFrom: draftConfig?.valid_from ? parseISO(draftConfig.valid_from) : new Date(),
             cycleLength: draftConfig?.shift_cycle_days || 4,
             pattern: draftConfig?.pattern_json || [],
@@ -153,10 +154,6 @@ export function ConfigHistoryList() {
                             과거, 현재, 그리고 예정된 근무 패턴 목록입니다.
                         </CardDescription>
                     </div>
-                    <Button onClick={() => router.push('/settings/worker-pattern?tab=pattern')} size="sm" className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="mr-2 h-4 w-4" />
-                        근무패턴 추가설정
-                    </Button>
                 </CardHeader>
                 <CardContent>
                     <div className="rounded-md border">
@@ -219,6 +216,55 @@ export function ConfigHistoryList() {
                                                             router.push(`/settings/worker-pattern/${config.id}`)
                                                         }}>
                                                             상세보기
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={async (e) => {
+                                                            e.stopPropagation()
+
+                                                            // Load assignments based on current group members
+                                                            const { data: users } = await supabase
+                                                                .from('users')
+                                                                .select('id, group_members(groups(name))')
+
+                                                            const assignments: any[] = []
+                                                            if (users) {
+                                                                users.forEach((u: any) => {
+                                                                    const groupName = u.group_members?.[0]?.groups?.name
+                                                                    if (groupName && config.pattern_json.some((p: any) => p.A.team === groupName || p.N.team === groupName)) {
+                                                                        assignments.push({
+                                                                            workerId: u.id,
+                                                                            team: groupName
+                                                                        })
+                                                                    } else {
+                                                                        // Add to Unassigned if not in any of the active teams
+                                                                        assignments.push({
+                                                                            workerId: u.id,
+                                                                            team: 'Unassigned'
+                                                                        })
+                                                                    }
+                                                                })
+                                                            }
+
+                                                            const { startWizard } = useShiftWizardStore.getState()
+                                                            startWizard({
+                                                                config: {
+                                                                    ...config,
+                                                                    id: config.id, // Keep ID for update
+                                                                    name: `Edit ${format(parseISO(config.valid_from), 'yyyy-MM-dd')}`, // Default name
+                                                                    shift_cycle_days: config.cycle_length,
+                                                                    shift_teams: Array.from(new Set(config.pattern_json.flatMap((p: any) => [p.A.team, p.N.team]))),
+                                                                    shift_times: {
+                                                                        day_start: '09:00',
+                                                                        day_end: '18:00',
+                                                                        night_start: '18:00',
+                                                                        night_end: '09:00'
+                                                                    },
+                                                                    description: config.memo
+                                                                },
+                                                                assignments
+                                                            })
+                                                            router.push('/settings/worker-pattern?tab=pattern')
+                                                        }}>
+                                                            수정
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={async (e) => {
                                                             e.stopPropagation()

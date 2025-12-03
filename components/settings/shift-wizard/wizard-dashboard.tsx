@@ -51,13 +51,21 @@ export function WizardDashboard() {
         // we will fetch current group members and map them to the teams in the config.
 
         // 1. Fetch all users and their groups
+        // 1. Fetch all users and their groups
         const { data: users } = await supabase
             .from('users')
-            .select('id, group_members(groups(name))')
+            .select('id, group_members(groups(name), display_order)')
 
         const assignments: any[] = []
         if (users) {
-            users.forEach((u: any) => {
+            // Sort users by display_order if available
+            const sortedUsers = [...users].sort((a: any, b: any) => {
+                const orderA = a.group_members?.[0]?.display_order || 0
+                const orderB = b.group_members?.[0]?.display_order || 0
+                return orderA - orderB
+            })
+
+            sortedUsers.forEach((u: any) => {
                 const groupName = u.group_members?.[0]?.groups?.name
                 if (groupName && activeConfig.pattern_json.some((p: any) => p.A.team === groupName || p.N.team === groupName)) {
                     assignments.push({
@@ -71,6 +79,7 @@ export function WizardDashboard() {
         startWizard({
             config: {
                 ...activeConfig,
+                name: `Edit ${format(parseISO(activeConfig.valid_from), 'yyyy-MM-dd')}`,
                 shift_cycle_days: activeConfig.cycle_length,
                 shift_teams: Array.from(new Set(activeConfig.pattern_json.flatMap((p: any) => [p.A.team, p.N.team]))),
                 shift_times: { // Default times if not in DB yet

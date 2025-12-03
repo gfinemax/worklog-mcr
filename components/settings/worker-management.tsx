@@ -189,6 +189,27 @@ export function WorkerManagement() {
         }
     }
 
+    const handleToggleStatus = async (worker: Worker) => {
+        try {
+            const newStatus = worker.status === 'active' ? false : true
+            const { error } = await supabase
+                .from('users')
+                .update({ is_active: newStatus })
+                .eq('id', worker.id)
+
+            if (error) throw error
+
+            setWorkers(prev => prev.map(w =>
+                w.id === worker.id
+                    ? { ...w, status: newStatus ? 'active' : 'inactive' }
+                    : w
+            ))
+            toast.success(`${worker.name} 님의 근무배치 상태가 변경되었습니다.`)
+        } catch (error: any) {
+            toast.error("상태 변경 실패: " + error.message)
+        }
+    }
+
     const handleEdit = (worker: Worker) => {
         setEditTarget(worker)
         setIsEditOpen(true)
@@ -294,25 +315,32 @@ export function WorkerManagement() {
                         <TabsTrigger value="team">조별 보기 (Team)</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                {viewMode === 'list' && <WorkerRegistrationDialog onSuccess={fetchWorkers} />}
+
             </div>
 
             {viewMode === 'list' ? (
                 <Card className="flex-1">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <div className="space-y-1">
-                            <CardTitle className="text-base">근무자 명부 관리</CardTitle>
+                            <CardTitle className="text-base">근무자 명단</CardTitle>
                             <CardDescription>
                                 전체 근무자의 인적사항을 관리합니다.
                             </CardDescription>
                         </div>
-                        <div className="relative w-64">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="이름, 이메일, 소속 검색..."
-                                className="pl-8 h-9 text-sm"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                        <div className="flex items-center gap-2">
+                            <div className="relative w-64">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="이름, 이메일, 소속 검색..."
+                                    className="pl-8 h-9 text-sm"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <WorkerRegistrationDialog
+                                onSuccess={fetchWorkers}
+                                triggerClassName="h-9 whitespace-nowrap"
+                                triggerVariant="outline"
                             />
                         </div>
                     </CardHeader>
@@ -324,7 +352,7 @@ export function WorkerManagement() {
                                         <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>근무자</TableHead>
                                         <TableHead className="cursor-pointer select-none" onClick={() => handleSort("role")}>역할</TableHead>
                                         <TableHead className="cursor-pointer select-none" onClick={() => handleSort("groupName")}>소속</TableHead>
-                                        <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")}>상태</TableHead>
+                                        <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")}>근무배치</TableHead>
                                         <TableHead className="cursor-pointer select-none" onClick={() => handleSort("type")}>유형</TableHead>
                                         <TableHead className="text-right">관리</TableHead>
                                     </TableRow>
@@ -353,7 +381,7 @@ export function WorkerManagement() {
                                                         </Avatar>
                                                         <div>
                                                             <p className="font-medium text-sm">{worker.name}</p>
-                                                            <p className="text-xs text-muted-foreground">{worker.email}</p>
+                                                            <p className="text-xs text-muted-foreground">{worker.email.replace('@mbcplus.com', '')}</p>
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -364,11 +392,14 @@ export function WorkerManagement() {
                                                 </TableCell>
                                                 <TableCell className="text-sm">{worker.groupName}</TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-center gap-2">
+                                                    <div
+                                                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded-md w-fit transition-colors"
+                                                        onClick={() => handleToggleStatus(worker)}
+                                                    >
                                                         <div
                                                             className={`h-2 w-2 rounded-full ${worker.status === "active" ? "bg-green-500" : "bg-gray-300"}`}
                                                         />
-                                                        <span className="text-sm">{worker.status === "active" ? "활성" : "비활성"}</span>
+                                                        <span className="text-sm">{worker.status === "active" ? "가능" : "불가"}</span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>

@@ -15,6 +15,7 @@ import { useAuthStore } from "@/store/auth"
 
 interface Step3ConfirmProps {
     data: {
+        id?: string
         validFrom: Date
         cycleLength: number
         pattern: any[]
@@ -37,19 +38,42 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
         setError(null)
 
         try {
-            // 1. Create Shift Pattern Config
-            const { data: configData, error: configError } = await supabase
-                .from('shift_pattern_configs')
-                .insert({
-                    valid_from: format(data.validFrom, 'yyyy-MM-dd'),
-                    cycle_length: data.cycleLength,
-                    pattern_json: data.pattern,
-                    roles_json: ["감독", "부감독", "영상"],
-                    memo: data.memo,
-                    created_by: user.id
-                })
-                .select()
-                .single()
+            // 1. Create or Update Shift Pattern Config
+            let configData
+            let configError
+
+            const payload = {
+                valid_from: format(data.validFrom, 'yyyy-MM-dd'),
+                cycle_length: data.cycleLength,
+                pattern_json: data.pattern,
+                roles_json: ["감독", "부감독", "영상"],
+                roster_json: data.assignments,
+                memo: data.memo,
+                created_by: user.id
+            }
+
+            if (data.id) {
+                // Update existing
+                const result = await supabase
+                    .from('shift_pattern_configs')
+                    .update(payload)
+                    .eq('id', data.id)
+                    .select()
+                    .single()
+
+                configData = result.data
+                configError = result.error
+            } else {
+                // Insert new
+                const result = await supabase
+                    .from('shift_pattern_configs')
+                    .insert(payload)
+                    .select()
+                    .single()
+
+                configData = result.data
+                configError = result.error
+            }
 
             if (configError) throw configError
 
@@ -63,12 +87,27 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
 
             const updates = []
             for (const [teamName, userIds] of Object.entries(data.assignments)) {
-                if (teamName === 'Unassigned') continue
+                if (teamName === 'Unassigned') {
+                    // Handle Unassigned: Remove from any group
+                    for (const userId of userIds) {
+                        updates.push(
+                            supabase
+                                .from('group_members')
+                                .delete()
+                                .eq('user_id', userId)
+                        )
+                    }
+                    continue
+                }
 
                 const group = groups.find(g => g.name === teamName)
                 if (!group) continue // Should create group if missing? For now assume exists.
 
-                for (const userId of userIds) {
+                // Use index as display_order
+                for (let i = 0; i < userIds.length; i++) {
+                    const userId = userIds[i]
+                    const displayOrder = i + 1
+
                     // Update group_members
                     // We need to upsert or update. 
                     // Ideally, we should remove from old group and add to new, but simple update works if 1:1
@@ -84,14 +123,21 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
                         updates.push(
                             supabase
                                 .from('group_members')
-                                .update({ group_id: group.id })
+                                .update({
+                                    group_id: group.id,
+                                    display_order: displayOrder
+                                })
                                 .eq('user_id', userId)
                         )
                     } else {
                         updates.push(
                             supabase
                                 .from('group_members')
-                                .insert({ group_id: group.id, user_id: userId })
+                                .insert({
+                                    group_id: group.id,
+                                    user_id: userId,
+                                    display_order: displayOrder
+                                })
                         )
                     }
                 }
@@ -101,7 +147,7 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
 
             // 3. Audit Log
             await auditLogger.log({
-                action: 'CREATE_SHIFT_CONFIG',
+                action: data.id ? 'UPDATE_SHIFT_PATTERN' : 'CREATE_SHIFT_CONFIG',
                 target_type: 'SHIFT_CONFIG',
                 target_id: configData.id,
                 changes: {
@@ -131,27 +177,32 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
                         변경 사항을 최종 확인하고 저장합니다.
                     </p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={onBack} disabled={saving}>
-                        이전
-                    </Button>
-                    <Button
-                        className="bg-blue-600 hover:bg-blue-700"
-                        onClick={handleSave}
-                        disabled={saving || !data.memo.trim()}
-                    >
-                        {saving ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                저장 중...
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                저장 및 적용
-                            </>
-                        )}
-                    </Button>
+                <div className="flex flex-col items-end gap-1">
+                    <div className="flex gap-2">
+
+                        <Button
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={handleSave}
+                            disabled={saving || !data.memo.trim()}
+                        >
+                            {saving ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    저장 중...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                    설정 저장하기
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                    {!data.memo.trim() && !saving && (
+                        <span className="text-[10px] text-red-500 font-medium animate-pulse">
+                            * 변경 사유를 입력해야 저장할 수 있습니다.
+                        </span>
+                    )}
                 </div>
             </div>
 

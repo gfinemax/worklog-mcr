@@ -12,23 +12,57 @@ interface ShiftWizardDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
+    initialConfig?: {
+        id?: string
+        validFrom: Date
+        cycleLength: number
+        pattern: any[]
+        assignments: Record<string, string[]>
+        memo: string
+    } | null
 }
 
-export function ShiftWizardDialog({ open, onOpenChange, onSuccess }: ShiftWizardDialogProps) {
+export function ShiftWizardDialog({ open, onOpenChange, onSuccess, initialConfig }: ShiftWizardDialogProps) {
     const [step, setStep] = useState(1)
     const [wizardData, setWizardData] = useState<{
+        id?: string
         validFrom: Date | undefined
         cycleLength: number
         pattern: any[]
         assignments: Record<string, string[]>
         memo: string
     }>({
-        validFrom: undefined,
-        cycleLength: 4,
-        pattern: [],
-        assignments: {},
-        memo: ""
+        id: initialConfig?.id,
+        validFrom: initialConfig?.validFrom,
+        cycleLength: initialConfig?.cycleLength || 4,
+        pattern: initialConfig?.pattern || [],
+        assignments: initialConfig?.assignments || {},
+        memo: initialConfig?.memo || ""
     })
+
+    // Reset when opening with new config
+    if (open && initialConfig && wizardData.id !== initialConfig.id) {
+        setWizardData({
+            id: initialConfig.id,
+            validFrom: initialConfig.validFrom,
+            cycleLength: initialConfig.cycleLength,
+            pattern: initialConfig.pattern,
+            assignments: initialConfig.assignments,
+            memo: initialConfig.memo
+        })
+        setStep(1)
+    } else if (open && !initialConfig && wizardData.id) {
+        // Reset to empty if opening without config (create mode) but had data
+        setWizardData({
+            id: undefined,
+            validFrom: undefined,
+            cycleLength: 4,
+            pattern: [],
+            assignments: {},
+            memo: ""
+        })
+        setStep(1)
+    }
 
     // Folder Tab Style Navigation
     const steps = [
