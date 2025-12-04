@@ -25,7 +25,7 @@ import {
 
 interface LoginFormProps {
     mode?: 'default' | 'handover'
-    onSuccess?: () => void
+    onSuccess?: (data?: any) => void
 }
 
 export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
@@ -72,17 +72,8 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
             initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
         }
 
-        // 2. Set Next Session
-        setNextUser(profile)
-        setNextSession({
-            groupId: groupData.id,
-            groupName: groupData.name,
-            members: initialMembers,
-            startedAt: new Date().toISOString() // Temporary start time
-        })
-
-        toast.success(`${groupData.name} 교대 근무 로그인이 완료되었습니다.`)
-        if (onSuccess) onSuccess()
+        // Pass data to parent instead of setting session immediately
+        if (onSuccess) onSuccess({ profile, groupData, initialMembers })
     }
 
     const handleAutoLogResponse = async (shouldDelete: boolean) => {

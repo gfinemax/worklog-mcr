@@ -1,48 +1,28 @@
 
-> my-v0-project@0.1.0 build
+> my-v0-project@0.1.0 build C:\workspace\antigravity\worklog-mcr
 > next build
-
- ??Warning: Next.js inferred your workspace root, but it may not be correct.
- We detected multiple lockfiles and selected the directory of C:\workspace\package-lock.json as the root directory.
- To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
-   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
- Detected additional lockfiles: 
-   * C:\workspace\antigravity\worklog-mcr\pnpm-lock.yaml
 
    ??Next.js 15.5.6
    - Environments: .env.local
 
    Creating an optimized production build ...
-Failed to compile.
-
-./app/worklog/new/page.tsx
-Error:   x You're importing a component that needs `useState`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
-  |
-  |  Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
-  |
-
-   ,-[C:\workspace\antigravity\worklog-mcr\app\worklog\new\page.tsx:1:1]
- 1 | import { useState, useEffect } from "react"
-   :          ^^^^^^^^
- 2 | import { MainLayout } from "@/components/layout/main-layout"
- 3 | import { Button } from "@/components/ui/button"
- 4 | import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-   `----
-  x You're importing a component that needs `useEffect`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
-  |
-  |  Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
-  |
-
-   ,-[C:\workspace\antigravity\worklog-mcr\app\worklog\new\page.tsx:1:1]
- 1 | import { useState, useEffect } from "react"
-   :                    ^^^^^^^^^
- 2 | import { MainLayout } from "@/components/layout/main-layout"
- 3 | import { Button } from "@/components/ui/button"
- 4 | import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-   `----
-
-Import trace for requested module:
-./app/worklog/new/page.tsx
-
-
-> Build failed because of webpack errors
+ ??Compiled successfully in 9.0s
+   Skipping validation of types
+   Linting ...
+   Collecting page data ...
+   Generating static pages (0/22) ...
+ 殊?useSearchParams() should be wrapped in a suspense boundary at page "/settings". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at g (C:\workspace\antigravity\worklog-mcr\.next\server\chunks\491.js:1:17782)
+    at m (C:\workspace\antigravity\worklog-mcr\.next\server\chunks\491.js:1:8055)
+    at S (C:\workspace\antigravity\worklog-mcr\.next\server\chunks\914.js:4:13870)
+    at n3 (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:82831)
+    at n6 (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:84601)
+    at n5 (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:104801)
+    at n7 (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:102219)
+    at ia (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:108211)
+    at ie (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:106833)
+    at n5 (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\next@15.5.6_react-dom@19.2.0_react@19.2.0__react@19.2.0\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:2:105079)
+Error occurred prerendering page "/settings". Read more: https://nextjs.org/docs/messages/prerender-error
+Export encountered an error on /settings/page: /settings, exiting the build.
+ 殊?Next.js build worker exited with code: 1 and signal: null
+?덭LIFECYCLE??Command failed with exit code 1.

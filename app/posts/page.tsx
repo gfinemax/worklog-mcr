@@ -421,7 +421,7 @@ export default function PostList() {
                             className="flex flex-col items-center cursor-pointer hover:bg-muted rounded p-1 transition-colors"
                             onClick={(e) => {
                               e.stopPropagation()
-                              router.push(`/worklog/today?id=${post.worklog?.id}`)
+                              router.push(`/worklog?id=${post.worklog?.id}`)
                             }}
                           >
                             <span className="font-medium" suppressHydrationWarning>

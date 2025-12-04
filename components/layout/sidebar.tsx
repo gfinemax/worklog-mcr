@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, CheckSquare, Calendar, UserCircle, LogOut, ChevronLeft, ChevronRight, Menu } from "lucide-react"
 import { useState, useEffect, Fragment } from "react"
 import { Button } from "@/components/ui/button"
@@ -13,10 +13,12 @@ import { useSidebar } from "./sidebar-context"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { toast } from "sonner"
+import { SessionSetupStep } from "@/components/auth/session-setup-step"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", href: "/" },
-  { icon: Calendar, label: "오늘 업무일지", href: "/worklog/today" },
+  { icon: Calendar, label: "오늘 업무일지", href: "/worklog?mode=today" },
   { icon: Tv, label: "오늘 중계현황", href: "/broadcasts/today" },
   { icon: FileText, label: "업무일지 목록", href: "/worklog", exact: true },
 
@@ -30,9 +32,13 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const mode = searchParams.get('mode')
   const [guestLoginOpen, setGuestLoginOpen] = useState(false)
   const [handoverOpen, setHandoverOpen] = useState(false)
-  const { user, guestSession } = useAuthStore()
+  const [handoverStep, setHandoverStep] = useState<'login' | 'setup'>('login')
+  const [handoverData, setHandoverData] = useState<any>(null)
+  const { user, guestSession, setNextUser, setNextSession } = useAuthStore()
   const { isCollapsed, toggleCollapse, isMobileOpen, closeMobile } = useSidebar()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -44,6 +50,32 @@ export function Sidebar() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  const handleHandoverLoginSuccess = (data: any) => {
+    setHandoverData(data)
+    setHandoverStep('setup')
+  }
+
+  const handleHandoverComplete = (members: any[]) => {
+    if (!handoverData) return
+
+    const { profile, groupData } = handoverData
+    setNextUser(profile)
+    setNextSession({
+      groupId: groupData.id,
+      groupName: groupData.name,
+      members: members,
+      startedAt: new Date().toISOString()
+    })
+
+    toast.success(`${groupData.name} 교대 근무 로그인이 완료되었습니다.`)
+    setHandoverOpen(false)
+    // Reset state after a delay to allow dialog close animation
+    setTimeout(() => {
+      setHandoverStep('login')
+      setHandoverData(null)
+    }, 300)
+  }
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -71,10 +103,18 @@ export function Sidebar() {
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
-            // @ts-ignore
-            const isActive = item.exact
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(item.href + "/")
+
+            let isActive = false
+            if (item.href === "/worklog?mode=today") {
+              isActive = pathname === "/worklog" && mode === "today"
+            } else if (item.href === "/worklog") {
+              isActive = pathname === "/worklog" && !mode
+            } else {
+              // @ts-ignore
+              isActive = item.exact
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(item.href + "/")
+            }
 
             const LinkContent = (
               <Link
@@ -125,7 +165,7 @@ export function Sidebar() {
             }
 
             return (
-              <Fragment key={item.href}>
+              <Fragment key={item.label + item.href}>
                 {showSeparator && (
                   <li className="mt-6 mb-2 px-4">
                     <div className="flex items-center gap-3">
@@ -245,17 +285,16 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* ... (Sidebar and Sheet remains same) ... */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border hidden lg:flex flex-col transition-all duration-300",
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border hidden lg:flex flex-col transition-all duration-300 print:hidden",
           isCollapsed ? "w-16" : "w-60"
         )}
       >
         <SidebarContent />
       </aside>
 
-      {/* Mobile Sidebar (Sheet) */}
       <Sheet open={isMobileOpen} onOpenChange={closeMobile}>
         <SheetContent side="left" className="p-0 w-64 bg-sidebar border-r border-sidebar-border">
           <SidebarContent />
@@ -267,15 +306,36 @@ export function Sidebar() {
         onOpenChange={setGuestLoginOpen}
       />
 
-      <Dialog open={handoverOpen} onOpenChange={setHandoverOpen}>
+      <Dialog open={handoverOpen} onOpenChange={(open) => {
+        setHandoverOpen(open)
+        if (!open) {
+          // Reset on close
+          setTimeout(() => {
+            setHandoverStep('login')
+            setHandoverData(null)
+          }, 300)
+        }
+      }}>
         <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>다음 근무자 로그인</DialogTitle>
-            <DialogDescription>
-              현재 세션을 유지한 채 다음 근무조 로그인을 미리 진행합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <LoginForm mode="handover" onSuccess={() => setHandoverOpen(false)} />
+          {handoverStep === 'login' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>다음 근무자 로그인</DialogTitle>
+                <DialogDescription>
+                  현재 세션을 유지한 채 다음 근무조 로그인을 미리 진행합니다.
+                </DialogDescription>
+              </DialogHeader>
+              <LoginForm mode="handover" onSuccess={handleHandoverLoginSuccess} />
+            </>
+          ) : (
+            <SessionSetupStep
+              groupName={handoverData?.groupData?.name || ""}
+              initialMembers={handoverData?.initialMembers || []}
+              onConfirm={handleHandoverComplete}
+              onCancel={() => setHandoverStep('login')}
+              confirmLabel="교대 근무자 확정"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -1,0 +1,13 @@
+Loading dotenv...
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뾺截?backup and recover secrets: https://dotenvx.com/ops
+Dotenv loaded.
+Supabase URL: https://dntgpiqkmvoqbdrzkzmb.supabase.co
+Importing shiftService...
+shiftService imported.
+Testing Fundamental Fix Logic...
+Testing time: 2025-12-04T10:00:00+09:00
+  Result: Date=2025-12-04, Shift=day, Team=3議?  PASS
+Testing time: 2025-12-04T20:00:00+09:00
+  Result: Date=2025-12-04, Shift=night, Team=2議?  PASS
+Testing time: 2025-12-05T03:00:00+09:00
+  Result: Date=2025-12-04, Shift=night, Team=2議?  PASS

@@ -1,2 +1,1 @@
-Need to install the following packages:
-supabase@2.65.1
+export type Database = any

@@ -1,0 +1,23 @@
+--- Analysis Report ---
+
+Date: 2025-12-04
+- Missing NIGHT log
+
+Date: 2025-12-02
+- Missing DAY log
+
+Date: 2025-12-01
+- Missing NIGHT log
+
+Date: 2025-11-30
+- Missing DAY log
+
+Date: 2025-11-29
+- Duplicate NIGHT logs: 2
+  Night Logs:
+    ID: 84aeeba5-b3ff-4c6d-829d-ec4aef56a66b, Group: 2議? Posts: 0, Created: 2025-11-29T13:49:03.888427+00:00
+    ID: 2a7168d4-1159-4228-b67c-7642df15f011, Group: 1議? Posts: 1, Created: 2025-11-29T14:25:33.7232+00:00
+
+--- Summary ---
+Total Dates Checked: 6
+Dates with Issues: 5

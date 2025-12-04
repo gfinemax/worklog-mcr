@@ -97,7 +97,7 @@ async function createUnlinkedPost() {
     }
 
     console.log('Successfully created unlinked post:', post.id)
-    console.log('Verify at: http://localhost:3000/worklog/today?id=' + worklogId)
+    console.log('Verify at: http://localhost:3000/worklog?id=' + worklogId)
 }
 
 createUnlinkedPost()

@@ -39,7 +39,7 @@ interface WorklogStore {
     addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | { error: any } | null>
     updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any }>
     fetchWorklogPosts: (worklogId: string) => Promise<{ id: string; summary: string; channel?: string }[]>
-    fetchWorklogById: (id: string) => Promise<void>
+    fetchWorklogById: (id: string) => Promise<Worklog | null>
 }
 
 export const useWorklogStore = create<WorklogStore>((set, get) => ({
@@ -52,6 +52,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 group:groups(name)
             `)
             .order('date', { ascending: false })
+            .order('type', { ascending: true }) // '야간' < '주간', so Night comes first (Latest)
 
         if (error) {
             console.error('Error fetching worklogs:', error)
@@ -208,7 +209,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         if (error) {
             console.error('Error fetching worklog by id:', error)
-            return
+            return null
         }
 
         if (data) {
@@ -238,7 +239,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                     return { worklogs: [...state.worklogs, formattedLog] }
                 }
             })
+
+            return formattedLog
         }
+        return null
     },
 
     updateWorklog: async (id, updates) => {

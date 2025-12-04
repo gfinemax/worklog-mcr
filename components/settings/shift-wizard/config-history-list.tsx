@@ -305,7 +305,8 @@ export function ConfigHistoryList() {
                                                                         day_end: '18:00',
                                                                         night_start: '18:00',
                                                                         night_end: '09:00'
-                                                                    }
+                                                                    },
+                                                                    description: config.memo
                                                                 },
                                                                 assignments
                                                             })

@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
 import { auditLogger } from "@/lib/audit-logger"
 import { useAuthStore } from "@/store/auth"
+import { cn } from "@/lib/utils"
 
 interface Step3ConfirmProps {
     data: {
@@ -232,7 +233,9 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
                                     <div>
                                         <span className="text-muted-foreground">총 근무자:</span>
                                         <span className="ml-2 font-bold">
-                                            {Object.values(data.assignments).flat().length}명
+                                            {Object.entries(data.assignments)
+                                                .filter(([team]) => team !== 'Unassigned')
+                                                .flatMap(([, workers]) => workers).length}명
                                         </span>
                                     </div>
                                 </div>
@@ -245,7 +248,12 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
                                 placeholder="예: 하계 휴가 기간 단축 운영, 신규 입사자 배치 등"
                                 value={data.memo}
                                 onChange={(e) => onChange({ ...data, memo: e.target.value })}
-                                className="h-24 resize-none"
+                                className={cn(
+                                    "h-24 resize-none transition-all",
+                                    !data.memo.trim()
+                                        ? "border-blue-500 ring-2 ring-blue-200 animate-pulse"
+                                        : "border-gray-300"
+                                )}
                             />
                             <p className="text-xs text-muted-foreground">
                                 * 나중에 이력을 파악하기 위해 구체적인 사유를 입력해주세요.

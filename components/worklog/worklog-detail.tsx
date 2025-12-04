@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Printer, Save, RefreshCw, PenTool } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { MainLayout } from "@/components/layout/main-layout"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
 import { PinVerificationDialog } from "@/components/auth/pin-verification-dialog"
@@ -18,17 +17,10 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
 import { toast } from "sonner"
 import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
 import { useAuthStore } from "@/store/auth"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { shiftService } from "@/lib/shift-rotation"
@@ -397,24 +389,70 @@ function ChannelRow({
     )
 }
 
-export default function TodayWorkLog() {
+function SystemIssuesList({
+    issues,
+    onIssuesChange,
+    onNewPost
+}: {
+    issues: { id: string; summary: string }[]
+    onIssuesChange: (issues: { id: string; summary: string }[]) => void
+    onNewPost: () => void
+}) {
+    const router = useRouter()
+
+    const handlePostClick = (postId: string) => {
+        router.push(`/posts/${postId}`)
+    }
+
+    return (
+        <div className="h-full w-full p-1 overflow-y-auto">
+            {issues && issues.length > 0 ? (
+                <ul className="list-none space-y-1">
+                    {issues.map(issue => (
+                        <li key={issue.id}
+                            onClick={() => handlePostClick(issue.id)}
+                            className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
+                        >
+                            <span className="mr-1">•</span>
+                            <span className="group-hover:underline">{issue.summary}</span>
+                        </li>
+                    ))}
+                    <li onClick={onNewPost} className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm mt-1 print:hidden">
+                        + 추가
+                    </li>
+                </ul>
+            ) : (
+                <div
+                    onClick={onNewPost}
+                    className="h-full w-full text-sm text-gray-400 cursor-pointer hover:bg-gray-50 flex items-start pt-1"
+                >
+                    특이사항 없음
+                </div>
+            )}
+        </div>
+    )
+}
+
+interface WorklogDetailProps {
+    worklogId?: string | null
+}
+
+export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const id = searchParams.get('id')
+
+    // Use prop ID if available, otherwise check search params (for backward compatibility or direct links)
+    const id = propWorklogId || searchParams.get('id')
     const paramTeam = searchParams.get('team')
     const paramType = searchParams.get('type')
 
     const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts } = useWorklogStore()
-    const { currentSession, nextSession, promoteNextSession, logout } = useAuthStore()
+    const { user, currentSession, nextSession, promoteNextSession } = useAuthStore()
 
     const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-    const [shiftType, setShiftType] = useState<'day' | 'night'>('night')
-    const [selectedTeam, setSelectedTeam] = useState<string>("")
-    const [workers, setWorkers] = useState<{
-        director: string[];
-        assistant: string[];
-        video: string[];
-    }>({
+    const [shiftType, setShiftType] = useState<'day' | 'night'>('day')
+    const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+    const [workers, setWorkers] = useState<{ director: string[], assistant: string[], video: string[] }>({
         director: [],
         assistant: [],
         video: []
@@ -422,10 +460,12 @@ export default function TodayWorkLog() {
     const [status, setStatus] = useState<Worklog['status']>('작성중')
     const [channelLogs, setChannelLogs] = useState<{ [key: string]: ChannelLog }>({})
     const [systemIssues, setSystemIssues] = useState<{ id: string; summary: string }[]>([])
-
-    // PIN Verification State
     const [pinDialogOpen, setPinDialogOpen] = useState(false)
-    const [pendingAction, setPendingAction] = useState<'handover' | 'sign' | null>(null)
+    const [pendingAction, setPendingAction] = useState<'sign' | 'handover' | null>(null)
+    const [ignore, setIgnore] = useState(false)
+
+    // Track fetch attempts to prevent infinite loops
+    const fetchAttempted = useRef<Set<string>>(new Set())
 
     // Post Creation Confirmation State
     const [pendingPost, setPendingPost] = useState<{
@@ -447,17 +487,25 @@ export default function TodayWorkLog() {
             } else {
                 setActiveTab("current")
             }
+        } else {
+            // If nextSession is removed (cancelled), revert to current tab
+            if (activeTab !== 'current') setActiveTab("current")
+
+            // Also revert to current team if we were viewing the next team
+            if (currentSession && selectedTeam !== currentSession.groupName) {
+                setSelectedTeam(currentSession.groupName)
+            }
         }
-    }, [selectedTeam, nextSession])
+    }, [selectedTeam, nextSession, currentSession])
 
     // Auto-save effect
     useEffect(() => {
-        if (!id) return
+        if (!id || id === 'new') return
 
         const timer = setTimeout(() => {
             // @ts-ignore
             updateWorklog(id, {
-                groupName: selectedTeam,
+                groupName: selectedTeam || '',
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
                 channelLogs: channelLogs,
@@ -470,7 +518,7 @@ export default function TodayWorkLog() {
 
     // Initial fetch logic
     useEffect(() => {
-        if (id) {
+        if (id && id !== 'new') {
             fetchWorklogById(id)
         } else {
             fetchWorklogs()
@@ -504,7 +552,7 @@ export default function TodayWorkLog() {
         }
 
         fetchUserTeam()
-    }, [id, paramTeam, currentSession])
+    }, [id, paramTeam, currentSession, worklogs])
 
     // Handle Query Params Override
     useEffect(() => {
@@ -515,7 +563,7 @@ export default function TodayWorkLog() {
 
     // Sync state from store (Existing Worklogs)
     useEffect(() => {
-        if (id) {
+        if (id && id !== 'new') {
             const worklog = worklogs.find(w => String(w.id) === id)
             if (worklog) {
                 // Parse date string (YYYY-MM-DD) to Date object
@@ -580,8 +628,27 @@ export default function TodayWorkLog() {
                         duration: 5000,
                     })
                 }
+            } else {
+                // Not found in store, try fetching
+                if (!fetchAttempted.current.has(id)) {
+                    fetchAttempted.current.add(id)
+                    fetchWorklogById(id).then(fetchedLog => {
+                        if (fetchedLog) {
+                            // Manually set state if fetched
+                            const [yearStr, monthStr, dayStr] = fetchedLog.date.split('-')
+                            const dateObj = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr))
+                            setSelectedDate(dateObj)
+                            setShiftType(fetchedLog.type === '주간' ? 'day' : 'night')
+                            setSelectedTeam(fetchedLog.groupName)
+                            setWorkers(fetchedLog.workers)
+                            setStatus(fetchedLog.status)
+                            setChannelLogs(fetchedLog.channelLogs || {})
+                            setSystemIssues(fetchedLog.systemIssues || [])
+                        }
+                    })
+                }
             }
-        } else {
+        } else if (!id || id === 'new') {
             // New Worklog: Check if a worklog already exists for today/team/shift
             // Note: Initialization of date/shift is now handled in a separate effect
             const dateStr = format(selectedDate, 'yyyy-MM-dd')
@@ -593,8 +660,14 @@ export default function TodayWorkLog() {
             )
 
             if (existingWorklog) {
-                console.log('Found existing worklog for today, redirecting:', existingWorklog)
-                router.replace(`/worklog/today?id=${existingWorklog.id}`)
+                // If we are in 'today' mode, we don't want to redirect to the list view ID.
+                // The parent component (page.tsx) should handle switching the ID passed to us.
+                const mode = searchParams.get('mode')
+                if (mode === 'today') {
+                    return
+                }
+
+                router.replace(`/worklog?id=${existingWorklog.id}`)
                 return // Stop execution here, let the redirect happen
             }
 
@@ -619,7 +692,7 @@ export default function TodayWorkLog() {
     // Smart Initialization: Determine initial Date and Shift Type
     // Prioritizes logged-in user's active shift over strict time-based shift to prevent auto-switching during handover.
     useEffect(() => {
-        if (id || paramType) return // Skip if ID or params exist
+        if ((id && id !== 'new') || paramType) return // Skip if existing ID or params exist
 
         const initializeSmartShift = async () => {
             const now = new Date()
@@ -639,10 +712,6 @@ export default function TodayWorkLog() {
                         // Case 2: Time is Day (Next Morning), but User is Night Team (e.g. 08:00 Handover)
                         else if (logicalShiftType === 'day' && currentSession.groupName === teams.N) {
                             // Check if they were Night Team for YESTERDAY
-                            // (Since teams.N is Night Team for TODAY)
-                            // Actually, if I am Night Team, I work Today Night.
-                            // But if it is 08:00, I might be finishing Yesterday Night.
-                            // Let's check Yesterday's schedule
                             const yesterday = subDays(targetDate, 1)
                             const prevConfig = await shiftService.getConfig(yesterday)
                             if (prevConfig) {
@@ -662,11 +731,19 @@ export default function TodayWorkLog() {
         }
 
         initializeSmartShift()
-    }, [currentSession, id, paramType])
+    }, [id, paramType, currentSession])
 
     // Auto-select team based on pattern when date or shift changes (Only for new logs)
     useEffect(() => {
-        if (id) return // Don't auto-change for existing logs
+        if (id && id !== 'new') return // Don't auto-change for existing logs
+
+        // If user is logged in, ALWAYS default to their team for new logs
+        if (currentSession) {
+            if (selectedTeam !== currentSession.groupName) {
+                setSelectedTeam(currentSession.groupName)
+            }
+            return
+        }
 
         const updateTeamFromPattern = async () => {
             const config = await shiftService.getConfig(selectedDate)
@@ -683,16 +760,18 @@ export default function TodayWorkLog() {
         }
 
         updateTeamFromPattern()
-    }, [selectedDate, shiftType, id])
+    }, [selectedDate, shiftType, id, currentSession, selectedTeam])
 
     // Fetch group members when team changes (only if no ID or creating new)
     useEffect(() => {
+        let ignore = false
+
         // If we are in Next Session tab, we already set workers from session members in the previous effect
         if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) return
 
         // [Modified] Use currentSession members if available and matches selectedTeam
         // We do this EVEN IF id exists, to ensure the displayed workers match the logged-in session (user request)
-        if (!id && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current') {
+        if ((!id || id === 'new') && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current') {
             const newWorkers = {
                 director: [] as string[],
                 assistant: [] as string[],
@@ -704,8 +783,8 @@ export default function TodayWorkLog() {
                 else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
                 else newWorkers.video.push(m.name)
             })
-            setWorkers(newWorkers)
-            return
+            if (!ignore) setWorkers(newWorkers)
+            return () => { ignore = true }
         }
 
         if (id) return // Don't fetch for existing logs (they have their own workers saved)
@@ -713,68 +792,92 @@ export default function TodayWorkLog() {
         const fetchGroupMembers = async () => {
             if (!selectedTeam) return
 
-            // 1. Try to fetch from Configuration Roster (Future/Past Roster Snapshot)
-            const config = await shiftService.getConfig(selectedDate)
-            if (config && config.roster_json && config.roster_json[selectedTeam]) {
-                const userIds = config.roster_json[selectedTeam]
-                if (userIds && userIds.length > 0) {
-                    // Fetch user details for these IDs
-                    const { data: rosterUsers } = await supabase
-                        .from('users')
-                        .select('id, name, role')
-                        .in('id', userIds)
-                        .order('name')
-
-                    if (rosterUsers) {
-                        // Sort by the order in userIds array to preserve roster order
-                        rosterUsers.sort((a, b) => userIds.indexOf(a.id) - userIds.indexOf(b.id))
-
-                        const newWorkers = {
-                            director: [] as string[],
-                            assistant: [] as string[],
-                            video: [] as string[]
-                        }
-                        rosterUsers.forEach((u: any) => {
-                            const primaryRole = (u.role || '').split(',')[0].trim()
-                            if (primaryRole === '감독') newWorkers.director.push(u.name)
-                            else if (primaryRole === '부감독') newWorkers.assistant.push(u.name)
-                            else newWorkers.video.push(u.name)
-                        })
-                        setWorkers(newWorkers)
-                        return // Exit if successful
-                    }
-                }
+            // Reset workers to empty to prevent showing previous team's workers while loading
+            if (!ignore) {
+                setWorkers({
+                    director: [],
+                    assistant: [],
+                    video: []
+                })
             }
 
-            // 2. Fallback to Current Live Roster (group_members)
-            const { data: members } = await supabase
-                .from('group_members')
-                .select(`
-                    user:users(name, role),
-                    group:groups!inner(name)
-                `)
-                .eq('group.name', selectedTeam)
-                .order('display_order', { ascending: true })
+            try {
+                // 1. Try to fetch from Configuration Roster (Future/Past Roster Snapshot)
+                const config = await shiftService.getConfig(selectedDate)
+                if (ignore) return
 
-            if (members) {
-                const newWorkers = {
-                    director: [] as string[],
-                    assistant: [] as string[],
-                    video: [] as string[]
-                }
-                members.forEach((m: any) => {
-                    if (m.user) {
-                        const primaryRole = (m.user.role || '').split(',')[0].trim()
-                        if (primaryRole === '감독') newWorkers.director.push(m.user.name)
-                        else if (primaryRole === '부감독') newWorkers.assistant.push(m.user.name)
-                        else newWorkers.video.push(m.user.name)
+                if (config && config.roster_json && config.roster_json[selectedTeam]) {
+                    const userIds = config.roster_json[selectedTeam]
+                    if (userIds && userIds.length > 0) {
+                        // Fetch user details for these IDs
+                        const { data: rosterUsers, error: rosterError } = await supabase
+                            .from('users')
+                            .select('id, name, role')
+                            .in('id', userIds)
+                            .order('name')
+
+                        if (rosterError) throw rosterError
+
+                        if (rosterUsers && !ignore) {
+                            // Sort by the order in userIds array to preserve roster order
+                            rosterUsers.sort((a, b) => userIds.indexOf(a.id) - userIds.indexOf(b.id))
+
+                            const newWorkers = {
+                                director: [] as string[],
+                                assistant: [] as string[],
+                                video: [] as string[]
+                            }
+                            rosterUsers.forEach((u: any) => {
+                                const primaryRole = (u.role || '').split(',')[0].trim()
+                                if (primaryRole === '감독') newWorkers.director.push(u.name)
+                                else if (primaryRole === '부감독') newWorkers.assistant.push(u.name)
+                                else newWorkers.video.push(u.name)
+                            })
+                            setWorkers(newWorkers)
+                            return // Exit if successful
+                        }
                     }
-                })
-                setWorkers(newWorkers)
+                }
+
+                // 2. Fallback to Current Live Roster (group_members)
+                const { data: members, error: membersError } = await supabase
+                    .from('group_members')
+                    .select(`
+                        user:users(name, role),
+                        group:groups!inner(name)
+                    `)
+                    .eq('group.name', selectedTeam)
+                    .order('display_order', { ascending: true })
+
+                if (membersError) throw membersError
+
+                if (members && !ignore) {
+                    const newWorkers = {
+                        director: [] as string[],
+                        assistant: [] as string[],
+                        video: [] as string[]
+                    }
+                    members.forEach((m: any) => {
+                        if (m.user) {
+                            const primaryRole = (m.user.role || '').split(',')[0].trim()
+                            if (primaryRole === '감독') newWorkers.director.push(m.user.name)
+                            else if (primaryRole === '부감독') newWorkers.assistant.push(m.user.name)
+                            else newWorkers.video.push(m.user.name)
+                        }
+                    })
+                    setWorkers(newWorkers)
+                }
+            } catch (error) {
+                if (!ignore) {
+                    console.error("Error fetching group members:", error)
+                    toast.error("근무자 정보를 불러오는데 실패했습니다.")
+                }
             }
         }
 
         fetchGroupMembers()
+
+        return () => { ignore = true }
     }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate])
 
     const updateTitle = () => {
@@ -794,7 +897,11 @@ export default function TodayWorkLog() {
     }, [shiftType])
 
     const getPageTitle = () => {
-        if (isToday(selectedDate)) {
+        const now = new Date()
+        // If it's yesterday's date, but it's a night shift and currently before noon (extended night shift)
+        const isExtendedNightShift = isYesterday(selectedDate) && shiftType === 'night' && now.getHours() < 12
+
+        if (isToday(selectedDate) || isExtendedNightShift) {
             if (status === '근무종료' || status === '서명완료') {
                 return `오늘 ${shiftType === 'day' ? '주간' : '야간'} 업무일지`
             }
@@ -807,7 +914,12 @@ export default function TodayWorkLog() {
     }
 
     const handleSave = async (silent = false) => {
-        if (id) {
+        if (!selectedTeam) {
+            if (!silent) toast.error("근무조(팀) 정보가 없습니다. 잠시 후 다시 시도해주세요.")
+            return null
+        }
+
+        if (id && id !== 'new') {
             // @ts-ignore - ID type mismatch (number vs string)
             const { error } = await updateWorklog(id, {
                 groupName: selectedTeam,
@@ -851,12 +963,12 @@ export default function TodayWorkLog() {
             if (newLog) {
                 if (!silent) {
                     toast.success("새 일지가 생성되었습니다.")
-                    const newUrl = `/worklog/today?id=${newLog.id}`
+                    const newUrl = `/worklog?id=${newLog.id}`
                     window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
                     router.replace(newUrl)
                 } else {
                     // Just update history for back button support, don't trigger navigation
-                    const newUrl = `/worklog/today?id=${newLog.id}`
+                    const newUrl = `/worklog?id=${newLog.id}`
                     window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
                 }
                 return newLog.id
@@ -867,7 +979,7 @@ export default function TodayWorkLog() {
 
     const handleNewPostRequest = async (sourceField: string, categorySlug: string, tag: string, channel?: string) => {
         let currentId = id
-        if (!currentId) {
+        if (!currentId || currentId === 'new') {
             // Auto-save first
             const savedId = await handleSave(true)
             if (!savedId) {
@@ -909,11 +1021,17 @@ export default function TodayWorkLog() {
         }
         setChannelLogs(newChannelLogs)
 
-        if (id) {
+        let currentId = id
+        if (currentId === 'new') {
+            const savedId = await handleSave(true)
+            if (savedId) currentId = String(savedId)
+        }
+
+        if (currentId && currentId !== 'new') {
             try {
                 // @ts-ignore
-                await updateWorklog(id, {
-                    groupName: selectedTeam,
+                await updateWorklog(currentId, {
+                    groupName: selectedTeam || '',
                     type: shiftType === 'day' ? '주간' : '야간',
                     workers: workers,
                     channelLogs: newChannelLogs,
@@ -928,16 +1046,15 @@ export default function TodayWorkLog() {
     }
 
     const handleTabChange = (val: string) => {
+        setActiveTab(val)
         if (val === 'current') {
-            // Revert to current session logic
-            // We can just push to /worklog/today and let it auto-detect based on current user
-            router.push('/worklog/today')
+            router.push('/worklog?mode=today')
         } else if (val === 'next' && nextSession) {
             // Switch to next session
             // Calculate next shift type based on CURRENT logical shift, not the displayed shiftType
             const currentLogicalShift = shiftService.getLogicalShiftInfo(new Date()).shiftType
             const nextShift = currentLogicalShift === 'day' ? 'night' : 'day'
-            router.push(`/worklog/today?team=${nextSession.groupName}&type=${nextShift}`)
+            router.push(`/worklog?mode=today&team=${nextSession.groupName}&type=${nextShift}`)
         }
     }
 
@@ -952,11 +1069,6 @@ export default function TodayWorkLog() {
                 toast.error("운행 결재가 완료되지 않아 로그아웃할 수 없습니다.")
                 return
             }
-            // Fallback for old schema if signatures is undefined but signature string exists?
-            // If signatures is undefined, we might assume it's old data.
-            // But we migrated DB. So signatures should be there.
-            // However, the store might not have fetched it if I didn't reload the page/store.
-            // But I updated the store logic.
         }
 
         setPendingAction('handover')
@@ -970,11 +1082,27 @@ export default function TodayWorkLog() {
 
     const handlePinSuccess = async (user: any) => {
         if (pendingAction === 'handover') {
+            // Log to audit_logs
+            try {
+                await supabase.from('audit_logs').insert({
+                    user_id: user.id,
+                    action: 'HANDOVER_COMPLETE',
+                    target_type: 'SESSION',
+                    changes: {
+                        previous_group: currentSession?.groupName,
+                        new_group: nextSession?.groupName,
+                        timestamp: new Date().toISOString()
+                    }
+                })
+            } catch (e) {
+                console.error("Failed to log handover:", e)
+            }
+
             promoteNextSession()
             router.push('/')
             toast.success(`${user.name}님의 승인으로 근무 교대가 완료되었습니다.`)
         } else if (pendingAction === 'sign') {
-            if (id) {
+            if (id && id !== 'new') {
                 // @ts-ignore
                 await updateWorklog(id, { status: '서명완료' })
                 setStatus('서명완료')
@@ -984,7 +1112,25 @@ export default function TodayWorkLog() {
         setPendingAction(null)
     }
 
-    const handleCancelHandover = () => {
+    const handleCancelHandover = async () => {
+        // Log to audit_logs
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                await supabase.from('audit_logs').insert({
+                    user_id: user.id,
+                    action: 'HANDOVER_CANCEL',
+                    target_type: 'SESSION',
+                    changes: {
+                        cancelled_session: nextSession?.groupName,
+                        timestamp: new Date().toISOString()
+                    }
+                })
+            }
+        } catch (e) {
+            console.error("Failed to log handover cancel:", e)
+        }
+
         const { setNextSession, setNextUser } = useAuthStore.getState()
         setNextSession(null)
         setNextUser(null)
@@ -1001,351 +1147,337 @@ export default function TodayWorkLog() {
         return () => clearTimeout(timer)
     }, [workers])
 
+    // Check if the current view corresponds to the active session
+    // Check if the current view corresponds to the active session
+    const isCurrentContext = currentSession &&
+        (selectedTeam === currentSession.groupName || (nextSession && selectedTeam === nextSession.groupName)) &&
+        // Check if date matches (considering extended night shift)
+        (isToday(selectedDate) || (isYesterday(selectedDate) && shiftType === 'night' && new Date().getHours() < 12))
+
     return (
-        <MainLayout>
-            <div className={cn("min-h-screen p-8 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
-                <div className="mx-auto max-w-[210mm] print:max-w-none">
+        <div className={cn("min-h-screen px-8 py-2 -mt-4 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
+            <div className="mx-auto max-w-[210mm] print:max-w-none">
+                <style type="text/css" media="print">
+                    {`
+                        @page {
+                            size: A4;
+                            margin: 0;
+                        }
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            -webkit-print-color-adjust: exact;
+                        }
+                    `}
+                </style>
 
-                    {/* Tabs for Handover Mode */}
-                    {nextSession && (
-                        <div className="mb-6 print:hidden">
-                            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 h-12">
-                                    <TabsTrigger value="current" className="text-base">
-                                        [현재] {currentSession?.groupName || "현재 근무"}{activeTab === 'next' ? (shiftType === 'day' ? 'N' : 'A') : (shiftType === 'day' ? 'A' : 'N')} (근무 중)
-                                    </TabsTrigger>
-                                    <TabsTrigger value="next" className="text-base data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900">
-                                        [다음] {nextSession.groupName}{activeTab === 'next' ? (shiftType === 'day' ? 'A' : 'N') : (shiftType === 'day' ? 'N' : 'A')} (근무준비 중)
-                                    </TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
-
-                    {/* Action Buttons - Hidden in print */}
-                    <div className="mb-6 flex justify-between items-center print:hidden">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                {status === '근무종료' && (
-                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-base px-3 py-1">근무종료</Badge>
-                                )}
-                                {status === '서명완료' && (
-                                    <Badge className="bg-teal-600 hover:bg-teal-700 text-base px-3 py-1">서명완료</Badge>
-                                )}
-                                <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
-                            </div>
-                            {/* 목록으로 버튼 삭제됨 */}
-
-                        </div>
-                        <div className="flex gap-2">
-                            {/* Promote Session Button (Only visible in Current tab if next session exists) */}
-                            {activeTab === 'current' && nextSession && (
-                                <>
-                                    <Button onClick={handleCancelHandover} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
-                                        근무교대취소
-                                    </Button>
-                                    <Button onClick={handlePromoteSession} className="bg-indigo-600 hover:bg-indigo-700">
-                                        <RefreshCw className="mr-2 h-4 w-4" />
-                                        근무교대하기
-                                    </Button>
-                                </>
-                            )}
-
-                            {status !== '서명완료' && (
-                                <Button variant="outline" onClick={handleSign} className="border-teal-600 text-teal-700 hover:bg-teal-50">
-                                    <PenTool className="mr-2 h-4 w-4" />
-                                    결재(서명)
-                                </Button>
-                            )}
-
-                            {/* 저장 버튼 삭제됨 (자동 저장 적용) */}
-                            <Button onClick={handlePrint}>
-                                <Printer className="mr-2 h-4 w-4" />
-                                인쇄하기
-                            </Button>
-                        </div>
+                {/* Tabs for Handover Mode - Only show if next session exists AND we are viewing the current session's log */}
+                {nextSession && isCurrentContext && (
+                    <div className="mb-6 print:hidden">
+                        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 h-12">
+                                <TabsTrigger value="current" className="text-base">
+                                    [현재] {currentSession?.groupName || "현재 근무"}{activeTab === 'next' ? (shiftType === 'day' ? 'N' : 'A') : (shiftType === 'day' ? 'A' : 'N')} (근무 중)
+                                </TabsTrigger>
+                                <TabsTrigger value="next" className="text-base data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900">
+                                    [다음] {nextSession.groupName}{activeTab === 'next' ? (shiftType === 'day' ? 'A' : 'N') : (shiftType === 'day' ? 'N' : 'A')} (근무준비 중)
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
                     </div>
+                )}
 
-                    <PinVerificationDialog
-                        open={pinDialogOpen}
-                        onOpenChange={setPinDialogOpen}
-                        members={currentSession?.members || []}
-                        onSuccess={handlePinSuccess}
-                        title={pendingAction === 'handover' ? "근무 교대 승인" : "업무일지 결재"}
-                        description={pendingAction === 'handover'
-                            ? "근무를 종료하고 다음 조에게 인계하시겠습니까? 책임자의 확인이 필요합니다."
-                            : "업무일지를 최종 승인하시겠습니까? 서명 후에는 수정이 제한될 수 있습니다."}
-                    />
-
-                    {/* A4 Page Container */}
-                    <div className="bg-white p-[10mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] mx-auto relative box-border flex flex-col">
-
-                        {/* Header Section */}
-                        <div className="mb-1">
-                            <div className="flex items-start justify-between">
-                                {/* Logo & Team Name */}
-                                <div className="flex flex-col justify-between h-32">
-                                    <div>
-                                        <div className="text-xs font-bold text-red-600 italic">Let&apos;s plus!</div>
-                                        <div className="text-2xl font-black tracking-tight text-slate-800">MBC PLUS</div>
-                                    </div>
-                                    <div className="text-base font-bold">방송인프라팀</div>
-                                </div>
-
-                                {/* Title & Date */}
-                                <div className="flex flex-col items-center justify-between h-32">
-                                    <div className="mt-2 text-3xl font-bold tracking-[0.03em] text-black text-center">주 조 정 실 &nbsp; 업 무 일 지</div>
-                                    <div className="text-base font-bold">
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="ghost" className={cn("text-base font-bold hover:bg-transparent p-0 h-auto", !id && "cursor-pointer hover:underline")}>
-                                                    {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            {!id && (
-                                                <PopoverContent className="w-auto p-0" align="center">
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={selectedDate}
-                                                        onSelect={(date) => date && setSelectedDate(date)}
-                                                        initialFocus
-                                                    />
-                                                </PopoverContent>
-                                            )}
-                                        </Popover>
-                                    </div>
-                                </div>
-
-                                {/* Approval Box */}
-                                <div className="flex border border-black text-center text-xs">
-                                    <div className="flex flex-col w-[70px] border-r border-black">
-                                        <div className="bg-gray-100 py-0.5 font-bold border-b border-black">운 행</div>
-                                        <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
-                                        <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">MCR</div>
-                                        <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
-                                    </div>
-                                    <div className="flex flex-col w-[70px]">
-                                        <div className="bg-gray-100 py-0.5 font-bold border-b border-black">팀 장</div>
-                                        <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
-                                        <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">Network</div>
-                                        <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
-                                    </div>
-                                </div>
-                            </div>
+                {/* Action Buttons - Hidden in print */}
+                <div className="mb-6 flex justify-between items-center print:hidden">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            {status === '근무종료' && (
+                                <Badge className="bg-amber-500 hover:bg-amber-600 text-base px-3 py-1">근무종료</Badge>
+                            )}
+                            {status === '서명완료' && (
+                                <Badge className="bg-teal-600 hover:bg-teal-700 text-base px-3 py-1">서명완료</Badge>
+                            )}
+                            <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
                         </div>
+                        {/* 목록으로 버튼 삭제됨 */}
 
-                        {/* Shift Table */}
-                        <div className="mb-2 w-full border border-black">
-                            <div className="flex bg-gray-100 text-center text-sm font-bold border-b border-black">
-                                <div
-                                    className="w-[180px] border-r border-black py-1"
-                                >
-                                    {shiftType === 'day' ? 'A 근무시간' : 'N 근무시간'}
-                                </div>
-                                <div className="flex-1 border-r border-black py-1">감 독</div>
-                                <div className="flex-1 border-r border-black py-1">부 감 독</div>
-                                <div className="flex-1 py-1">영 상</div>
-                            </div>
-                            <div className="flex text-center text-sm min-h-[2rem]">
-                                <div className="w-[180px] border-r border-black flex items-center justify-center font-handwriting text-base">
-                                    {shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
-                                </div>
-                                {/* Director */}
-                                <div className={`flex-1 border-r border-black p-1 flex ${workers.director.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                    {workers.director.map((name, index) => (
-                                        <Input
-                                            key={index}
-                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.director.length === 2 ? 'flex-1' : 'w-full'}`}
-                                            value={name}
-                                            onChange={(e) => {
-                                                const newWorkers = [...workers.director];
-                                                newWorkers[index] = e.target.value;
-                                                setWorkers({ ...workers, director: newWorkers });
-                                            }}
-                                            placeholder="이름"
-                                        />
-                                    ))}
-                                    {workers.director.length < 4 && (
-                                        <div
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
-                                            onClick={() => setWorkers({ ...workers, director: [...workers.director, ''] })}
-                                        >
-                                            +
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Assistant Director */}
-                                <div className={`flex-1 border-r border-black p-1 flex ${workers.assistant.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                    {workers.assistant.map((name, index) => (
-                                        <Input
-                                            key={index}
-                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.assistant.length === 2 ? 'flex-1' : 'w-full'}`}
-                                            value={name}
-                                            onChange={(e) => {
-                                                const newWorkers = [...workers.assistant];
-                                                newWorkers[index] = e.target.value;
-                                                setWorkers({ ...workers, assistant: newWorkers });
-                                            }}
-                                            placeholder="이름"
-                                        />
-                                    ))}
-                                    {workers.assistant.length < 4 && (
-                                        <div
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
-                                            onClick={() => setWorkers({ ...workers, assistant: [...workers.assistant, ''] })}
-                                        >
-                                            +
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Video */}
-                                <div className={`flex-1 p-1 flex ${workers.video.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                    {workers.video.map((name, index) => (
-                                        <Input
-                                            key={index}
-                                            className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.video.length === 2 ? 'flex-1' : 'w-full'}`}
-                                            value={name}
-                                            onChange={(e) => {
-                                                const newWorkers = [...workers.video];
-                                                newWorkers[index] = e.target.value;
-                                                setWorkers({ ...workers, video: newWorkers });
-                                            }}
-                                            placeholder="이름"
-                                        />
-                                    ))}
-                                    {workers.video.length < 4 && (
-                                        <div
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
-                                            onClick={() => setWorkers({ ...workers, video: [...workers.video, ''] })}
-                                        >
-                                            +
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        {/* Promote Session Button (Visible in both tabs if next session exists AND is current context) */}
+                        {nextSession && isCurrentContext && (
+                            <>
+                                <Button onClick={handleCancelHandover} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
+                                    근무교대취소
+                                </Button>
+                                <Button onClick={handlePromoteSession} className="bg-indigo-600 hover:bg-indigo-700">
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    근무교대하기
+                                </Button>
+                            </>
+                        )}
 
-                        {/* Channel Logs Section Title */}
-                        <div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]">
-                            채널별 송출사항
-                        </div>
+                        {status !== '서명완료' && (
+                            <Button variant="outline" onClick={handleSign} className="border-teal-600 text-teal-700 hover:bg-teal-50">
+                                <PenTool className="mr-2 h-4 w-4" />
+                                결재(서명)
+                            </Button>
+                        )}
 
-                        {/* Channels Container */}
-                        <div className="border border-black border-b-0 flex-1 flex flex-col">
-
-                            {/* MBC SPORTS+ */}
-                            <div className="border-b border-black flex-1">
-                                <ChannelRow
-                                    name="MBC SPORTS+"
-                                    worklogId={id}
-                                    posts={channelLogs["MBC SPORTS+"]?.posts || []}
-                                    onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], posts, timecodes: prev["MBC SPORTS+"]?.timecodes || {} } }))}
-                                    timecodeEntries={channelLogs["MBC SPORTS+"]?.timecodes || {}}
-                                    onTimecodesChange={(entries) => handleTimecodesChange("MBC SPORTS+", entries)}
-                                    onNewPost={() => handleNewPostRequest("MBC SPORTS+", "channel-operation", "MBC SPORTS+", "MBC SPORTS+")}
-                                />
-                            </div>
-
-                            {/* MBC Every1 */}
-                            <div className="border-b border-black flex-1">
-                                <ChannelRow
-                                    name="MBC Every1"
-                                    worklogId={id}
-                                    posts={channelLogs["MBC Every1"]?.posts || []}
-                                    onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], posts, timecodes: prev["MBC Every1"]?.timecodes || {} } }))}
-                                    timecodeEntries={channelLogs["MBC Every1"]?.timecodes || {}}
-                                    onTimecodesChange={(entries) => handleTimecodesChange("MBC Every1", entries)}
-                                    onNewPost={() => handleNewPostRequest("MBC Every1", "channel-operation", "MBC Every1", "MBC Every1")}
-                                />
-                            </div>
-
-                            {/* MBC DRAMA */}
-                            <div className="border-b border-black flex-1">
-                                <ChannelRow
-                                    name="MBC DRAMA"
-                                    worklogId={id}
-                                    posts={channelLogs["MBC DRAMA"]?.posts || []}
-                                    onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], posts, timecodes: prev["MBC DRAMA"]?.timecodes || {} } }))}
-                                    timecodeEntries={channelLogs["MBC DRAMA"]?.timecodes || {}}
-                                    onTimecodesChange={(entries) => handleTimecodesChange("MBC DRAMA", entries)}
-                                    onNewPost={() => handleNewPostRequest("MBC DRAMA", "channel-operation", "MBC DRAMA", "MBC DRAMA")}
-                                />
-                            </div>
-
-                            {/* MBC M */}
-                            <div className="border-b border-black flex-1">
-                                <ChannelRow
-                                    name="MBC M"
-                                    worklogId={id}
-                                    posts={channelLogs["MBC M"]?.posts || []}
-                                    onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], posts, timecodes: prev["MBC M"]?.timecodes || {} } }))}
-                                    timecodeEntries={channelLogs["MBC M"]?.timecodes || {}}
-                                    onTimecodesChange={(entries) => handleTimecodesChange("MBC M", entries)}
-                                    onNewPost={() => handleNewPostRequest("MBC M", "channel-operation", "MBC M", "MBC M")}
-                                />
-                            </div>
-
-                            {/* MBC ON */}
-                            <div className="border-b border-black flex-1">
-                                <ChannelRow
-                                    name="MBC ON"
-                                    worklogId={id}
-                                    posts={channelLogs["MBC ON"]?.posts || []}
-                                    onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], posts, timecodes: prev["MBC ON"]?.timecodes || {} } }))}
-                                    timecodeEntries={channelLogs["MBC ON"]?.timecodes || {}}
-                                    onTimecodesChange={(entries) => handleTimecodesChange("MBC ON", entries)}
-                                    onNewPost={() => handleNewPostRequest("MBC ON", "channel-operation", "MBC ON", "MBC ON")}
-                                />
-                            </div>
-
-                        </div>
-
-                        {/* System Issues */}
-                        <div className="border border-black border-t-0 shrink-0">
-                            <div className="bg-gray-100 py-0.5 text-center text-sm font-bold border-b border-black">장비 및 시스템 주요사항</div>
-                            <div className="h-32 p-1 overflow-y-auto">
-                                {systemIssues && systemIssues.length > 0 ? (
-                                    <ul className="list-none space-y-1">
-                                        {systemIssues.map(post => (
-                                            <li key={post.id}
-                                                onClick={() => router.push(`/posts/${post.id}`)}
-                                                className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
-                                            >
-                                                <span className="mr-1">•</span>
-                                                <span className="group-hover:underline">{post.summary}</span>
-                                            </li>
-                                        ))}
-                                        {systemIssues.length < 5 && (
-                                            <li
-                                                onClick={() => handleNewPostRequest('systemIssues', 'system-issue', '장비&시스템')}
-                                                className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm mt-1 print:hidden"
-                                            >
-                                                + 추가
-                                            </li>
-                                        )}
-                                    </ul>
-                                ) : (
-                                    <div
-                                        onClick={() => handleNewPostRequest('systemIssues', 'system-issue', '장비&시스템')}
-                                        className="h-full w-full text-sm text-gray-400 cursor-pointer hover:bg-gray-50 flex items-start pt-1"
-                                    >
-                                        특이사항 없음
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Footer Check */}
-                        <div className="mt-2 flex justify-end items-center gap-2 shrink-0">
-                            <span className="font-bold text-xs">Private CDN A/V 이상없습니다.</span>
-                            <div className="h-5 w-5 border border-black flex items-center justify-center cursor-pointer hover:bg-gray-100">
-                                <span className="text-sm">v</span>
-                            </div>
-                        </div>
-
+                        {/* 저장 버튼 삭제됨 (자동 저장 적용) */}
+                        <Button onClick={handlePrint}>
+                            <Printer className="mr-2 h-4 w-4" />
+                            인쇄하기
+                        </Button>
                     </div>
                 </div>
+
+                <PinVerificationDialog
+                    open={pinDialogOpen}
+                    onOpenChange={setPinDialogOpen}
+                    members={currentSession?.members || []}
+                    onSuccess={handlePinSuccess}
+                    title={pendingAction === 'handover' ? "근무 교대 승인" : "업무일지 결재"}
+                    description={pendingAction === 'handover'
+                        ? "근무를 종료하고 다음 조에게 인계하시겠습니까? 책임자의 확인이 필요합니다."
+                        : "업무일지를 최종 승인하시겠습니까? 서명 후에는 수정이 제한될 수 있습니다."}
+                />
+
+                {/* A4 Page Container */}
+                <div className="bg-white p-[10mm] print:pt-[15mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
+
+                    {/* Header Section */}
+                    <div className="mb-1">
+                        <div className="flex items-start justify-between">
+                            {/* Logo & Team Name */}
+                            <div className="flex flex-col justify-between h-32">
+                                <div>
+                                    <div className="text-xs font-bold text-red-600 italic">Let&apos;s plus!</div>
+                                    <div className="text-2xl font-black tracking-tight text-slate-800">MBC PLUS</div>
+                                </div>
+                                <div className="text-base font-bold">방송인프라팀</div>
+                            </div>
+
+                            {/* Title & Date */}
+                            <div className="flex flex-col items-center justify-between h-32">
+                                <div className="mt-2 text-3xl font-bold tracking-[0.03em] text-black text-center">주 조 정 실 &nbsp; 업 무 일 지</div>
+                                <div className="text-base font-bold">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="ghost" className={cn("text-base font-bold hover:bg-transparent p-0 h-auto", !id && "cursor-pointer hover:underline")}>
+                                                {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        {!id && (
+                                            <PopoverContent className="w-auto p-0" align="center">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={selectedDate}
+                                                    onSelect={(date) => date && setSelectedDate(date)}
+                                                    initialFocus
+                                                />
+                                            </PopoverContent>
+                                        )}
+                                    </Popover>
+                                </div>
+                            </div>
+
+                            {/* Approval Box */}
+                            <div className="flex border border-black text-center text-xs">
+                                <div className="flex flex-col w-[70px] border-r border-black">
+                                    <div className="bg-gray-100 py-0.5 font-bold border-b border-black">운 행</div>
+                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">MCR</div>
+                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                </div>
+                                <div className="flex flex-col w-[70px]">
+                                    <div className="bg-gray-100 py-0.5 font-bold border-b border-black">팀 장</div>
+                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">Network</div>
+                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Shift Table */}
+                    <div className="mb-2 w-full border border-black">
+                        <div className="flex bg-gray-100 text-center text-sm font-bold border-b border-black">
+                            <div
+                                className="w-[180px] border-r border-black py-1"
+                            >
+                                {shiftType === 'day' ? 'A 근무시간' : 'N 근무시간'}
+                            </div>
+                            <div className="flex-1 border-r border-black py-1">감 독</div>
+                            <div className="flex-1 border-r border-black py-1">부 감 독</div>
+                            <div className="flex-1 py-1">영 상</div>
+                        </div>
+                        <div className="flex text-center text-sm min-h-[2rem]">
+                            <div className="w-[180px] border-r border-black flex items-center justify-center font-handwriting text-base">
+                                {shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
+                            </div>
+                            {/* Director */}
+                            <div className={`flex-1 border-r border-black p-1 flex ${workers.director.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
+                                {workers.director.map((name, index) => (
+                                    <Input
+                                        key={index}
+                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.director.length === 2 ? 'flex-1' : 'w-full'}`}
+                                        value={name}
+                                        onChange={(e) => {
+                                            const newWorkers = [...workers.director];
+                                            newWorkers[index] = e.target.value;
+                                            setWorkers({ ...workers, director: newWorkers });
+                                        }}
+                                        placeholder="이름"
+                                    />
+                                ))}
+                                {workers.director.length < 4 && (
+                                    <div
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        onClick={() => setWorkers({ ...workers, director: [...workers.director, ''] })}
+                                    >
+                                        +
+                                    </div>
+                                )}
+                            </div>
+                            {/* Assistant Director */}
+                            <div className={`flex-1 border-r border-black p-1 flex ${workers.assistant.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
+                                {workers.assistant.map((name, index) => (
+                                    <Input
+                                        key={index}
+                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.assistant.length === 2 ? 'flex-1' : 'w-full'}`}
+                                        value={name}
+                                        onChange={(e) => {
+                                            const newWorkers = [...workers.assistant];
+                                            newWorkers[index] = e.target.value;
+                                            setWorkers({ ...workers, assistant: newWorkers });
+                                        }}
+                                        placeholder="이름"
+                                    />
+                                ))}
+                                {workers.assistant.length < 4 && (
+                                    <div
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        onClick={() => setWorkers({ ...workers, assistant: [...workers.assistant, ''] })}
+                                    >
+                                        +
+                                    </div>
+                                )}
+                            </div>
+                            {/* Video */}
+                            <div className={`flex-1 p-1 flex ${workers.video.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
+                                {workers.video.map((name, index) => (
+                                    <Input
+                                        key={index}
+                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.video.length === 2 ? 'flex-1' : 'w-full'}`}
+                                        value={name}
+                                        onChange={(e) => {
+                                            const newWorkers = [...workers.video];
+                                            newWorkers[index] = e.target.value;
+                                            setWorkers({ ...workers, video: newWorkers });
+                                        }}
+                                        placeholder="이름"
+                                    />
+                                ))}
+                                {workers.video.length < 4 && (
+                                    <div
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        onClick={() => setWorkers({ ...workers, video: [...workers.video, ''] })}
+                                    >
+                                        +
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Channel Logs Section Title */}
+                    <div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]">
+                        채널별 송출사항
+                    </div>
+
+                    {/* Channels Container */}
+                    <div className="border border-black border-b-0 flex-1 flex flex-col">
+
+                        {/* MBC SPORTS+ */}
+                        <div className="border-b border-black flex-1">
+                            <ChannelRow
+                                name="MBC SPORTS+"
+                                worklogId={id}
+                                posts={channelLogs["MBC SPORTS+"]?.posts || []}
+                                onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], posts, timecodes: prev["MBC SPORTS+"]?.timecodes || {} } }))}
+                                timecodeEntries={channelLogs["MBC SPORTS+"]?.timecodes || {}}
+                                onTimecodesChange={(entries) => handleTimecodesChange("MBC SPORTS+", entries)}
+                                onNewPost={() => handleNewPostRequest("MBC SPORTS+", "channel-operation", "MBC SPORTS+", "MBC SPORTS+")}
+                            />
+                        </div>
+
+                        {/* MBC Every1 */}
+                        <div className="border-b border-black flex-1">
+                            <ChannelRow
+                                name="MBC Every1"
+                                worklogId={id}
+                                posts={channelLogs["MBC Every1"]?.posts || []}
+                                onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], posts, timecodes: prev["MBC Every1"]?.timecodes || {} } }))}
+                                timecodeEntries={channelLogs["MBC Every1"]?.timecodes || {}}
+                                onTimecodesChange={(entries) => handleTimecodesChange("MBC Every1", entries)}
+                                onNewPost={() => handleNewPostRequest("MBC Every1", "channel-operation", "MBC Every1", "MBC Every1")}
+                            />
+                        </div>
+
+                        {/* MBC DRAMA */}
+                        <div className="border-b border-black flex-1">
+                            <ChannelRow
+                                name="MBC DRAMA"
+                                worklogId={id}
+                                posts={channelLogs["MBC DRAMA"]?.posts || []}
+                                onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], posts, timecodes: prev["MBC DRAMA"]?.timecodes || {} } }))}
+                                timecodeEntries={channelLogs["MBC DRAMA"]?.timecodes || {}}
+                                onTimecodesChange={(entries) => handleTimecodesChange("MBC DRAMA", entries)}
+                                onNewPost={() => handleNewPostRequest("MBC DRAMA", "channel-operation", "MBC DRAMA", "MBC DRAMA")}
+                            />
+                        </div>
+
+                        {/* MBC M */}
+                        <div className="border-b border-black flex-1">
+                            <ChannelRow
+                                name="MBC M"
+                                worklogId={id}
+                                posts={channelLogs["MBC M"]?.posts || []}
+                                onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], posts, timecodes: prev["MBC M"]?.timecodes || {} } }))}
+                                timecodeEntries={channelLogs["MBC M"]?.timecodes || {}}
+                                onTimecodesChange={(entries) => handleTimecodesChange("MBC M", entries)}
+                                onNewPost={() => handleNewPostRequest("MBC M", "channel-operation", "MBC M", "MBC M")}
+                            />
+                        </div>
+
+                        {/* MBC ON */}
+                        <div className="flex-1">
+                            <ChannelRow
+                                name="MBC ON"
+                                worklogId={id}
+                                posts={channelLogs["MBC ON"]?.posts || []}
+                                onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], posts, timecodes: prev["MBC ON"]?.timecodes || {} } }))}
+                                timecodeEntries={channelLogs["MBC ON"]?.timecodes || {}}
+                                onTimecodesChange={(entries) => handleTimecodesChange("MBC ON", entries)}
+                                onNewPost={() => handleNewPostRequest("MBC ON", "channel-operation", "MBC ON", "MBC ON")}
+                            />
+                        </div>
+                    </div>
+
+                    {/* System Issues Section */}
+                    <div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]">
+                        시스템 및 기타 특이사항
+                    </div>
+                    <div className="border border-black min-h-[100px] flex-1 p-1">
+                        <SystemIssuesList
+                            issues={systemIssues}
+                            onIssuesChange={setSystemIssues}
+                            onNewPost={() => handleNewPostRequest("system-issues", "system-issue", "System Issue")}
+                        />
+                    </div>
+
+                </div>
             </div>
-        </MainLayout>
+        </div>
     )
 }

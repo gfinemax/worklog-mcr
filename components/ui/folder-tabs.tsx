@@ -76,7 +76,7 @@ const FolderTabsTrigger = React.forwardRef<
         <div className={cn(
             "absolute bottom-[-1px] left-0 right-0 h-[2px] bg-white z-20 hidden",
             "group-data-[state=active]:block",
-            "w-[calc(100%-15px)]" // Don't cover the slanted part's bottom right corner excessively
+            "w-full" // Cover the entire bottom border
         )} />
     </TabsTrigger>
 ))

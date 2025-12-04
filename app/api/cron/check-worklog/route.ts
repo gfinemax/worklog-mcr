@@ -8,17 +8,24 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+import { shiftService } from '@/lib/shift-rotation'
+
+// ... (keep imports)
+
 export async function GET(request: Request) {
     try {
-        // 1. Determine Current Time and Shift
+        // 1. Determine Current Time (KST)
         const now = new Date()
-        // Convert to KST (UTC+9) for accurate day/shift calculation
         const kstOffset = 9 * 60 * 60 * 1000
         const kstDate = new Date(now.getTime() + kstOffset)
 
-        const hours = kstDate.getUTCHours()
+        const hours = kstDate.getUTCHours() // Use UTC methods on the shifted date if server is UTC? 
+        // Actually, if we shifted the time, we should use getUTCHours to get the "shifted" hour if we treat it as UTC.
+        // But the original code used getUTCHours.
+        // Let's stick to the original KST logic for the Auto-Close part, 
+        // but for Auto-Create, we will use shiftService.
+
         const minutes = kstDate.getUTCMinutes()
-        const timeInMinutes = hours * 60 + minutes
 
         // ==========================================
         // AUTO-CLOSE LOGIC (10 mins after shift end)
@@ -110,59 +117,21 @@ export async function GET(request: Request) {
 
         console.log(`[Auto-Close] Closed ${autoCloseResult.count} stale sessions.`)
 
-
         // ==========================================
         // AUTO-CREATE LOGIC
         // ==========================================
 
-        // Shift Boundaries (Same as frontend logic)
-        const dayStart = 7 * 60 + 30 // 07:30
-        const dayEnd = 18 * 60 + 30 // 18:30
-
-        // Determine Shift Type
-        // Note: This cron should run shortly after the shift start time (e.g., 07:40, 18:40)
-        let targetShift: 'day' | 'night'
-        let targetDateStr = kstDate.toISOString().split('T')[0]
-
-        if (timeInMinutes >= dayStart && timeInMinutes < dayEnd) {
-            targetShift = 'day'
-        } else {
-            targetShift = 'night'
-            // If it's past midnight but before day start (e.g. 01:00), it belongs to previous day's night shift
-            // But for auto-creation, we usually run this check right after shift start.
-            // If running at 18:40, it's today's night shift.
-            // If running at 07:40, it's today's day shift.
-        }
-
-        // 2. Get Active Shift Config to determine which team SHOULD be working
-        // Since we don't have the full shift rotation logic here easily without importing large libs,
-        // we might need to rely on checking if ANY worklog exists, or iterate through all teams.
-        // BETTER APPROACH: Check for ALL teams. If a team is supposed to be working, they should have a log.
-        // BUT, usually only one team works per shift.
-
-        // For now, let's simplify: We want to ensure the "Active Team" has a log.
-        // We can fetch the shift pattern config from DB if stored, or calculate it.
-        // Let's assume we iterate through all known groups and check if they have a log? 
-        // No, that would create logs for off-duty teams.
-
-        // We need `shiftService.getNextTeam` logic here. 
-        // Since this is an Edge/Server route, we can import `shiftService` if it doesn't use client-only hooks.
-        // Let's try to import it. If `lib/shift-rotation` is pure TS, it should work.
-
-        // However, `shiftService` might need `supabase` client.
-        // Let's fetch the config manually to be safe and lightweight.
-
+        // 2. Get Active Shift Config
         const { data: configData, error: configError } = await supabaseAdmin
-            .from('shift_pattern_configs') // Corrected table name
+            .from('shift_pattern_configs')
             .select('*')
-            .lte('valid_from', targetDateStr)
-            .or(`valid_to.is.null,valid_to.gte.${targetDateStr}`)
+            .lte('valid_from', kstDate.toISOString()) // Use kstDate for query
+            .or(`valid_to.is.null,valid_to.gte.${kstDate.toISOString()}`)
             .order('valid_from', { ascending: false })
             .limit(1)
             .single()
 
         if (configError || !configData) {
-            // If config missing, we can't determine team, so skip auto-create
             console.error('Shift config not found, skipping auto-create')
             return NextResponse.json({
                 message: 'Shift config not found, skipped auto-create',
@@ -170,43 +139,46 @@ export async function GET(request: Request) {
             })
         }
 
-        // Calculate Active Team
-        // Logic adapted from `shift-rotation.ts`
-        const pattern = configData.pattern_json // Corrected column name
-        const baseDate = new Date(configData.valid_from) // Corrected column name
+        // 3. Calculate Expected Worklog Info using Shared Logic
+        // We pass kstDate because shiftService expects a Date object where getHours() returns KST hour.
+        // However, shiftService uses .getHours() (Local). 
+        // If server is UTC, .getHours() on kstDate (which is shifted) might be tricky depending on how it was created.
+        // kstDate = new Date(now.getTime() + 9h). 
+        // If server is UTC, kstDate.getHours() will be (UTC+9). 
+        // So passing kstDate is correct.
 
-        // Calculate days diff
-        const targetDateObj = new Date(targetDateStr)
-        // Reset hours for accurate diff
-        targetDateObj.setHours(0, 0, 0, 0)
-        baseDate.setHours(0, 0, 0, 0)
+        const expectedInfo = shiftService.getExpectedWorklogInfo(kstDate, configData)
 
-        const diffTime = targetDateObj.getTime() - baseDate.getTime()
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
-
-        let index = diffDays % configData.cycle_length
-        if (index < 0) index += configData.cycle_length
-
-        const dailyPattern = pattern.find((p: any) => p.day === index)
-
-        if (!dailyPattern) {
+        if (!expectedInfo) {
             return NextResponse.json({
-                message: 'Pattern not found for index, skipped auto-create',
+                message: 'Could not determine expected worklog info',
                 autoClose: autoCloseResult
             })
         }
 
-        const targetTeamName = targetShift === 'day' ? dailyPattern.A.team : dailyPattern.N.team
+        const { date: targetDateStr, shift: targetShift, team: targetTeamName } = expectedInfo
 
         console.log(`[Auto-Create] Checking ${targetDateStr} ${targetShift} shift for team ${targetTeamName}`)
 
         // 3. Check if worklog exists
+        // First, get the group_id for the target team
+        const { data: groupData, error: groupError } = await supabaseAdmin
+            .from('groups')
+            .select('id')
+            .eq('name', targetTeamName)
+            .single()
+
+        if (groupError || !groupData) {
+            console.error(`[Auto-Create] Group not found for team ${targetTeamName}`)
+            return NextResponse.json({ error: 'Group not found' }, { status: 500 })
+        }
+
         const { data: existingLogs } = await supabaseAdmin
             .from('worklogs')
             .select('id')
             .eq('date', targetDateStr)
-            .eq('type', targetShift === 'day' ? '주간' : '야간') // Corrected column and value
-            .eq('team', targetTeamName) // Corrected column name
+            .eq('type', targetShift === 'day' ? '주간' : '야간')
+            .eq('group_id', groupData.id) // Check by group_id to match client behavior
 
         if (existingLogs && existingLogs.length > 0) {
             return NextResponse.json({
@@ -221,15 +193,12 @@ export async function GET(request: Request) {
             .from('worklogs')
             .insert({
                 date: targetDateStr,
-                type: targetShift === 'day' ? '주간' : '야간', // Corrected column and value
-                team: targetTeamName, // Corrected column name
-                status: '작성중', // Corrected status (pending -> 작성중)
-                workers: { director: [], assistant: [], video: [] }, // Initialize JSONB
+                type: targetShift === 'day' ? '주간' : '야간',
+                group_name: targetTeamName, // Use group_name instead of team
+                group_id: groupData.id,
+                status: '작성중',
+                workers: { director: [], assistant: [], video: [] },
                 is_auto_created: true,
-                // writer_name is not in schema? It's usually inferred from session or user.
-                // But we can't set it here easily if column doesn't exist.
-                // Let's check schema. 'writer_name' does not exist in 01_create_tables.sql.
-                // So we omit it.
             })
             .select()
             .single()
