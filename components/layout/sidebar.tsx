@@ -25,7 +25,7 @@ const menuItems = [
   { icon: PenSquare, label: "포스트 목록", href: "/posts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
-  { icon: BarChart3, label: "통계 및 보고서", href: "/reports" },
+  { icon: BarChart3, label: "통계 및 보고서", href: "/statistics" },
   { icon: Users, label: "근무패턴 설정", href: "/settings/worker-pattern" },
   { icon: Settings, label: "프로그램 설정", href: "/settings", exact: true },
 ]

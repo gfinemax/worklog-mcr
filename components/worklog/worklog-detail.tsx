@@ -463,6 +463,10 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
     const [pinDialogOpen, setPinDialogOpen] = useState(false)
     const [pendingAction, setPendingAction] = useState<'sign' | 'handover' | null>(null)
     const [ignore, setIgnore] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [lastSaved, setLastSaved] = useState<Date | null>(null)
+    const [isDirty, setIsDirty] = useState(false)
+    const [isLoaded, setIsLoaded] = useState(false)
 
     // Track fetch attempts to prevent infinite loops
     const fetchAttempted = useRef<Set<string>>(new Set())
@@ -497,24 +501,50 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             }
         }
     }, [selectedTeam, nextSession, currentSession])
+    // ... (existing state)
 
     // Auto-save effect
     useEffect(() => {
         if (!id || id === 'new') return
+        if (!isLoaded) return
 
-        const timer = setTimeout(() => {
+        setIsDirty(true) // Mark as dirty when dependencies change
+
+        const timer = setTimeout(async () => {
+            setIsSaving(true)
             // @ts-ignore
-            updateWorklog(id, {
+            await updateWorklog(id, {
                 groupName: selectedTeam || '',
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
                 channelLogs: channelLogs,
                 systemIssues: systemIssues
             })
-        }, 3000) // 3 seconds debounce
+            setIsSaving(false)
+            setLastSaved(new Date())
+            setIsDirty(false)
+        }, 3000)
 
         return () => clearTimeout(timer)
-    }, [id, selectedTeam, shiftType, workers, channelLogs, systemIssues, updateWorklog])
+    }, [id, selectedTeam, shiftType, workers, channelLogs, systemIssues, updateWorklog, isLoaded])
+
+    // Warn before unload if dirty
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty || isSaving) {
+                e.preventDefault()
+                e.returnValue = ''
+            }
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [isDirty, isSaving])
+
+    // ... (rest of the component)
+
+    // In the render return, add the indicator near the buttons
+    // ...
+
 
     // Initial fetch logic
     useEffect(() => {
@@ -617,6 +647,8 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                     } else {
                         setSystemIssues(worklog.systemIssues || [])
                     }
+
+                    setIsLoaded(true) // Data loaded
                 })
 
                 if (worklog.status === '서명완료') {
@@ -644,6 +676,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                             setStatus(fetchedLog.status)
                             setChannelLogs(fetchedLog.channelLogs || {})
                             setSystemIssues(fetchedLog.systemIssues || [])
+                            setIsLoaded(true) // Data loaded
                         }
                     })
                 }
@@ -686,6 +719,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 })
                 setWorkers(newWorkers)
             }
+            setIsLoaded(true) // New worklog is always "loaded"
         }
     }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession])
 
@@ -1203,6 +1237,22 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
 
                     </div>
                     <div className="flex gap-2">
+                        {/* Save Status Indicator */}
+                        <div className="mr-2 text-sm text-gray-500 font-medium flex items-center gap-1">
+                            {isSaving ? (
+                                <>
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                    저장 중...
+                                </>
+                            ) : isDirty ? (
+                                <span className="text-amber-600">저장되지 않음</span>
+                            ) : lastSaved ? (
+                                <span className="text-teal-600">
+                                    저장됨 ({format(lastSaved, 'HH:mm:ss')})
+                                </span>
+                            ) : null}
+                        </div>
+
                         {/* Promote Session Button (Visible in both tabs if next session exists AND is current context) */}
                         {nextSession && isCurrentContext && (
                             <>
