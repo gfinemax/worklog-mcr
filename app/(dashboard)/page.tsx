@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth"
 import { LoginForm } from "@/components/auth/login-form"
+import { SessionSetupStep } from "@/components/auth/session-setup-step"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -27,8 +28,35 @@ export default function Dashboard() {
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
   const [resolutionNote, setResolutionNote] = useState("")
 
-  const { loginMode, currentSession, nextSession } = useAuthStore()
+  const { loginMode, currentSession, nextSession, setNextUser, setNextSession } = useAuthStore()
   const [handoverDialogOpen, setHandoverDialogOpen] = useState(false)
+  const [handoverStep, setHandoverStep] = useState<'login' | 'setup'>('login')
+  const [handoverData, setHandoverData] = useState<any>(null)
+
+  const handleHandoverLoginSuccess = (data: any) => {
+    setHandoverData(data)
+    setHandoverStep('setup')
+  }
+
+  const handleHandoverComplete = (members: any[]) => {
+    if (!handoverData) return
+
+    const { profile, groupData } = handoverData
+    setNextUser(profile)
+    setNextSession({
+      groupId: groupData.id,
+      groupName: groupData.name,
+      members: members,
+      startedAt: new Date().toISOString()
+    })
+
+    toast.success(`${groupData.name} 교대 근무 로그인이 완료되었습니다.`)
+    setHandoverDialogOpen(false)
+    setTimeout(() => {
+      setHandoverStep('login')
+      setHandoverData(null)
+    }, 300)
+  }
 
   // Shift Info State
   const [shiftInfo, setShiftInfo] = useState<any>(null)
@@ -115,7 +143,7 @@ export default function Dashboard() {
               </>
             )}
 
-            <Button onClick={() => router.push('/worklog/today')}>
+            <Button onClick={() => router.push('/worklog')}>
               <FileText className="mr-2 h-4 w-4" />
               일지 작성하기
             </Button>
@@ -145,7 +173,7 @@ export default function Dashboard() {
                 <Button
                   variant="secondary"
                   className="bg-white text-indigo-600 hover:bg-indigo-50"
-                  onClick={() => router.push('/worklog/today')}
+                  onClick={() => router.push('/worklog')}
                 >
                   업무일지 바로가기
                 </Button>
@@ -452,20 +480,41 @@ export default function Dashboard() {
         </Dialog>
 
         {/* Handover Login Dialog */}
-        <Dialog open={handoverDialogOpen} onOpenChange={setHandoverDialogOpen}>
+        <Dialog open={handoverDialogOpen} onOpenChange={(open) => {
+          setHandoverDialogOpen(open)
+          if (!open) {
+            // Reset state on close
+            setTimeout(() => {
+              setHandoverStep('login')
+              setHandoverData(null)
+            }, 300)
+          }
+        }}>
           <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>교대 근무자 로그인</DialogTitle>
-              <DialogDescription>
-                다음 근무 조의 계정으로 로그인해주세요. 현재 세션은 유지됩니다.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <LoginForm
-                mode="handover"
-                onSuccess={() => setHandoverDialogOpen(false)}
+            {handoverStep === 'login' ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>교대 근무자 로그인</DialogTitle>
+                  <DialogDescription>
+                    다음 근무 조의 계정으로 로그인해주세요. 현재 세션은 유지됩니다.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <LoginForm
+                    mode="handover"
+                    onSuccess={handleHandoverLoginSuccess}
+                  />
+                </div>
+              </>
+            ) : (
+              <SessionSetupStep
+                groupName={handoverData?.groupData?.name || ""}
+                initialMembers={handoverData?.initialMembers || []}
+                onConfirm={handleHandoverComplete}
+                onCancel={() => setHandoverStep('login')}
+                confirmLabel="교대 근무자 확정"
               />
-            </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

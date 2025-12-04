@@ -1,0 +1,10 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?숋툘  suppress all logs with { quiet: true }
+Starting verification of fix...
+Group ID for 1議? a65653b4-2f75-4032-9875-bf6dc3b6f4c4
+Simulating FIXED Cron Job creation (WITH group_id)...
+Error creating cron log: {
+  code: 'PGRST204',
+  details: null,
+  hint: null,
+  message: "Could not find the 'team' column of 'worklogs' in the schema cache"
+}

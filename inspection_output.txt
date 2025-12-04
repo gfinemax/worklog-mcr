@@ -1,0 +1,24 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뵍 encrypt with Dotenvx: https://dotenvx.com
+Fetching worklogs for 2025-12-04...
+Found logs: 3
+--------------------------------------------------
+ID: fc34f06f-38d1-4f37-a9d8-c1df8581721d
+Type: 二쇨컙
+Team (col): undefined
+Group Name (col): 3議?Group ID: 93217bdd-fc2e-49e1-b826-333ad8e20d45
+Created At: 2025-12-04T03:23:44.873903+00:00
+Workers: {"video":["?ㅼ＜??],"director":["?④턿??],"assistant":["?댁쥌??]}
+--------------------------------------------------
+ID: ac8f0e9d-b793-40fa-92bd-170aa986f1dc
+Type: ?쇨컙
+Team (col): undefined
+Group Name (col): 3議?Group ID: 93217bdd-fc2e-49e1-b826-333ad8e20d45
+Created At: 2025-12-04T04:28:28.850829+00:00
+Workers: {"video":["?ㅼ＜??],"director":["?④턿??],"assistant":["?댁쥌??]}
+--------------------------------------------------
+ID: 3e52122b-05f7-4878-bec4-d74a1cbba0de
+Type: 二쇨컙
+Team (col): undefined
+Group Name (col): 1議?Group ID: a65653b4-2f75-4032-9875-bf6dc3b6f4c4
+Created At: 2025-12-04T05:17:00.577312+00:00
+Workers: {"video":["源?⑥뼵"],"director":["?ㅻ룞??],"assistant":["?뺢킅??]}

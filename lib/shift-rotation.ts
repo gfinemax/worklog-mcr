@@ -200,5 +200,22 @@ export const shiftService = {
             A: dailyPattern.A.team,
             N: dailyPattern.N.team
         }
+    },
+
+    // Centralized logic to determine the expected worklog info for a given time
+    getExpectedWorklogInfo(now: Date = new Date(), config: ShiftPatternConfig): { date: string; shift: 'day' | 'night'; team: string } | null {
+        const { date: logicalDate, shiftType } = this.getLogicalShiftInfo(now)
+        const dateStr = format(logicalDate, 'yyyy-MM-dd')
+
+        const teams = this.getTeamsForDate(dateStr, config)
+        if (!teams) return null
+
+        const team = shiftType === 'day' ? teams.A : teams.N
+
+        return {
+            date: dateStr,
+            shift: shiftType,
+            team
+        }
     }
 }
