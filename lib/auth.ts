@@ -150,32 +150,22 @@ export const authService = {
 
     // Helper: Get All Users (for adding external members)
     async searchUsers(query: string) {
-        // 1. Search internal users
+        // Search users
         const { data: users, error: userError } = await supabase
             .from('users')
             .select('*')
             .ilike('name', `%${query}%`)
-            .limit(5)
+            .limit(10)
 
         if (userError) throw userError
 
-        // 2. Search support staff
-        const { data: externalStaff, error: externalError } = await supabase
-            .from('support_staff')
-            .select('*')
-            .ilike('name', `%${query}%`)
-            .limit(5)
+        // Map DB type 'support' to UI type 'external'
+        const formattedUsers = (users || []).map(u => ({
+            ...u,
+            type: u.type === 'support' ? 'external' : 'internal'
+        }))
 
-        if (externalError) throw externalError
-
-        // Combine results
-        // Add a 'type' field to distinguish them if needed, or just return mixed
-        const combined = [
-            ...(users || []).map(u => ({ ...u, type: 'internal' })),
-            ...(externalStaff || []).map(e => ({ ...e, type: 'external' }))
-        ]
-
-        return combined
+        return formattedUsers
     },
 
     // 5. Verify PIN

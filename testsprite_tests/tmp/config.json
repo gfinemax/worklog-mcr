@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "executionArgs": {
+    "projectName": "worklog-mcr",
+    "projectPath": "c:\\workspace\\antigravity\\worklog-mcr",
+    "testIds": [],
+    "additionalInstruction": "Run all frontend tests",
+    "envs": {
+      "API_KEY": "sk-user-AWf18odXwywDW_LPtyOGVg-010cyg2WfAu0lCRxOpofQIPRgBbNxw2Zor07jVEcEPQlgRTPkwiP6iP3jIyFqe-VfX6_SC6axzHF4HFhYFB1gizuN3GDX7EShWLZJVcjsSZg"
+    }
+  },
+  "proxy": "http://3272414f-3718-4142-924b-6eb2f6b0bfed:CWOpvS011kAJFhGlgFiZg6wwa6jE27Vw@tun.testsprite.com:8080"
+}

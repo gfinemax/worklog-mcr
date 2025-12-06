@@ -82,10 +82,10 @@ export const shiftService = {
         let shiftType: 'A' | 'N' | 'S' | 'Y' = 'Y'
         let isSwap = false
 
-        if (dailyPattern.A.team === teamName) {
+        if (dailyPattern?.A?.team === teamName) {
             shiftType = 'A'
             isSwap = dailyPattern.A.is_swap
-        } else if (dailyPattern.N.team === teamName) {
+        } else if (dailyPattern?.N?.team === teamName) {
             shiftType = 'N'
             isSwap = dailyPattern.N.is_swap
         } else {

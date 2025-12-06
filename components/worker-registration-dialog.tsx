@@ -83,7 +83,7 @@ export function WorkerRegistrationDialog({
         email: "",
         name: "",
         role: ["기술스텝"],
-        organization: "지원",
+        organization: "관리",
     })
 
     useEffect(() => {
@@ -123,7 +123,7 @@ export function WorkerRegistrationDialog({
             } else {
                 setActiveTab('internal')
                 setInternalForm({ email: "", password: "password1234", name: "", role: ["감독"], groupId: "" })
-                setExternalForm({ email: "", name: "", role: ["기술스텝"], organization: "지원" })
+                setExternalForm({ email: "", name: "", role: ["기술스텝"], organization: "관리" })
             }
         }
     }, [open, workerToEdit])
@@ -454,38 +454,37 @@ export function WorkerRegistrationDialog({
             if (workerToEdit) {
                 // Check for Type Switch: Internal -> External
                 if (workerToEdit.type === 'internal') {
-                    // 1. Insert into users as support (New ID)
-                    const { data, error } = await supabase.from("users").insert({
-                        name: externalForm.name,
-                        email: externalForm.email,
-                        role: roleString,
-                        organization: externalForm.organization,
-                        type: 'support',
-                        is_active: true,
-                        profile_image_url: imageUrl
-                    }).select().single()
+                    // [FIX] Type Switch: Internal -> External (Support/Admin)
+                    // Just update the type and other fields. Do NOT delete and re-insert.
+                    if (imageFile) {
+                        const uploadedUrl = await uploadImage(workerToEdit.id)
+                        if (uploadedUrl) imageUrl = uploadedUrl
+                    }
+
+                    // Check if email changed (only for Auth users, but let's assume valid ID)
+                    if (externalForm.email !== workerToEdit.email) {
+                        const { error: emailError } = await supabase.rpc('update_user_email', {
+                            target_user_id: workerToEdit.id,
+                            new_email: externalForm.email
+                        })
+                        if (emailError) console.error("Email update warning:", emailError)
+                    }
+
+                    const { error } = await supabase
+                        .from("users")
+                        .update({
+                            name: externalForm.name,
+                            // email: externalForm.email, // Email is handled by RPC or Auth
+                            role: roleString,
+                            organization: externalForm.organization,
+                            type: 'support', // CHANGE TYPE (Still 'support' in DB, but UI says '관리')
+                            profile_image_url: imageUrl
+                        })
+                        .eq("id", workerToEdit.id)
 
                     if (error) throw error
 
-                    // 2. Upload new image if file selected
-                    if (imageFile && data) {
-                        const uploadedUrl = await uploadImage(data.id)
-                        if (uploadedUrl) {
-                            await supabase.from("users").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
-                        }
-                    }
-
-                    // 3. Delete from users (Old Internal Record)
-                    const { error: deleteError } = await supabase
-                        .from("users")
-                        .delete()
-                        .eq("id", workerToEdit.id)
-
-                    if (deleteError) {
-                        console.error("Failed to delete old user record", deleteError)
-                    }
-
-                    toast.success("순환 근무자가 지원 근무자로 변경되었습니다.")
+                    toast.success("순환 근무자가 관리 근무자로 변경되었습니다.")
                 } else {
                     // Normal Update (External -> External)
                     if (imageFile) {
@@ -505,7 +504,7 @@ export function WorkerRegistrationDialog({
                         .eq("id", workerToEdit.id)
 
                     if (error) throw error
-                    toast.success("지원 근무자 정보가 수정되었습니다.")
+                    toast.success("관리 근무자 정보가 수정되었습니다.")
                 }
             } else {
                 // Create New External
@@ -526,7 +525,7 @@ export function WorkerRegistrationDialog({
                         await supabase.from("users").update({ profile_image_url: uploadedUrl }).eq('id', data.id)
                     }
                 }
-                toast.success("지원 근무자가 등록되었습니다.")
+                toast.success("관리 근무자가 등록되었습니다.")
             }
             setOpen(false)
             onSuccess()
@@ -690,7 +689,7 @@ export function WorkerRegistrationDialog({
                                     <Tabs defaultValue={workerToEdit?.type || "internal"} className="w-full" onValueChange={handleTabChange}>
                                         <TabsList className="grid w-full grid-cols-2">
                                             <TabsTrigger value="internal">순환 근무자</TabsTrigger>
-                                            <TabsTrigger value="external">지원 근무자</TabsTrigger>
+                                            <TabsTrigger value="external">관리 근무자</TabsTrigger>
                                         </TabsList>
 
                                         {/* Internal Worker Form */}
@@ -772,7 +771,7 @@ export function WorkerRegistrationDialog({
                                                     <Input
                                                         id="ext-name"
                                                         required
-                                                        placeholder="지원 근무자 이름"
+                                                        placeholder="관리 근무자 이름"
                                                         value={externalForm.name}
                                                         onChange={(e) => setExternalForm({ ...externalForm, name: e.target.value })}
                                                     />

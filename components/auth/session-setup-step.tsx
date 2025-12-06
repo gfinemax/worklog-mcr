@@ -89,21 +89,21 @@ export function SessionSetupStep({
 
         const { data: users } = await supabase
             .from('users')
-            .select('id, name, role, profile_image_url')
+            .select('id, name, role, profile_image_url, type')
             .ilike('name', `%${query}%`)
-            .limit(5)
+            .limit(10)
 
-        const { data: staff } = await supabase
-            .from('support_staff')
-            .select('id, name, role')
-            .ilike('name', `%${query}%`)
-            .limit(5)
-
-        const combined = [
-            ...(users || []).map((u: any) => ({ ...u, type: 'internal' })),
-            ...(staff || []).map((s: any) => ({ ...s, type: 'external', profile_image_url: null }))
-        ]
-        setSearchResults(combined)
+        if (users) {
+            const formattedUsers = users.map((u: any) => ({
+                ...u,
+                // Map DB type 'support' to UI type 'external' (displays as '지원')
+                // Default to 'internal' (displays as '순환')
+                type: u.type === 'support' ? 'external' : 'internal'
+            }))
+            setSearchResults(formattedUsers)
+        } else {
+            setSearchResults([])
+        }
     }
 
     const handleSelectWorker = (worker: any) => {
@@ -278,7 +278,7 @@ export function SessionSetupStep({
                                                 </div>
                                             </div>
                                             <Badge variant="outline" className="text-[10px]">
-                                                {worker.type === 'internal' ? '순환' : '지원'}
+                                                {worker.type === 'internal' ? '순환' : '관리'}
                                             </Badge>
                                         </div>
                                     ))}

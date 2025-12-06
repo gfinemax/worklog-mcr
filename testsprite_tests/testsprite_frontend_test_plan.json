@@ -1,0 +1,506 @@
+[
+  {
+    "id": "TC001",
+    "title": "Login with valid credentials",
+    "description": "Verify that a user can log in successfully using valid username/email and password credentials, and a session is persisted on page refresh.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input valid username/email and password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify successful login and redirection to the dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm session is maintained without logout or redirect loops"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with incorrect credentials",
+    "description": "Verify that login fails with incorrect username or password and displays an appropriate error message.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input invalid username/email or password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that login is prevented and an error toast is displayed"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "PIN authentication triggers and validation",
+    "description": "Ensure PIN verification triggers correctly after login when configured, validates user input, and denies access on wrong PIN.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login with a user account configured with PIN authentication"
+      },
+      {
+        "type": "assertion",
+        "description": "PIN input screen is displayed"
+      },
+      {
+        "type": "action",
+        "description": "Enter correct PIN"
+      },
+      {
+        "type": "assertion",
+        "description": "Access to main application is granted"
+      },
+      {
+        "type": "action",
+        "description": "Logout and login again"
+      },
+      {
+        "type": "action",
+        "description": "Enter incorrect PIN"
+      },
+      {
+        "type": "assertion",
+        "description": "Access is denied, with appropriate error shown and PIN prompt persists"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Google OAuth login integration",
+    "description": "Verify that users can log in successfully using Google OAuth and session persists on page refresh.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Click the Google login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Complete OAuth flow and verify user is logged in"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure session persists and user is not logged out"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Worklog tab switching and URL update",
+    "description": "Verify that the user can switch between worklog tabs without data loss and the URL query parameter updates accordingly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and navigate to the worklog page"
+      },
+      {
+        "type": "action",
+        "description": "Open tab A and enter data in the worklog editor"
+      },
+      {
+        "type": "action",
+        "description": "Switch to tab B"
+      },
+      {
+        "type": "action",
+        "description": "Switch back to tab A"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that previously entered data in tab A is preserved"
+      },
+      {
+        "type": "assertion",
+        "description": "Check that URL query parameter reflects the active tab correctly upon switching"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Automatic and manual worklog data saving",
+    "description": "Test that worklog data auto-saves periodically and manual save triggers work correctly, synchronizing data without errors.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to a worklog tab and start editing worklog content"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that data is automatically saved after a defined interval"
+      },
+      {
+        "type": "action",
+        "description": "Manually trigger the save action"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm data is saved immediately and no errors occur"
+      },
+      {
+        "type": "action",
+        "description": "Simulate network failure during save"
+      },
+      {
+        "type": "assertion",
+        "description": "Check user-friendly error toast is shown and app recovers gracefully"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Shift pattern wizard multi-step input and data integrity",
+    "description": "Verify all steps of the shift pattern wizard perform correctly, retain data across navigation, validate inputs, and maintain data integrity upon completion.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to shift pattern configuration wizard"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid data in step 1 and proceed to step 2"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data input in step 1 is preserved after moving forward and backward"
+      },
+      {
+        "type": "action",
+        "description": "Input invalid data in any step (e.g. missing required fields) and attempt to proceed"
+      },
+      {
+        "type": "assertion",
+        "description": "Validation prevents moving forward and shows appropriate messages"
+      },
+      {
+        "type": "action",
+        "description": "Complete wizard successfully"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm created shift pattern is saved and visible in the list"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Worker assignment in shift pattern wizard",
+    "description": "Ensure that unassigned workers are listed correctly and that assignments update shift patterns properly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open shift pattern wizard to the worker assignment step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify unassigned workers list reflects current data accurately"
+      },
+      {
+        "type": "action",
+        "description": "Assign a worker to a specific shift"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirmed assignment reflects correctly in the UI and data store"
+      },
+      {
+        "type": "action",
+        "description": "Unassign a worker"
+      },
+      {
+        "type": "assertion",
+        "description": "Worker returns to unassigned list and shift data updates appropriately"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Create and edit community board post with image upload",
+    "description": "Validate post creation and editing functions with rich text editor, image upload including resizing, and save without errors.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to community board post creation page"
+      },
+      {
+        "type": "action",
+        "description": "Enter post content with rich text formatting"
+      },
+      {
+        "type": "action",
+        "description": "Upload an image and resize it in the editor"
+      },
+      {
+        "type": "action",
+        "description": "Save the post"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm post is saved and image appears correctly"
+      },
+      {
+        "type": "action",
+        "description": "Open the saved post for editing"
+      },
+      {
+        "type": "action",
+        "description": "Edit content and save changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify edits are applied and no errors occur"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Post comments with emoji picker and optimistic UI",
+    "description": "Check that comments support emoji insertion via picker, display correctly, and optimistic updates improve user experience.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to a community post detail page"
+      },
+      {
+        "type": "action",
+        "description": "Open comment input and select emojis using the emoji picker"
+      },
+      {
+        "type": "action",
+        "description": "Submit the comment"
+      },
+      {
+        "type": "assertion",
+        "description": "Comment appears immediately with emojis rendered while waiting for server confirmation"
+      },
+      {
+        "type": "action",
+        "description": "Simulate network failure during comment submission"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user-friendly error toast and comment status correctly updated"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "AI-generated summary reliability for community posts",
+    "description": "Ensure AI-generated summaries are displayed accurately for posts and refresh or update on post edits.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to a community post detail page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify AI summary is generated and displayed"
+      },
+      {
+        "type": "action",
+        "description": "Edit the post content"
+      },
+      {
+        "type": "action",
+        "description": "Trigger summary refresh"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm updated AI summary reflects the edited content"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Broadcast schedule filtering with color-coded legend",
+    "description": "Test that broadcasts list can be filtered by schedule and each broadcast is displayed with appropriate color coding.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to broadcasts list page"
+      },
+      {
+        "type": "action",
+        "description": "Apply filters to show specific schedules"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify broadcasts visible correspond to the selected filters"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm color-coded display matches broadcast status or schedule type"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Broadcast monitor page responsiveness and full-screen layout",
+    "description": "Ensure that the broadcast detailed monitoring view adapts responsively across device sizes and functions in full-screen mode without layout issues.",
+    "category": "ui",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to broadcast monitor page for a selected broadcast"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify layout adapts properly when resized for various desktop and mobile screen widths"
+      },
+      {
+        "type": "action",
+        "description": "Toggle to full-screen mode"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm no UI elements break or become unusable in full-screen"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Dark mode toggle and UI consistency",
+    "description": "Verify that the global dark mode toggle works correctly across all screens, including login, worklog, shift, community, and broadcast pages without flicker or style issues.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and navigate to various application pages"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the dark mode switch"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm all UI components switch styles appropriately with no layout or readability issues"
+      },
+      {
+        "type": "action",
+        "description": "Reload pages in both light and dark mode"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify mode persistence and no flickering on page load"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Responsive sidebar toggle on mobile devices",
+    "description": "Test the sidebar's ability to toggle open/close on mobile screen sizes and that navigation is functional without glitches.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Resize browser window or use mobile device or emulator to access the app"
+      },
+      {
+        "type": "action",
+        "description": "Open and close sidebar navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sidebar toggles smoothly without flicker or content overlap"
+      },
+      {
+        "type": "action",
+        "description": "Navigate using sidebar links"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure pages load correctly with responsive layout"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "API failure handling with user-friendly error toasts",
+    "description": "Simulate API failures across multiple features (login, worklog save, post creation) and verify the UI displays concise, clear error toasts and remains usable.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate backend API failure during login attempt"
+      },
+      {
+        "type": "assertion",
+        "description": "Check for user-friendly error toast and no app crash or freeze"
+      },
+      {
+        "type": "action",
+        "description": "Simulate failure during worklog data save"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error toast appears and user can retry saving"
+      },
+      {
+        "type": "action",
+        "description": "Simulate failure during post submission"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm error message shown and optimistic UI rolls back if needed"
+      }
+    ]
+  }
+]

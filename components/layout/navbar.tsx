@@ -4,6 +4,7 @@ import { Bell, Search, Menu, LogOut, Users, User, ChevronDown } from "lucide-rea
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -109,17 +110,13 @@ export function Navbar() {
     }
   }
 
-  const handleMemberSwitchRequest = (memberId: string) => {
+  const handleMemberSwitchRequest = async (memberId: string) => {
     // 1. Check if PIN is required
     const requirePin = useAuthStore.getState().securitySettings?.requirePinForMemberSwitch ?? true
 
     if (!requirePin) {
       // If PIN not required, switch immediately
-      if (memberId === "GROUP_COMMON") {
-        setActiveMemberId("GROUP_COMMON")
-      } else {
-        setActiveMemberId(memberId)
-      }
+      await performMemberSwitch(memberId)
       return
     }
 
@@ -128,15 +125,48 @@ export function Navbar() {
     setPinDialogOpen(true)
   }
 
-  const handlePinSuccess = () => {
+  const handlePinSuccess = async () => {
     if (pendingMemberId) {
-      if (pendingMemberId === "GROUP_COMMON") {
-        setActiveMemberId("GROUP_COMMON")
-      } else {
-        setActiveMemberId(pendingMemberId)
-      }
+      await performMemberSwitch(pendingMemberId)
       setPendingMemberId(null)
       setPinDialogOpen(false)
+    }
+  }
+
+  const performMemberSwitch = async (memberId: string) => {
+    let targetId = memberId
+    if (memberId === "GROUP_COMMON") {
+      setActiveMemberId("GROUP_COMMON")
+      // Restore to Group Account (User)
+      // We need to fetch the group account user profile. 
+      // Ideally, we should have the original user stored or fetch it.
+      // For now, if we are in TEAM mode, the 'user' might be overwritten.
+      // But wait, if we switch to a member, 'user' becomes that member.
+      // If we switch back to GROUP_COMMON, we need the original user.
+      // The original user ID is usually the one who logged in. 
+      // But we might have lost it if we overwrote 'user'.
+      // However, we are not overwriting the session.user (Supabase Auth).
+      // So we can fetch the session user again.
+      const { data: { session } } = await import("@/lib/supabase").then(m => m.supabase.auth.getSession())
+      if (session?.user) {
+        targetId = session.user.id
+      }
+    } else {
+      setActiveMemberId(memberId)
+    }
+
+    // Fetch profile and update 'user' store
+    const { supabase } = await import("@/lib/supabase")
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', targetId)
+      .single()
+
+    if (profile) {
+      useAuthStore.getState().setUser(profile)
+      // Force a router refresh to ensure components re-render with new user
+      router.refresh()
     }
   }
 
@@ -149,16 +179,40 @@ export function Navbar() {
       : (currentSession?.members?.filter(m => m.id === pendingMemberId) || [])
     )
     : []
-
   // Determine target ID for the dialog (for auto-selection)
   const pinTargetId = pendingMemberId === "GROUP_COMMON" ? user?.id : pendingMemberId
+
+  const handleLogout = async () => {
+    try {
+      // Check if user is Admin/Support type before clearing state
+      const isSupport = user?.type === 'support'
+
+      const { supabase } = await import("@/lib/supabase")
+      await supabase.auth.signOut()
+
+      // Use the store's logout action to clear all state
+      useAuthStore.getState().logout()
+
+      if (isSupport) {
+        // Silent logout for Admin (stay on page)
+        router.refresh()
+        toast.success("관리자 로그아웃 완료")
+      } else {
+        // Standard logout for workers (Shift Handover, etc.) -> Redirect to Login
+        router.push("/login")
+      }
+    } catch (error) {
+      console.error("Logout failed:", error)
+      router.push("/login")
+    }
+  }
 
   return (
     <>
       <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-card print:hidden">
         <div className="flex h-full items-center justify-between px-6 gap-4">
           {/* Left side - Search */}
-          <div className="flex items-center gap-4 flex-1 max-w-xl">
+          < div className="flex items-center gap-4 flex-1 max-w-xl" >
             <Button variant="ghost" size="icon" className="lg:hidden">
               <Menu className="h-5 w-5" />
             </Button>
@@ -166,10 +220,10 @@ export function Navbar() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input type="search" placeholder="업무일지, 포스트 검색..." className="pl-9 bg-muted/50" />
             </div>
-          </div>
+          </div >
 
           {/* Right side - Actions */}
-          <div className="flex items-center gap-4">
+          < div className="flex items-center gap-4" >
             <div className="flex items-center gap-3 border-r pr-4 mr-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -261,8 +315,14 @@ export function Navbar() {
 
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={toggleMode} className="gap-2 text-muted-foreground cursor-pointer">
-                    <LogOut className="h-4 w-4" />
+                    <Users className="h-4 w-4" />
                     <span>{loginMode === "TEAM" ? "개인 로그인으로 전환" : "조별 로그인으로 전환"}</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="gap-2 text-red-600 focus:text-red-700 cursor-pointer">
+                    <LogOut className="h-4 w-4" />
+                    <span>로그아웃</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -319,12 +379,12 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="ghost" size="icon" onClick={() => router.push("/login")}>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="로그아웃">
               <LogOut className="h-5 w-5" />
             </Button>
-          </div>
-        </div>
-      </header>
+          </div >
+        </div >
+      </header >
 
       <PinVerificationDialog
         open={pinDialogOpen}

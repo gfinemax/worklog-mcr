@@ -1,0 +1,59 @@
+{
+    "tech_stack": [
+        "TypeScript",
+        "Next.js",
+        "React",
+        "Supabase",
+        "Tailwind CSS",
+        "Zustand"
+    ],
+    "features": [
+        {
+            "name": "Authentication",
+            "description": "User login, session management, and PIN authentication",
+            "files": [
+                "app/login/page.tsx",
+                "components/auth-provider.tsx",
+                "store/auth.ts",
+                "lib/supabase.ts"
+            ]
+        },
+        {
+            "name": "Worklog Management",
+            "description": "Daily worklog creation, editing, and viewing",
+            "files": [
+                "app/worklog/page.tsx",
+                "store/worklog.ts",
+                "store/worklog-tab-store.ts",
+                "components/worklog/"
+            ]
+        },
+        {
+            "name": "Shift Management",
+            "description": "Shift pattern configuration and worker assignment",
+            "files": [
+                "app/settings/shift-pattern/page.tsx",
+                "store/shift-wizard-store.ts",
+                "components/worker-registration-dialog.tsx"
+            ]
+        },
+        {
+            "name": "Posts & Community",
+            "description": "Board posts, comments, and AI summaries",
+            "files": [
+                "app/posts/page.tsx",
+                "app/posts/[id]/page.tsx",
+                "store/posts.ts",
+                "components/post-editor.tsx"
+            ]
+        },
+        {
+            "name": "Broadcast Status",
+            "description": "Broadcast and reception schedule monitoring",
+            "files": [
+                "app/broadcasts/page.tsx",
+                "app/broadcasts/[id]/monitor/page.tsx"
+            ]
+        }
+    ]
+}

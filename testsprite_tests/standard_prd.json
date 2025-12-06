@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "project": "Worklog and Community Management Platform",
+    "date": "2025-12-04",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "This platform provides integrated solutions for worklog management, shift scheduling, user authentication, community board interactions with AI-powered summaries, and live broadcast status monitoring. It supports seamless session handling, complex UI workflows for worklogs and shifts, and efficient communication features for users in an enterprise environment.",
+  "core_goals": [
+    "Ensure robust authentication and session management with PIN security and smooth login/logout flows.",
+    "Facilitate comprehensive worklog and shift pattern management with dynamic data synchronization and UI responsiveness.",
+    "Enable rich community interactions through posts, comments, AI-generated summaries, and media management.",
+    "Provide real-time broadcast status monitoring with clear visual layouts and responsive design.",
+    "Maintain high usability with global UI/UX consistency including dark mode support and mobile responsiveness."
+  ],
+  "key_features": [
+    "Authentication system with session persistence, Google login integration, and PIN verification.",
+    "Worklog creation, editing, tabbed navigation, and automatic/manual data saving.",
+    "Shift pattern configuration wizard with multi-step data input and worker assignment functionalities.",
+    "Community board with post creation/editing, image upload, emoji supported comments, and AI-generated summaries.",
+    "Broadcasts list and detailed monitoring view with color-coded schedule filtering and full-screen layout support.",
+    "Global UI enhancements including dark mode toggle, responsive sidebar, and error message toasts."
+  ],
+  "user_flow_summary": [
+    "User logs in with credentials or Google OAuth, with session persistence and PIN verification where configured.",
+    "User manages daily worklogs using tabbed interface, with auto-save and seamless data syncing.",
+    "Supervisor configures shift patterns using a step-by-step wizard and assigns workers accordingly.",
+    "User browses and interacts with community posts: writes posts with rich editor, adds images, comments with emojis, and views AI-generated summaries.",
+    "User monitors live broadcasts and their schedules via dedicated dashboard pages with responsive layouts across device types."
+  ],
+  "validation_criteria": [
+    "Session is maintained on page refresh without logout or redirect loops.",
+    "PIN authentication triggers correctly during login and validates user inputs.",
+    "Worklog tabs open and switch without data loss and URL updates accurately.",
+    "Shift wizard maintains data integrity across steps and lists unassigned workers correctly.",
+    "Post editor supports image resizing and uploads without errors; AI summaries display reliably.",
+    "Comments show emoji picker and apply emojis correctly with optimistic UI updates.",
+    "Broadcast monitor layout remains responsive and functional in full-screen mode.",
+    "Global UI features like dark mode toggle and mobile sidebar operate without flicker or errors.",
+    "API failures show user-friendly toasts and do not break the user experience."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "Next.js",
+      "React",
+      "Supabase",
+      "Tailwind CSS",
+      "Zustand"
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "User login, session management, and PIN authentication",
+        "files": [
+          "app/login/page.tsx",
+          "components/auth-provider.tsx",
+          "store/auth.ts",
+          "lib/supabase.ts"
+        ]
+      },
+      {
+        "name": "Worklog Management",
+        "description": "Daily worklog creation, editing, and viewing",
+        "files": [
+          "app/worklog/page.tsx",
+          "store/worklog.ts",
+          "store/worklog-tab-store.ts",
+          "components/worklog/"
+        ]
+      },
+      {
+        "name": "Shift Management",
+        "description": "Shift pattern configuration and worker assignment",
+        "files": [
+          "app/settings/shift-pattern/page.tsx",
+          "store/shift-wizard-store.ts",
+          "components/worker-registration-dialog.tsx"
+        ]
+      },
+      {
+        "name": "Posts & Community",
+        "description": "Board posts, comments, and AI summaries",
+        "files": [
+          "app/posts/page.tsx",
+          "app/posts/[id]/page.tsx",
+          "store/posts.ts",
+          "components/post-editor.tsx"
+        ]
+      },
+      {
+        "name": "Broadcast Status",
+        "description": "Broadcast and reception schedule monitoring",
+        "files": [
+          "app/broadcasts/page.tsx",
+          "app/broadcasts/[id]/monitor/page.tsx"
+        ]
+      }
+    ]
+  }
+}

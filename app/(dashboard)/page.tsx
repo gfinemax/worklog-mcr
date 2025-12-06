@@ -252,8 +252,14 @@ export default function Dashboard() {
                 {shiftInfo && currentSession && (
                   <div className="flex items-center gap-2 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
                     <span className="text-slate-400">감독:</span>
-                    {/* Find the member who is assigned as Director in the current session */}
-                    {currentSession.members.find(m => m.role === '감독')?.name || "미지정"}
+                    {(() => {
+                      const roleOrder = ['감독', '부감독', '영상']
+                      const sortedMembers = [...currentSession.members].sort((a, b) => {
+                        return roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role)
+                      })
+                      const directorIndex = shiftInfo?.roles?.director ?? 0
+                      return sortedMembers[directorIndex]?.name || "미지정"
+                    })()}
                   </div>
                 )}
               </div>

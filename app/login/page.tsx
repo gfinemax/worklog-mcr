@@ -109,6 +109,7 @@ export default function LoginPage() {
         .select(`
                 user_id,
                 role,
+                display_order,
                 users (
                     id,
                     name,
@@ -116,6 +117,7 @@ export default function LoginPage() {
                 )
             `)
         .eq('group_id', globalGroup.id)
+        .order('display_order', { ascending: true })
 
       if (memberData) {
         const today = new Date()
@@ -131,44 +133,67 @@ export default function LoginPage() {
           setCurrentShiftType(null)
         }
 
-        const initialMembers: SessionMember[] = memberData.map((m: any) => ({
-          id: m.users.id,
-          name: m.users.name,
-          role: "영상", // Default role
-          profile_image_url: m.users.profile_image_url
-        }))
+        const initialMembers: SessionMember[] = memberData
+          .filter((m: any) => m.users)
+          .map((m: any) => ({
+            id: m.users.id,
+            name: m.users.name,
+            role: "영상", // Default role
+            profile_image_url: m.users.profile_image_url
+          }))
 
-        const roleOrder: Record<string, number> = { "감독": 0, "부감독": 1, "영상": 2 }
-
-        initialMembers.sort((a, b) => {
-          const roleA = memberData.find((m: any) => m.users.id === a.id)?.role || "영상"
-          const roleB = memberData.find((m: any) => m.users.id === b.id)?.role || "영상"
-
-          const mainRoleA = roleA.split(',')[0].trim()
-          const mainRoleB = roleB.split(',')[0].trim()
-
-          const orderA = roleOrder[mainRoleA] ?? 99
-          const orderB = roleOrder[mainRoleB] ?? 99
-
-          if (orderA !== orderB) return orderA - orderB
-
-          return a.name.localeCompare(b.name)
-        })
+        // Removed Role Sorting Logic to respect display_order
 
         if (shiftInfo) {
           const { director, assistant, video } = shiftInfo.roles
-          if (initialMembers[director]) initialMembers[director].role = "감독"
-          if (initialMembers[assistant]) initialMembers[assistant].role = "부감독"
+          // shiftInfo.roles returns indices for director/assistant/video
+          // But those indices are based on a sorted list.
+          // We need to ensure initialMembers is sorted by display_order (which it is now).
+
+          // However, shiftInfo.roles logic (in shift-rotation.ts) assumes:
+          // Normal: director=0, assistant=1
+          // Swap: director=1, assistant=0
+
+          // So if we just use these indices on our display_order sorted list:
+          // Normal: initialMembers[0] gets "Director", initialMembers[1] gets "Assistant"
+          // Swap: initialMembers[1] gets "Director", initialMembers[0] gets "Assistant"
+
+          // This matches exactly what we want!
+          // 4조 (Kwon, Kim):
+          // Normal: Kwon(0) -> Director, Kim(1) -> Assistant.
+          // Swap: Kim(1) -> Director, Kwon(0) -> Assistant.
+
+          // We just need to make sure we don't accidentally overwrite roles for video staff if indices overlap?
+          // shiftInfo.roles.video is usually 2.
+
+          // Wait, we need to filter out 'Video' staff first if we want to be safe, 
+          // OR we assume the first 2 are always Director/Assistant candidates.
+          // Given the query filters by group, and we know the structure, let's stick to the indices provided by shiftInfo
+          // BUT we must ensure initialMembers has the right people at 0 and 1.
+          // We sorted by display_order.
+
+          // Let's iterate and assign based on index match
+          initialMembers.forEach((m, i) => {
+            if (i === director) m.role = "감독"
+            else if (i === assistant) m.role = "부감독"
+            else m.role = "영상" // Default or keep existing?
+          })
+
         } else {
           const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
           memberData.forEach((m: any, i: number) => {
             if (m.role) initialMembers[i].role = m.role
           })
-          initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+          // Keep sorting by role if no shift info? Or just respect display_order?
+          // Let's respect display_order as primary source of truth if no shift info.
+          // initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
         }
 
-        const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
-        initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+        // Final sort by role for display? No, keep list order.
+        // const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
+        // initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+
+        setSessionMembers(initialMembers)
 
         setSessionMembers(initialMembers)
       }
@@ -261,21 +286,16 @@ export default function LoginPage() {
 
     const { data: users } = await supabase
       .from('users')
-      .select('id, name, role, profile_image_url')
+      .select('id, name, role, profile_image_url, type')
       .ilike('name', `%${query}%`)
-      .limit(5)
+      .limit(10)
 
-    const { data: staff } = await supabase
-      .from('support_staff')
-      .select('id, name, role')
-      .ilike('name', `%${query}%`)
-      .limit(5)
-
-    const combined = [
-      ...(users || []).map((u: any) => ({ ...u, type: 'internal' })),
-      ...(staff || []).map((s: any) => ({ ...s, type: 'external', profile_image_url: null }))
-    ]
-    setSearchResults(combined)
+    const formattedUsers = (users || []).map((u: any) => ({
+      ...u,
+      // Map DB type 'support' to UI type 'external' (displays as '지원')
+      type: u.type === 'support' ? 'external' : 'internal'
+    }))
+    setSearchResults(formattedUsers)
   }
 
   const handleSelectWorker = (worker: any) => {
@@ -580,7 +600,7 @@ export default function LoginPage() {
                         <div className="space-y-2">
                           {searchResults.map((worker) => (
                             <div
-                              key={worker.id}
+                              key={`${worker.type}-${worker.id}`}
                               className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
                               onClick={() => handleSelectWorker(worker)}
                             >

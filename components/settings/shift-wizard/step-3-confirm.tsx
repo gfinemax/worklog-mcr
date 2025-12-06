@@ -48,7 +48,7 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
                 cycle_length: data.cycleLength,
                 pattern_json: data.pattern,
                 roles_json: ["감독", "부감독", "영상"],
-                roster_json: data.assignments,
+                // roster_json: data.assignments, // Column missing in DB, skipping for now
                 memo: data.memo,
                 created_by: user.id
             }

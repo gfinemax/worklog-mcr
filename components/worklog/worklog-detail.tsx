@@ -16,6 +16,16 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
@@ -461,7 +471,33 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
     const [channelLogs, setChannelLogs] = useState<{ [key: string]: ChannelLog }>({})
     const [systemIssues, setSystemIssues] = useState<{ id: string; summary: string }[]>([])
     const [pinDialogOpen, setPinDialogOpen] = useState(false)
-    const [pendingAction, setPendingAction] = useState<'sign' | 'handover' | null>(null)
+    const [pendingAction, setPendingAction] = useState<'handover' | 'sign' | null>(null)
+    const [signingType, setSigningType] = useState<'operation' | 'team_leader' | 'mcr' | 'network' | null>(null)
+
+    // [NEW] Fetch member types for permission check
+    const [memberTypes, setMemberTypes] = useState<{ [key: string]: string }>({})
+
+    useEffect(() => {
+        const fetchMemberTypes = async () => {
+            if (!currentSession?.members) return
+            const ids = currentSession.members.map(m => m.id)
+            if (ids.length === 0) return
+
+            const { data } = await supabase
+                .from('users')
+                .select('id, type')
+                .in('id', ids)
+
+            if (data) {
+                const typeMap: { [key: string]: string } = {}
+                data.forEach((u: any) => {
+                    typeMap[u.id] = u.type
+                })
+                setMemberTypes(typeMap)
+            }
+        }
+        fetchMemberTypes()
+    }, [currentSession?.members])
     const [ignore, setIgnore] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -604,7 +640,33 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 setShiftType(worklog.type === '주간' ? 'day' : 'night')
                 setSelectedTeam(worklog.groupName)
                 setWorkers(worklog.workers)
-                setStatus(worklog.status)
+
+                // [FIX] Sanitize Status: Remove '서명완료' and re-calculate based on signatures
+                let cleanStatus = worklog.status
+                if (cleanStatus === '서명완료') cleanStatus = '작성중'
+
+                const sigs = worklog.signatures || {}
+                // 1. Check if all 4 are signed
+                if (sigs.operation && sigs.team_leader && sigs.mcr && sigs.network) {
+                    cleanStatus = '결재완료'
+                }
+                // 2. Check for '일지확정' condition (Director signed + After Hours)
+                else if (sigs.operation) {
+                    const shiftEnd = new Date(dateObj)
+                    if (worklog.type === '주간') {
+                        shiftEnd.setHours(19, 0, 0, 0)
+                    } else {
+                        shiftEnd.setDate(shiftEnd.getDate() + 1)
+                        shiftEnd.setHours(8, 0, 0, 0)
+                    }
+                    if (new Date() >= shiftEnd) {
+                        cleanStatus = '일지확정'
+                    } else {
+                        cleanStatus = '작성중'
+                    }
+                }
+
+                setStatus(cleanStatus)
 
                 // Fetch latest posts to ensure sync
                 fetchWorklogPosts(id).then(posts => {
@@ -697,6 +759,11 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 // The parent component (page.tsx) should handle switching the ID passed to us.
                 const mode = searchParams.get('mode')
                 if (mode === 'today') {
+                    // Even in today mode, if we found a log, we should probably use it?
+                    // But page.tsx handles the initial load. This effect runs when state changes.
+                    // If page.tsx passed 'new', but we found one in the store (maybe loaded after),
+                    // we should switch to it.
+                    // [FIX] Do NOT redirect if mode is today. Let parent component handle the ID switch.
                     return
                 }
 
@@ -704,22 +771,63 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 return // Stop execution here, let the redirect happen
             }
 
-            // If no existing worklog, we might need to populate workers from session members if available
-            if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) {
-                const newWorkers = {
-                    director: [] as string[],
-                    assistant: [] as string[],
-                    video: [] as string[]
+            // [NEW] Check server for ANY existing log for this date/shift (Global Check)
+            const checkServerForDuplicate = async () => {
+                const { data: serverLogs } = await supabase
+                    .from('worklogs')
+                    .select('id')
+                    .eq('date', dateStr)
+                    .eq('type', shiftType === 'day' ? '주간' : '야간')
+                    .limit(1)
+
+                if (serverLogs && serverLogs.length > 0) {
+                    toast.info("이미 생성된 업무일지가 있어 해당 일지로 이동합니다.")
+                    if (searchParams.get('mode') === 'today') {
+                        return true
+                    }
+                    router.replace(`/worklog?id=${serverLogs[0].id}`)
+                    return true
                 }
-                nextSession.members.forEach(m => {
-                    const primaryRole = (m.role || '').split(',')[0].trim()
-                    if (primaryRole === '감독') newWorkers.director.push(m.name)
-                    else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
-                    else newWorkers.video.push(m.name)
-                })
-                setWorkers(newWorkers)
+                return false
             }
-            setIsLoaded(true) // New worklog is always "loaded"
+
+            checkServerForDuplicate().then(exists => {
+                if (exists) return
+
+                // If no existing worklog, we might need to populate workers from session members if available
+                if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) {
+                    // ... (existing logic)
+                    const checkSwapAndSet = async () => {
+                        const config = await shiftService.getConfig(selectedDate)
+                        let isSwap = false
+                        if (config) {
+                            const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
+                            isSwap = info.isSwap
+                        }
+
+                        const newWorkers = {
+                            director: [] as string[],
+                            assistant: [] as string[],
+                            video: [] as string[]
+                        }
+                        nextSession.members.forEach(m => {
+                            const primaryRole = (m.role || '').split(',')[0].trim()
+                            if (primaryRole === '감독') {
+                                if (isSwap) newWorkers.assistant.push(m.name)
+                                else newWorkers.director.push(m.name)
+                            } else if (primaryRole === '부감독') {
+                                if (isSwap) newWorkers.director.push(m.name)
+                                else newWorkers.assistant.push(m.name)
+                            } else {
+                                newWorkers.video.push(m.name)
+                            }
+                        })
+                        setWorkers(newWorkers)
+                    }
+                    checkSwapAndSet()
+                }
+                setIsLoaded(true) // New worklog is always "loaded"
+            })
         }
     }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession])
 
@@ -806,18 +914,34 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
         // [Modified] Use currentSession members if available and matches selectedTeam
         // We do this EVEN IF id exists, to ensure the displayed workers match the logged-in session (user request)
         if ((!id || id === 'new') && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current') {
-            const newWorkers = {
-                director: [] as string[],
-                assistant: [] as string[],
-                video: [] as string[]
+            const checkSwapAndSet = async () => {
+                const config = await shiftService.getConfig(selectedDate)
+                let isSwap = false
+                if (config) {
+                    const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
+                    isSwap = info.isSwap
+                }
+
+                const newWorkers = {
+                    director: [] as string[],
+                    assistant: [] as string[],
+                    video: [] as string[]
+                }
+                currentSession.members.forEach(m => {
+                    const primaryRole = (m.role || '').split(',')[0].trim()
+                    if (primaryRole === '감독') {
+                        if (isSwap) newWorkers.assistant.push(m.name)
+                        else newWorkers.director.push(m.name)
+                    } else if (primaryRole === '부감독') {
+                        if (isSwap) newWorkers.director.push(m.name)
+                        else newWorkers.assistant.push(m.name)
+                    } else {
+                        newWorkers.video.push(m.name)
+                    }
+                })
+                if (!ignore) setWorkers(newWorkers)
             }
-            currentSession.members.forEach(m => {
-                const primaryRole = (m.role || '').split(',')[0].trim()
-                if (primaryRole === '감독') newWorkers.director.push(m.name)
-                else if (primaryRole === '부감독') newWorkers.assistant.push(m.name)
-                else newWorkers.video.push(m.name)
-            })
-            if (!ignore) setWorkers(newWorkers)
+            checkSwapAndSet()
             return () => { ignore = true }
         }
 
@@ -856,17 +980,40 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                             // Sort by the order in userIds array to preserve roster order
                             rosterUsers.sort((a, b) => userIds.indexOf(a.id) - userIds.indexOf(b.id))
 
+                            // Check swap
+                            const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
+                            const isSwap = info.isSwap
+
                             const newWorkers = {
                                 director: [] as string[],
                                 assistant: [] as string[],
                                 video: [] as string[]
                             }
+                            // Filter out video staff first
+                            const daMembers: any[] = []
                             rosterUsers.forEach((u: any) => {
                                 const primaryRole = (u.role || '').split(',')[0].trim()
-                                if (primaryRole === '감독') newWorkers.director.push(u.name)
-                                else if (primaryRole === '부감독') newWorkers.assistant.push(u.name)
-                                else newWorkers.video.push(u.name)
+                                if (primaryRole === '영상') {
+                                    newWorkers.video.push(u.name)
+                                } else {
+                                    daMembers.push(u)
+                                }
                             })
+
+                            // Assign Director/Assistant based on order
+                            if (daMembers.length > 0) {
+                                // Normal: 0->Director, 1->Assistant
+                                // Swap: 0->Assistant, 1->Director
+                                const idx0 = isSwap ? 'assistant' : 'director'
+                                const idx1 = isSwap ? 'director' : 'assistant'
+
+                                if (daMembers[0]) newWorkers[idx0].push(daMembers[0].name)
+                                if (daMembers[1]) newWorkers[idx1].push(daMembers[1].name)
+
+                                for (let i = 2; i < daMembers.length; i++) {
+                                    newWorkers.assistant.push(daMembers[i].name)
+                                }
+                            }
                             setWorkers(newWorkers)
                             return // Exit if successful
                         }
@@ -886,19 +1033,49 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 if (membersError) throw membersError
 
                 if (members && !ignore) {
+                    // Check swap (need config)
+                    const config = await shiftService.getConfig(selectedDate)
+                    let isSwap = false
+                    if (config) {
+                        const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
+                        isSwap = info.isSwap
+                    }
+
                     const newWorkers = {
                         director: [] as string[],
                         assistant: [] as string[],
                         video: [] as string[]
                     }
+
+                    // Filter out video staff first
+                    const daMembers: any[] = []
                     members.forEach((m: any) => {
                         if (m.user) {
                             const primaryRole = (m.user.role || '').split(',')[0].trim()
-                            if (primaryRole === '감독') newWorkers.director.push(m.user.name)
-                            else if (primaryRole === '부감독') newWorkers.assistant.push(m.user.name)
-                            else newWorkers.video.push(m.user.name)
+                            if (primaryRole === '영상') {
+                                newWorkers.video.push(m.user.name)
+                            } else {
+                                daMembers.push(m.user)
+                            }
                         }
                     })
+
+                    // Assign Director/Assistant based on order
+                    if (daMembers.length > 0) {
+                        // Normal: 0->Director, 1->Assistant
+                        // Swap: 0->Assistant, 1->Director
+                        const idx0 = isSwap ? 'assistant' : 'director'
+                        const idx1 = isSwap ? 'director' : 'assistant'
+
+                        if (daMembers[0]) newWorkers[idx0].push(daMembers[0].name)
+                        if (daMembers[1]) newWorkers[idx1].push(daMembers[1].name)
+
+                        // If more than 2, assign rest as assistant? or video? 
+                        // Usually only 2 DA members.
+                        for (let i = 2; i < daMembers.length; i++) {
+                            newWorkers.assistant.push(daMembers[i].name)
+                        }
+                    }
                     setWorkers(newWorkers)
                 }
             } catch (error) {
@@ -977,6 +1154,26 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             const day = now.getDate()
             const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
 
+            // [NEW] Pre-check for duplicates before inserting
+            const { data: existingLogs } = await supabase
+                .from('worklogs')
+                .select('id')
+                .eq('date', dateStr)
+                .eq('type', shiftType === 'day' ? '주간' : '야간')
+                .limit(1)
+
+            if (existingLogs && existingLogs.length > 0) {
+                if (!silent) toast.info("이미 생성된 업무일지가 있어 해당 일지로 이동합니다.")
+                // Redirect to existing
+                if (searchParams.get('mode') === 'today') {
+                    return existingLogs[0].id
+                }
+                const newUrl = `/worklog?id=${existingLogs[0].id}`
+                window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                router.replace(newUrl)
+                return existingLogs[0].id
+            }
+
             const newLog = await addWorklog({
                 date: dateStr,
                 groupName: selectedTeam,
@@ -997,13 +1194,19 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             if (newLog) {
                 if (!silent) {
                     toast.success("새 일지가 생성되었습니다.")
-                    const newUrl = `/worklog?id=${newLog.id}`
-                    window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
-                    router.replace(newUrl)
+                    if (searchParams.get('mode') === 'today') {
+                        // Skip redirect in today mode
+                    } else {
+                        const newUrl = `/worklog?id=${newLog.id}`
+                        window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                        router.replace(newUrl)
+                    }
                 } else {
                     // Just update history for back button support, don't trigger navigation
-                    const newUrl = `/worklog?id=${newLog.id}`
-                    window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                    if (searchParams.get('mode') !== 'today') {
+                        const newUrl = `/worklog?id=${newLog.id}`
+                        window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                    }
                 }
                 return newLog.id
             }
@@ -1085,9 +1288,8 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             router.push('/worklog?mode=today')
         } else if (val === 'next' && nextSession) {
             // Switch to next session
-            // Calculate next shift type based on CURRENT logical shift, not the displayed shiftType
-            const currentLogicalShift = shiftService.getLogicalShiftInfo(new Date()).shiftType
-            const nextShift = currentLogicalShift === 'day' ? 'night' : 'day'
+            // Calculate next shift type based on CURRENT displayed shift, not the current time
+            const nextShift = shiftType === 'day' ? 'night' : 'day'
             router.push(`/worklog?mode=today&team=${nextSession.groupName}&type=${nextShift}`)
         }
     }
@@ -1136,18 +1338,159 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             router.push('/')
             toast.success(`${user.name}님의 승인으로 근무 교대가 완료되었습니다.`)
         } else if (pendingAction === 'sign') {
+            // Existing "Top Button" Sign Logic (Treat as Operation Sign)
             if (id && id !== 'new') {
                 // @ts-ignore
                 await updateWorklog(id, { status: '서명완료' })
                 setStatus('서명완료')
                 toast.success(`${user.name}님의 서명이 완료되었습니다.`)
             }
+        } else if (signingType && id && id !== 'new') {
+            // New Grid Signature Logic
+            const currentWorklog = worklogs.find(w => String(w.id) === id)
+            if (!currentWorklog) return
+
+            const now = new Date()
+            const timeStr = format(now, "MM/dd HH:mm")
+            const sigString = `${user.name}|${timeStr}`
+
+            const existingSignatures = currentWorklog.signatures || {
+                operation: null,
+                mcr: null,
+                team_leader: null,
+                network: null
+            }
+
+            const newSignatures = {
+                ...existingSignatures,
+                [signingType]: sigString
+            }
+
+            // NEW Status Logic
+            let newStatus: Worklog['status'] = '작성중'
+
+            if (newSignatures.operation && newSignatures.team_leader && newSignatures.mcr && newSignatures.network) {
+                newStatus = '결재완료'
+            }
+            else if (newSignatures.operation) {
+                const shiftEnd = new Date(selectedDate)
+                if (shiftType === 'day') {
+                    shiftEnd.setHours(19, 0, 0, 0)
+                } else {
+                    shiftEnd.setDate(shiftEnd.getDate() + 1)
+                    shiftEnd.setHours(8, 0, 0, 0)
+                }
+
+                if (now >= shiftEnd) {
+                    newStatus = '일지확정'
+                } else {
+                    newStatus = '작성중'
+                }
+            }
+
+            // @ts-ignore
+            await updateWorklog(id, {
+                signatures: newSignatures,
+                status: newStatus
+            })
+
+            if (newStatus === '결재완료') setStatus('결재완료')
+            else if (newStatus === '일지확정') setStatus('일지확정')
+            else setStatus('작성중')
+
+            toast.success(`${user.name}님의 서명이 저장되었습니다.`)
+            setSigningType(null)
         }
         setPendingAction(null)
     }
 
+    const [permissionDeniedOpen, setPermissionDeniedOpen] = useState(false)
+    const [permissionDeniedMessage, setPermissionDeniedMessage] = useState("")
+    const [signatureCancelOpen, setSignatureCancelOpen] = useState(false)
+    const [signatureToDelete, setSignatureToDelete] = useState<'operation' | 'team_leader' | 'mcr' | 'network' | null>(null)
+
+    const handleRemoveSignature = async () => {
+        if (!signatureToDelete || !id) return
+
+        try {
+            await updateWorklog(id, {
+                signatures: {
+                    ...worklogs.find(w => String(w.id) === id)?.signatures,
+                    [signatureToDelete]: null
+                }
+            })
+            toast.success("서명이 삭제되었습니다.")
+            setSignatureCancelOpen(false)
+            setSignatureToDelete(null)
+        } catch (error) {
+            console.error("Failed to remove signature:", error)
+            toast.error("서명 삭제에 실패했습니다.")
+        }
+    }
+
+    const handleGridSign = (type: 'operation' | 'team_leader' | 'mcr' | 'network') => {
+        if (!user) {
+            toast.error("로그인이 필요합니다.")
+            return
+        }
+
+        const currentWorklog = worklogs.find(w => String(w.id) === id)
+        const existingSignature = currentWorklog?.signatures?.[type]
+
+        if (existingSignature) {
+            // [Check] Validate Ownership (Name Match)
+            const [signerName] = existingSignature.split('|')
+            if (signerName && signerName !== user.name) {
+                setPermissionDeniedMessage("본인의 서명만 취소할 수 있습니다.")
+                setPermissionDeniedOpen(true)
+                return
+            }
+
+            if (type === 'operation') {
+                const isDirector = currentSession?.members.some(m => m.id === user.id && m.role && m.role.includes('감독'))
+                if (!isDirector) {
+                    setPermissionDeniedMessage("운행 결재 취소는 감독만 가능합니다.")
+                    setPermissionDeniedOpen(true)
+                    return
+                }
+            } else {
+                const isSupportInSession = memberTypes[user.id] === 'support'
+                const isSupportUser = user.type === 'support'
+                if (!isSupportInSession && !isSupportUser) {
+                    setPermissionDeniedMessage("서명 취소 권한이 없습니다. 관리자만 가능합니다.")
+                    setPermissionDeniedOpen(true)
+                    return
+                }
+            }
+
+            setSignatureToDelete(type)
+            setSignatureCancelOpen(true)
+            return
+        }
+
+        if (type === 'operation') {
+            const isDirector = currentSession?.members.some(m => m.id === user.id && m.role && m.role.includes('감독'))
+            if (!isDirector) {
+                setPermissionDeniedMessage("운행 결재는 감독만 가능합니다.")
+                setPermissionDeniedOpen(true)
+                return
+            }
+        } else {
+            const isSupportInSession = memberTypes[user.id] === 'support'
+            const isSupportUser = user.type === 'support'
+
+            if (!isSupportInSession && !isSupportUser) {
+                setPermissionDeniedMessage("서명 권한이 없습니다. 관리자만 가능합니다.")
+                setPermissionDeniedOpen(true)
+                return
+            }
+        }
+
+        setSigningType(type)
+        setPinDialogOpen(true)
+    }
+
     const handleCancelHandover = async () => {
-        // Log to audit_logs
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
@@ -1171,7 +1514,6 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
         window.location.reload()
     }
 
-    // Auto-save workers changes
     useEffect(() => {
         const timer = setTimeout(() => {
             if (id) {
@@ -1181,15 +1523,19 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
         return () => clearTimeout(timer)
     }, [workers])
 
-    // Check if the current view corresponds to the active session
-    // Check if the current view corresponds to the active session
     const isCurrentContext = currentSession &&
         (selectedTeam === currentSession.groupName || (nextSession && selectedTeam === nextSession.groupName)) &&
-        // Check if date matches (considering extended night shift)
         (isToday(selectedDate) || (isYesterday(selectedDate) && shiftType === 'night' && new Date().getHours() < 12))
 
     return (
         <div className={cn("min-h-screen px-8 py-2 -mt-4 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
+            {/* DEBUG INFO */}
+            <div className="bg-red-100 p-2 mb-2 text-xs font-mono print:hidden">
+                DEBUG: CurrentSession: {currentSession?.groupName},
+                ShiftType: {shiftType},
+                ActiveTab: {activeTab},
+                Time: {format(new Date(), 'HH:mm')}
+            </div>
             <div className="mx-auto max-w-[210mm] print:max-w-none">
                 <style type="text/css" media="print">
                     {`
@@ -1266,12 +1612,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                             </>
                         )}
 
-                        {status !== '서명완료' && (
-                            <Button variant="outline" onClick={handleSign} className="border-teal-600 text-teal-700 hover:bg-teal-50">
-                                <PenTool className="mr-2 h-4 w-4" />
-                                결재(서명)
-                            </Button>
-                        )}
+
 
                         {/* 저장 버튼 삭제됨 (자동 저장 적용) */}
                         <Button onClick={handlePrint}>
@@ -1284,13 +1625,64 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 <PinVerificationDialog
                     open={pinDialogOpen}
                     onOpenChange={setPinDialogOpen}
-                    members={currentSession?.members || []}
+                    members={(() => {
+                        const allMembers = currentSession?.members || []
+                        let filteredMembers = []
+
+                        if (signingType === 'operation') {
+                            // Only Director
+                            filteredMembers = allMembers.filter(m => m.role && m.role.includes('감독'))
+                        } else if (['team_leader', 'mcr', 'network'].includes(signingType || '')) {
+                            // Only Support (type === 'support')
+                            filteredMembers = allMembers.filter(m => memberTypes[m.id] === 'support')
+                        } else {
+                            filteredMembers = allMembers
+                        }
+
+                        // [Fix] If current user represents a valid signer (e.g. Support) but is NOT in the session list,
+                        // we must add them so they can select themselves.
+                        if (user && user.type === 'support' && ['team_leader', 'mcr', 'network'].includes(signingType || '')) {
+                            const isInList = filteredMembers.some(m => m.id === user.id)
+                            if (!isInList) {
+                                // Add current user to the list
+                                filteredMembers.push({
+                                    id: user.id,
+                                    name: user.name,
+                                    role: '관리', // Display as Admin
+                                    profile_image_url: user.user_metadata?.avatar_url
+                                })
+                            }
+                        }
+
+                        return filteredMembers
+                    })()}
+                    defaultSelectedId={user?.id}
                     onSuccess={handlePinSuccess}
                     title={pendingAction === 'handover' ? "근무 교대 승인" : "업무일지 결재"}
                     description={pendingAction === 'handover'
                         ? "근무를 종료하고 다음 조에게 인계하시겠습니까? 책임자의 확인이 필요합니다."
                         : "업무일지를 최종 승인하시겠습니까? 서명 후에는 수정이 제한될 수 있습니다."}
                 />
+
+                {/* Permission Denied Dialog */}
+                <Dialog open={permissionDeniedOpen} onOpenChange={setPermissionDeniedOpen}>
+                    <DialogContent className="sm:max-w-[400px]">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-amber-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-circle"><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></svg>
+                                권한 없음
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4 text-center font-medium text-gray-700">
+                            {permissionDeniedMessage}
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={() => setPermissionDeniedOpen(false)} className="w-full sm:w-auto">
+                                확인
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 {/* A4 Page Container */}
                 <div className="bg-white p-[10mm] print:pt-[15mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
@@ -1335,15 +1727,83 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                             <div className="flex border border-black text-center text-xs">
                                 <div className="flex flex-col w-[70px] border-r border-black">
                                     <div className="bg-gray-100 py-0.5 font-bold border-b border-black">운 행</div>
-                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div
+                                        onClick={() => handleGridSign('operation')}
+                                        className="h-10 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 group leading-none"
+                                    >
+                                        {(() => {
+                                            const sig = worklogs.find(w => String(w.id) === id)?.signatures?.operation
+                                            if (sig) {
+                                                const [name, time] = sig.split('|')
+                                                return (
+                                                    <>
+                                                        <span className="text-xs font-bold truncate max-w-full px-0.5">{name}</span>
+                                                        <span className="text-[10px] text-gray-600 tracking-tighter scale-y-90 mt-[1px]">{time?.split(' ')[1] ? `${time.split(' ')[0]} ${time.split(' ')[1]}` : time}</span>
+                                                    </>
+                                                )
+                                            }
+                                            return <span className="opacity-0 group-hover:opacity-20 text-xs text-gray-400 font-bold">서명</span>
+                                        })()}
+                                    </div>
                                     <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">MCR</div>
-                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div
+                                        onClick={() => handleGridSign('mcr')}
+                                        className="h-10 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 group leading-none"
+                                    >
+                                        {(() => {
+                                            const sig = worklogs.find(w => String(w.id) === id)?.signatures?.mcr
+                                            if (sig) {
+                                                const [name, time] = sig.split('|')
+                                                return (
+                                                    <>
+                                                        <span className="text-xs font-bold truncate max-w-full px-0.5">{name}</span>
+                                                        <span className="text-[10px] text-gray-600 tracking-tighter scale-y-90 mt-[1px]">{time?.split(' ')[1] ? `${time.split(' ')[0]} ${time.split(' ')[1]}` : time}</span>
+                                                    </>
+                                                )
+                                            }
+                                            return <span className="opacity-0 group-hover:opacity-20 text-xs text-gray-400 font-bold">서명</span>
+                                        })()}
+                                    </div>
                                 </div>
                                 <div className="flex flex-col w-[70px]">
                                     <div className="bg-gray-100 py-0.5 font-bold border-b border-black">팀 장</div>
-                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div
+                                        onClick={() => handleGridSign('team_leader')}
+                                        className="h-10 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 group leading-none"
+                                    >
+                                        {(() => {
+                                            const sig = worklogs.find(w => String(w.id) === id)?.signatures?.team_leader
+                                            if (sig) {
+                                                const [name, time] = sig.split('|')
+                                                return (
+                                                    <>
+                                                        <span className="text-xs font-bold truncate max-w-full px-0.5">{name}</span>
+                                                        <span className="text-[10px] text-gray-600 tracking-tighter scale-y-90 mt-[1px]">{time?.split(' ')[1] ? `${time.split(' ')[0]} ${time.split(' ')[1]}` : time}</span>
+                                                    </>
+                                                )
+                                            }
+                                            return <span className="opacity-0 group-hover:opacity-20 text-xs text-gray-400 font-bold">서명</span>
+                                        })()}
+                                    </div>
                                     <div className="bg-gray-100 py-0.5 font-bold border-t border-b border-black">Network</div>
-                                    <div className="h-10 flex items-center justify-center cursor-pointer hover:bg-gray-50"></div>
+                                    <div
+                                        onClick={() => handleGridSign('network')}
+                                        className="h-10 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 group leading-none"
+                                    >
+                                        {(() => {
+                                            const sig = worklogs.find(w => String(w.id) === id)?.signatures?.network
+                                            if (sig) {
+                                                const [name, time] = sig.split('|')
+                                                return (
+                                                    <>
+                                                        <span className="text-xs font-bold truncate max-w-full px-0.5">{name}</span>
+                                                        <span className="text-[10px] text-gray-600 tracking-tighter scale-y-90 mt-[1px]">{time?.split(' ')[1] ? `${time.split(' ')[0]} ${time.split(' ')[1]}` : time}</span>
+                                                    </>
+                                                )
+                                            }
+                                            return <span className="opacity-0 group-hover:opacity-20 text-xs text-gray-400 font-bold">서명</span>
+                                        })()}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1528,6 +1988,22 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
 
                 </div>
             </div>
-        </div>
+            <AlertDialog open={signatureCancelOpen} onOpenChange={setSignatureCancelOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>서명 삭제</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            이미 완료된 서명을 삭제하시겠습니까?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setSignatureCancelOpen(false)}>취소</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRemoveSignature} className="bg-red-600 hover:bg-red-700">
+                            삭제
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div >
     )
 }

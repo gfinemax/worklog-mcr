@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 interface User {
     id: string
@@ -7,6 +7,7 @@ interface User {
     role: string
     email?: string
     profile_image_url?: string
+    type?: string
 }
 
 interface Group {
@@ -126,6 +127,11 @@ export const useAuthStore = create<AuthStore>()(
         }),
         {
             name: 'auth-storage',
+            storage: createJSONStorage(() => typeof window !== 'undefined' ? sessionStorage : {
+                getItem: () => null,
+                setItem: () => { },
+                removeItem: () => { },
+            }),
             partialize: (state) => ({
                 user: state.user,
                 group: state.group,
@@ -134,8 +140,8 @@ export const useAuthStore = create<AuthStore>()(
                 deviceMode: state.deviceMode,
                 securitySettings: state.securitySettings,
                 nextSession: state.nextSession,
-                nextUser: state.nextUser
-                // guestSession and activeMemberId are excluded
+                nextUser: state.nextUser,
+                activeMemberId: state.activeMemberId
             }),
         }
     )

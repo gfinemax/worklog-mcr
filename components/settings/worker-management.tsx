@@ -404,7 +404,7 @@ export function WorkerManagement() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant={worker.type === 'internal' ? 'secondary' : 'default'} className="font-normal">
-                                                        {worker.type === 'internal' ? '순환' : '지원'}
+                                                        {worker.type === 'internal' ? '순환' : '관리'}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right">

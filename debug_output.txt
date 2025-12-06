@@ -1,0 +1,18 @@
+C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\@supabase+supabase-js@2.84.0\node_modules\@supabase\supabase-js\src\lib\helpers.ts:86
+    throw new Error('supabaseUrl is required.')
+          ^
+
+
+Error: supabaseUrl is required.
+    at validateSupabaseUrl (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\@supabase+supabase-js@2.84.0\node_modules\@supabase\supabase-js\src\lib\helpers.ts:86:11)
+    at new SupabaseClient (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\@supabase+supabase-js@2.84.0\node_modules\@supabase\supabase-js\src\SupabaseClient.ts:117:40)
+    at createClient (C:\workspace\antigravity\worklog-mcr\node_modules\.pnpm\@supabase+supabase-js@2.84.0\node_modules\@supabase\supabase-js\src\index.ts:54:10)
+    at <anonymous> (C:\workspace\antigravity\worklog-mcr\lib\supabase.ts:7:25)
+    at Object.<anonymous> (C:\workspace\antigravity\worklog-mcr\lib\supabase.ts:7:66)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Object.transformer (C:\Users\finemax\AppData\Local\npm-cache\_npx\fd45a72a545557e9\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Function._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+
+Node.js v22.18.0

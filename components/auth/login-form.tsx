@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DevLoginButtons } from "./dev-login-buttons"
 
 interface LoginFormProps {
     mode?: 'default' | 'handover'
@@ -97,12 +98,33 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
         }
     }
 
+    // --- DEV HELPERS ---
+    const [bypassShiftCheck, setBypassShiftCheck] = useState(false)
+    const [isDev, setIsDev] = useState(false)
+
+    useEffect(() => {
+        setIsDev(process.env.NODE_ENV === 'development')
+    }, [])
+
+    const handleDevLogin = (devEmail: string, devPassword: string) => {
+        setEmail(devEmail)
+        setPassword(devPassword)
+        // toast.info("테스트 계정 정보가 입력되었습니다. 로그인을 클릭하세요.")
+    }
+    // -------------------
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError(null)
         try {
-            const { user, profile } = await authService.login(email, password)
+            // [NEW] Normalize email: Append domain if missing
+            let normalizedEmail = email.trim()
+            if (!normalizedEmail.includes('@')) {
+                normalizedEmail += '@mbcplus.com'
+            }
+
+            const { user, profile } = await authService.login(normalizedEmail, password)
 
             if (mode === 'default') {
                 setGlobalUser(profile)
@@ -124,8 +146,7 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
                     // Handover Mode
 
                     // --- SHIFT VALIDATION START ---
-                    // 1. Get Current Session Info from Store (or passed props if needed, but store is safer)
-                    // We need to know the CURRENT team and CURRENT shift type to calculate the NEXT one.
+                    // 1. Get Current Session Info from Store
                     const currentSession = useAuthStore.getState().currentSession
 
                     if (!currentSession) {
@@ -133,31 +154,47 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
                         return
                     }
 
-                    // Determine current shift type (Day/Night)
-                    // We can infer this from the current time or the session start time.
-                    // But a safer way is to check the current time against the shift boundaries.
-                    const now = new Date()
-                    const hours = now.getHours()
-                    const minutes = now.getMinutes()
-                    const timeInMinutes = hours * 60 + minutes
-                    const dayStart = 7 * 60 + 30 // 07:30
-                    const dayEnd = 18 * 60 + 30 // 18:30
-                    const isDayShift = timeInMinutes >= dayStart && timeInMinutes < dayEnd
-                    const currentShiftType = isDayShift ? 'day' : 'night'
+                    // Only perform validation if NOT bypassing
+                    if (!bypassShiftCheck) {
+                        // Determine current shift type (Day/Night)
+                        const now = new Date()
+                        const hours = now.getHours()
+                        const minutes = now.getMinutes()
+                        const timeInMinutes = hours * 60 + minutes
+                        const dayStart = 7 * 60 + 30 // 07:30
+                        const dayEnd = 18 * 60 + 30 // 18:30
+                        const isDayShift = timeInMinutes >= dayStart && timeInMinutes < dayEnd
+                        const currentShiftType = isDayShift ? 'day' : 'night'
 
-                    // 2. Fetch Active Shift Config
-                    const { shiftService } = await import("@/lib/shift-rotation")
-                    const config = await shiftService.getConfig()
+                        // 2. Fetch Active Shift Config
+                        const { shiftService } = await import("@/lib/shift-rotation")
+                        const config = await shiftService.getConfig()
 
-                    if (config) {
-                        // 3. Calculate Expected Next Team
-                        const expectedNextTeam = shiftService.getNextTeam(currentSession.groupName, currentShiftType, config)
+                        if (config) {
+                            // 3. Calculate Expected Current & Next Team
+                            // We need to check if the logging-in user is EITHER the Current Worker (re-login) OR Next Worker (handover)
+                            // Actually, for Handover Mode, it usually implies switching to the NEXT worker.
+                            // But if the Current Worker tries to login again in Handover mode, should we allow?
+                            // The user said: "현재 근무자가 아닌 상태에서 조별 모드로그인을 하려고 하면 할 수 없다고 메시지를 해주고, 단 다음 교대 근무자일 경우는 다음 교대 근무자로 로그인 처리를 해주면 돼"
+                            // This implies: Only Current Worker OR Next Worker can login.
+                            // If I am Team A (Current), I can login.
+                            // If I am Team B (Next), I can login.
+                            // If I am Team C (Random), I CANNOT login.
 
-                        // 4. Validate
-                        if (expectedNextTeam && expectedNextTeam !== groupData.name) {
-                            setError(`다음 근무자가 아닙니다. 다음 근무자(조) 로그인을 할 수가 없습니다.\n이 공용PC가 아닌 다른 개인PC를 이용하세요.\n(예상: ${expectedNextTeam}, 입력: ${groupData.name})`)
-                            return // Block Login
+                            const currentWorkerTeam = currentSession.groupName
+                            const expectedNextTeam = shiftService.getNextTeam(currentWorkerTeam, currentShiftType, config)
+
+                            // Also check if the logging-in group IS the current worker (re-authentication)
+                            const isCurrentWorker = groupData.name === currentWorkerTeam
+                            const isNextWorker = expectedNextTeam && expectedNextTeam === groupData.name
+
+                            if (!isCurrentWorker && !isNextWorker) {
+                                setError(`현재 근무자 또는 다음 교대 근무자가 아닙니다.\n로그인을 할 수 없습니다.\n(현재: ${currentWorkerTeam}, 다음: ${expectedNextTeam || '없음'})`)
+                                return // Block Login
+                            }
                         }
+                    } else {
+                        toast.warning("개발자 모드: 근무 교대 검증을 건너뛰었습니다.")
                     }
                     // --- SHIFT VALIDATION END ---
 
@@ -224,8 +261,8 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
                     <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                     <Input
                         id="email"
-                        type="email"
-                        placeholder="name@mbcplus.com"
+                        type="text"
+                        placeholder="아이디 또는 name@mbcplus.com"
                         className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all rounded-xl"
                         required
                         value={email}
@@ -272,6 +309,11 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
             >
                 {loading ? "로그인 중..." : (mode === 'handover' ? "교대 근무 로그인" : "로그인")}
             </Button>
+
+            {/* DEV ONLY: Quick Login Helpers */}
+            {isDev && (
+                <DevLoginButtons onLogin={handleDevLogin} bypassShiftCheck={bypassShiftCheck} setBypassShiftCheck={setBypassShiftCheck} mode={mode} />
+            )}
 
             <AlertDialog open={autoLogDialogOpen} onOpenChange={setAutoLogDialogOpen}>
                 <AlertDialogContent>

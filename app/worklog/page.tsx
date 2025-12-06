@@ -10,9 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X } from "lucide-react"
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X, AlertCircle, CheckCircle2, Upload } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useWorklogStore, Worklog } from "@/store/worklog"
+import { supabase } from "@/lib/supabase"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -24,6 +25,7 @@ import { useWorklogTabStore } from "@/store/worklog-tab-store"
 import { WorklogDetail } from "@/components/worklog/worklog-detail"
 import { toast } from "sonner"
 import { useAuthStore } from "@/store/auth"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type SortConfig = {
   key: keyof Worklog
@@ -37,6 +39,48 @@ function WorklogListView() {
   const fetchWorklogs = useWorklogStore((state) => state.fetchWorklogs)
   const { addTab } = useWorklogTabStore()
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
+  const [groupMembers, setGroupMembers] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchGroupMembers = async () => {
+      const { data } = await supabase
+        .from('group_members')
+        .select(`
+          *,
+          groups (name),
+          users (name)
+        `)
+      if (data) setGroupMembers(data)
+    }
+    fetchGroupMembers()
+  }, [])
+
+  const getWorkerChanges = (log: Worklog) => {
+    if (!groupMembers.length) return null
+
+    const groupName = log.groupName
+    const currentGroupMembers = groupMembers.filter(m => m.groups?.name === groupName)
+
+    // Get list of standard members for this group
+    const standardMemberNames = currentGroupMembers.map(m => m.users?.name).filter(Boolean)
+
+    // Get list of actual workers in the log
+    const actualWorkers = [
+      ...log.workers.director,
+      ...log.workers.assistant,
+      ...log.workers.video
+    ]
+
+    // Find added workers (in actual but not in standard)
+    const added = actualWorkers.filter(w => !standardMemberNames.includes(w))
+    // Find missing workers (in standard but not in actual)
+    // const missing = standardMemberNames.filter(m => !actualWorkers.includes(m))
+
+    if (added.length > 0) {
+      return { type: 'change', count: added.length, names: added }
+    }
+    return null
+  }
 
   useEffect(() => {
     fetchWorklogs()
@@ -236,10 +280,12 @@ function WorklogListView() {
   }
 
   const handleRowClick = (log: Worklog) => {
-    // Check if this is today's worklog (simple date check for now, can be more specific)
-    const isTodayLog = isWorkingNow(log) || log.date === format(new Date(), 'yyyy-MM-dd')
+    // Check if this is the currently active worklog
+    // We only redirect to "Today Mode" if it's the session currently happening.
+    // Past sessions of today (e.g. Day shift when it's Night) should open as normal tabs.
+    const isActiveSession = isWorkingNow(log)
 
-    if (isTodayLog) {
+    if (isActiveSession) {
       router.push('/worklog?mode=today')
       return
     }
@@ -383,106 +429,144 @@ function WorklogListView() {
                     </span>
                   </Button>
                 </TableHead>
+                <TableHead className="text-center">비고</TableHead>
+                <TableHead className="text-center">이슈</TableHead>
+                <TableHead className="text-center">인계</TableHead>
                 <TableHead className="text-center">결제</TableHead>
                 <TableHead className="text-center">AI요약</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedWorklogs.map((log) => (
-                <TableRow
-                  key={log.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleRowClick(log)}
-                >
-                  <TableCell className="font-medium text-center">{log.date}</TableCell>
-                  <TableCell className="text-center">{log.groupName}</TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline">{log.type}</Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {[...log.workers.director, ...log.workers.assistant, ...log.workers.video]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {(() => {
-                      const isWorking = isWorkingNow(log)
-
-                      // Calculate work end time to determine if work has ended
-                      const [year, month, day] = log.date.split('-').map(Number)
-                      let end = new Date(year, month - 1, day)
-                      if (log.type === '주간') {
-                        end.setHours(18, 30, 0, 0)
-                      } else {
-                        end.setDate(end.getDate() + 1)
-                        end.setHours(8, 0, 0, 0)
-                      }
-                      const isWorkEnded = new Date() > end
-
-                      let displayStatus: string = log.status
-                      if (log.status === '작성중') {
-                        if (isWorking) {
-                          displayStatus = '근무중'
-                        } else if (isWorkEnded) {
-                          displayStatus = '결제중'
+              {sortedWorklogs.map((log) => {
+                const workerChanges = getWorkerChanges(log)
+                return (
+                  <TableRow
+                    key={log.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleRowClick(log)}
+                  >
+                    <TableCell className="font-medium text-center">{log.date}</TableCell>
+                    <TableCell className="text-center">{log.groupName}</TableCell>
+                    <TableCell className="text-center">{log.type}</TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {[
+                          ...log.workers.director,
+                          ...log.workers.assistant,
+                          ...log.workers.video
+                        ].join(', ')}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={
+                          isWorkingNow(log) && log.status === '작성중' ? 'default' :
+                            (log.status === '작성중' ? 'secondary' :
+                              (log.status === '일지확정' ? 'default' :
+                                (log.status === '결재완료' ? 'default' : 'outline')))
                         }
-                      }
-
-                      return (
-                        <Badge
-                          variant={
-                            log.status === "서명완료" ? "secondary" :
-                              log.status === "근무종료" ? "destructive" :
-                                "default"
-                          }
-                          className={
-                            log.status === "근무종료" ? "bg-amber-500 hover:bg-amber-600" :
-                              displayStatus === "근무중" ? "bg-green-600 hover:bg-green-700" :
-                                displayStatus === "결제중" ? "bg-orange-500 hover:bg-orange-600" :
-                                  ""
-                          }
-                        >
-                          {displayStatus}
-                        </Badge>
-                      )
-                    })()}
-                  </TableCell>
-                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-center">
-                      <Checkbox
-                        checked={log.isImportant}
-                        onCheckedChange={(checked) => handleImportantToggle(log.id, checked as boolean)}
-                        className="border border-gray-400 data-[state=checked]:border-primary"
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <span className="text-sm text-muted-foreground">{log.signature}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSummaryClick(log)}
-                        className={log.aiSummary ? "opacity-100" : "opacity-80 grayscale hover:opacity-100 hover:grayscale-0 transition-all"}
+                        className={cn(
+                          "text-xs",
+                          isWorkingNow(log) && log.status === '작성중' && "bg-green-600 hover:bg-green-700",
+                          log.status === '일지확정' && "bg-indigo-600 hover:bg-indigo-700",
+                          log.status === '결재완료' && "bg-slate-600 hover:bg-slate-700"
+                        )}
                       >
-                        <span className="text-lg">✨</span>
-                        <span className="sr-only">AI 요약</span>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        {isWorkingNow(log) && log.status === '작성중' ? '근무중' : (log.status === '일지확정' ? '확정됨' : log.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={log.isImportant}
+                          onCheckedChange={(checked) => handleImportantToggle(log.id, checked as boolean)}
+                          className="border border-gray-400 data-[state=checked]:border-primary"
+                        />
+                      </div>
+                    </TableCell>
+
+                    {/* Worker Changes Column */}
+                    <TableCell className="text-center">
+                      {workerChanges && (
+                        <div className="flex justify-center group relative">
+                          <Badge variant="destructive" className="text-[10px] px-1 py-0 h-5">
+                            교체/추가
+                          </Badge>
+                          {/* Tooltip */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                            <div className="bg-black text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                              +{workerChanges.names.join(', ')}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+
+                    {/* Issue Level Column */}
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        {log.maxPriority === '긴급' && (
+                          <Badge variant="destructive" className="text-[10px] px-1 py-0 h-5 animate-pulse">
+                            긴급
+                          </Badge>
+                        )}
+                        {log.maxPriority === '중요' && (
+                          <Badge variant="default" className="text-[10px] px-1 py-0 h-5 bg-orange-500 hover:bg-orange-600">
+                            중요
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Handover Status Column */}
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        {log.signatures?.operation && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div>
+                                  <Upload className="h-4 w-4 text-blue-500" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>운행 인계 완료</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-sm text-muted-foreground">{log.signature}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSummaryClick(log)}
+                          className={log.aiSummary ? "opacity-100" : "opacity-80 grayscale hover:opacity-100 hover:grayscale-0 transition-all"}
+                        >
+                          <span className="text-lg">✨</span>
+                          <span className="sr-only">AI 요약</span>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
-      </Card>
+      </Card >
 
       {/* AI Summary Dialog */}
-      <Dialog open={summaryDialog.open} onOpenChange={(open) => setSummaryDialog({ open, worklog: null, loading: false })}>
+      < Dialog open={summaryDialog.open} onOpenChange={(open) => setSummaryDialog({ open, worklog: null, loading: false })
+      }>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -554,7 +638,7 @@ function WorklogListView() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
     </div >
   )
 }
@@ -648,32 +732,11 @@ function WorkLogPageContent() {
     }
   }, [searchParams, worklogs, tabs, addTab, mode])
 
-  // Effect 3: Clean up Today's log from tabs
-  useEffect(() => {
-    if (currentSession) {
-      const today = format(new Date(), 'yyyy-MM-dd')
-      const now = new Date()
-      const hour = now.getHours()
-      const isDayShift = hour >= 7 && hour < 18
-      const currentShiftType = isDayShift ? '주간' : '야간'
+  // Effect 3: Clean up Today's log from tabs - REMOVED to prevent infinite loop
+  // The handleRowClick logic already redirects to mode=today for active sessions.
+  // If a tab exists for the active session (e.g. via direct URL), we should let it exist
+  // rather than fighting with Effect 2 which tries to add it back.
 
-      const todayLog = worklogs.find(w =>
-        w.date === today &&
-        w.groupName === currentSession.groupName &&
-        w.type === currentShiftType
-      )
-
-      if (todayLog) {
-        const tabToRemove = tabs.find(t => t.id === String(todayLog.id))
-        if (tabToRemove) {
-          removeTab(tabToRemove.id)
-          if (activeTab === tabToRemove.id) {
-            setActiveTab('list')
-          }
-        }
-      }
-    }
-  }, [worklogs, currentSession, tabs, removeTab, activeTab, setActiveTab])
 
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()

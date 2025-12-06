@@ -18,7 +18,7 @@ export interface Worklog {
         assistant: string[]
         video: string[]
     }
-    status: '작성중' | '근무종료' | '서명완료'
+    status: '작성중' | '근무종료' | '서명완료' | '일지확정' | '결재완료'
     signature: string
     signatures?: {
         operation: string | null
@@ -31,6 +31,7 @@ export interface Worklog {
     aiSummary?: string
     channelLogs?: { [key: string]: ChannelLog }
     systemIssues?: { id: string; summary: string }[]
+    maxPriority?: '긴급' | '중요' | '일반' | null
 }
 
 interface WorklogStore {
@@ -49,7 +50,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .from('worklogs')
             .select(`
                 *,
-                group:groups(name)
+                group:groups(name),
+                posts(priority)
             `)
             .order('date', { ascending: false })
             .order('type', { ascending: true }) // '야간' < '주간', so Night comes first (Latest)
@@ -59,21 +61,33 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             return
         }
 
-        const formattedWorklogs: Worklog[] = data.map((log: any) => ({
-            id: log.id,
-            date: log.date,
-            groupName: log.group_name || log.group?.name || 'Unknown', // Map group_name column
-            type: log.type,
-            workers: log.workers || { director: [], assistant: [], video: [] },
-            status: log.status,
-            signature: log.signature || "0/4",
-            signatures: log.signatures || { operation: null, mcr: null, team_leader: null, network: null },
-            isImportant: false,
-            isAutoCreated: log.is_auto_created || false,
-            aiSummary: log.ai_summary,
-            channelLogs: log.channel_logs || {},
-            systemIssues: log.system_issues || []
-        }))
+        const formattedWorklogs: Worklog[] = data.map((log: any) => {
+            // Calculate max priority
+            let maxPriority: '긴급' | '중요' | '일반' | null = null
+            if (log.posts && log.posts.length > 0) {
+                const priorities = log.posts.map((p: any) => p.priority)
+                if (priorities.includes('긴급')) maxPriority = '긴급'
+                else if (priorities.includes('중요')) maxPriority = '중요'
+                else if (priorities.includes('일반')) maxPriority = '일반'
+            }
+
+            return {
+                id: log.id,
+                date: log.date,
+                groupName: log.group_name || log.group?.name || 'Unknown', // Map group_name column
+                type: log.type,
+                workers: log.workers || { director: [], assistant: [], video: [] },
+                status: log.status,
+                signature: log.signature || "0/4",
+                signatures: log.signatures || { operation: null, mcr: null, team_leader: null, network: null },
+                isImportant: false,
+                isAutoCreated: log.is_auto_created || false,
+                aiSummary: log.ai_summary,
+                channelLogs: log.channel_logs || {},
+                systemIssues: log.system_issues || [],
+                maxPriority
+            }
+        })
 
         set({ worklogs: formattedWorklogs })
     },

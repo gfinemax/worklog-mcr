@@ -49,15 +49,39 @@ export function GuestLoginDialog({ open, onOpenChange }: GuestLoginDialogProps) 
         e.preventDefault()
         setLoading(true)
         try {
-            const { profile } = await authService.login(email, password)
+            // [NEW] Normalize email: Append domain if missing
+            let normalizedEmail = email.trim()
+            if (!normalizedEmail.includes('@')) {
+                normalizedEmail += '@mbcplus.com'
+            }
 
-            // Set guest session with 5 minute expiration
-            setGuestSession({
-                user: profile,
-                expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
-            })
+            const { profile } = await authService.login(normalizedEmail, password)
 
-            toast.success(`${profile.name}님, 게스트로 로그인되었습니다.`)
+            // [NEW] Check if user is "Support Team" (Admin-like)
+            // If so, do a FULL login instead of Guest login
+            const userGroup: any = await authService.getUserGroup(profile.id)
+            // Handle both array (if implied) and object returns
+            const groupName = Array.isArray(userGroup) ? userGroup[0]?.name : userGroup?.name
+            const isSupport = profile.type === 'support' || (groupName === '관리팀')
+
+            if (isSupport) {
+                // Full Login Logic
+                const { setUser, setGroup, setLoginMode, setDeviceMode } = useAuthStore.getState()
+                setUser(profile)
+                setGroup(userGroup)
+                setLoginMode('personal') // or 'shift' - 'personal' seems safer for individual login
+                setDeviceMode('personal')
+
+                toast.success(`${profile.name}님 (관리팀), 정식 로그인되었습니다.`)
+            } else {
+                // Guest Login Logic (Restricted)
+                setGuestSession({
+                    user: profile,
+                    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+                })
+                toast.success(`${profile.name}님, 게스트로 로그인되었습니다.`)
+            }
+
             onOpenChange(false)
             setEmail("")
             setPassword("")
@@ -119,11 +143,11 @@ export function GuestLoginDialog({ open, onOpenChange }: GuestLoginDialogProps) 
 
                 <form onSubmit={handleLogin} className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="guest-email">이메일</Label>
+                        <Label htmlFor="guest-email">사번 / 이메일</Label>
                         <Input
                             id="guest-email"
-                            type="email"
-                            placeholder="name@mbcplus.com"
+                            type="text"
+                            placeholder="아이디 또는 name@mbcplus.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required

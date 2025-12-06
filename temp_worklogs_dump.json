@@ -1,0 +1,104 @@
+[
+  {
+    "id": "be2089c8-d8e6-4778-ada7-8fa2ea35c2ae",
+    "session_id": null,
+    "date": "2025-12-05",
+    "group_name": "3조",
+    "type": "주간",
+    "workers": {
+      "video": [
+        "김소연"
+      ],
+      "director": [
+        "남궁장"
+      ],
+      "assistant": [
+        "이종원"
+      ]
+    },
+    "status": "작성중",
+    "signature": "0/4",
+    "is_important": false,
+    "created_at": "2025-12-05T12:53:23.88738+00:00",
+    "updated_at": "2025-12-05T12:53:23.88738+00:00",
+    "channel_logs": {},
+    "system_issues": [],
+    "group_id": "93217bdd-fc2e-49e1-b826-333ad8e20d45",
+    "ai_summary": null,
+    "signatures": {
+      "mcr": null,
+      "network": null,
+      "operation": null,
+      "team_leader": null
+    },
+    "is_auto_created": false
+  },
+  {
+    "id": "c0c16d93-b199-45e0-b50d-f86fe8712cdb",
+    "session_id": null,
+    "date": "2025-12-05",
+    "group_name": "4조",
+    "type": "주간",
+    "workers": {
+      "video": [
+        "심창규"
+      ],
+      "director": [
+        "손수민"
+      ],
+      "assistant": [
+        "김희성"
+      ]
+    },
+    "status": "작성중",
+    "signature": "0/4",
+    "is_important": false,
+    "created_at": "2025-12-05T02:56:49.320673+00:00",
+    "updated_at": "2025-12-05T02:56:49.320673+00:00",
+    "channel_logs": {},
+    "system_issues": [],
+    "group_id": "7d144832-a04c-4b8d-86bd-75a756be180b",
+    "ai_summary": null,
+    "signatures": {
+      "mcr": null,
+      "network": null,
+      "operation": null,
+      "team_leader": null
+    },
+    "is_auto_created": false
+  },
+  {
+    "id": "bc03f973-b1b5-4bd7-8a47-00de1c2b5d8a",
+    "session_id": null,
+    "date": "2025-12-05",
+    "group_name": "3조",
+    "type": "야간",
+    "workers": {
+      "video": [
+        "김소연"
+      ],
+      "director": [
+        "남궁장"
+      ],
+      "assistant": [
+        "이종원"
+      ]
+    },
+    "status": "작성중",
+    "signature": "0/4",
+    "is_important": false,
+    "created_at": "2025-12-05T12:28:46.17855+00:00",
+    "updated_at": "2025-12-05T12:28:46.17855+00:00",
+    "channel_logs": {},
+    "system_issues": [],
+    "group_id": "93217bdd-fc2e-49e1-b826-333ad8e20d45",
+    "ai_summary": null,
+    "signatures": {
+      "mcr": null,
+      "network": null,
+      "operation": null,
+      "team_leader": null
+    },
+    "is_auto_created": false
+  }
+]

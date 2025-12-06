@@ -245,7 +245,7 @@ export function Step2Roster({ data, onChange, onNext, onBack }: Step2RosterProps
                                             </div>
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {/* Quick move buttons */}
-                                                <div className="flex flex-wrap gap-1 justify-end max-w-[100px]">
+                                                <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
                                                     {teams.map(t => (
                                                         <Button
                                                             key={t}

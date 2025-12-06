@@ -48,6 +48,7 @@ export function ConfigHistoryList() {
                 user:users(name),
                 group:groups(name)
             `)
+            .order('display_order', { ascending: true })
 
         if (members) {
             const teamMap: Record<string, string[]> = {}

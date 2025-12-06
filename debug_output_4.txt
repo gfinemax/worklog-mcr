@@ -1,0 +1,38 @@
+[dotenv@17.2.3] injecting env (4) from .env.local -- tip: ?뵍 prevent building .env in docker: https://dotenvx.com/prebuild
+--- Debugging Login Logic ---
+Target Date: 2025-12-05T00:00:00.000Z
+Target Group: 4議?All Configs: [
+  {
+    "id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "valid_from": "2025-11-15",
+    "created_at": "2025-12-01T12:03:33.386423+00:00",
+    "day1_swap": false
+  }
+]
+Shift Info: {
+  "date": "2025-12-05",
+  "team": "4議?,
+  "shiftType": "A",
+  "roles": {
+    "director": 0,
+    "assistant": 1,
+    "video": 2
+  },
+  "isSwap": false
+}
+Calculated Day Index: 0 (Day 1)
+Pattern for this day: {
+  "A": {
+    "team": "4議?,
+    "is_swap": false
+  },
+  "N": {
+    "team": "3議?,
+    "is_swap": false
+  },
+  "day": 0
+}
+Raw Members: 沅뚯쁺異?(遺媛먮룆), 源?ъ꽦 (媛먮룆), ?ъ갹洹?(?곸긽)
+Sorted Members (Static): 源?ъ꽦, 沅뚯쁺異? ?ъ갹洹?Applying Roles -> Director Index: 0, Assistant Index: 1
+Assigned Director to: 源?ъ꽦
+Assigned Assistant to: 沅뚯쁺異?Final Session Members: 源?ъ꽦 (媛먮룆), 沅뚯쁺異?(遺媛먮룆), ?ъ갹洹?(?곸긽)

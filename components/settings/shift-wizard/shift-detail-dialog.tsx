@@ -109,11 +109,38 @@ export function ShiftDetailDialog({ config, open, onOpenChange, teamMembers = {}
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-bold bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded border border-yellow-200">주간(A)</span>
                                                         <span className="font-semibold text-slate-900">{day.A.team}</span>
+                                                        {day.A.is_swap && <Badge variant="outline" className="h-4 px-1 text-[9px] border-orange-200 text-orange-600 bg-orange-50">SWAP</Badge>}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground pl-1 break-keep leading-snug">
-                                                        {teamMembers?.[day.A.team]?.length > 0
-                                                            ? teamMembers[day.A.team].join(', ')
-                                                            : <span className="text-slate-300">-</span>}
+                                                        {(() => {
+                                                            const members = teamMembers?.[day.A.team] || []
+                                                            if (members.length === 0) return <span className="text-slate-300">-</span>
+
+                                                            let displayMembers = [...members]
+                                                            if (day.A.is_swap && displayMembers.length >= 2) {
+                                                                const temp = displayMembers[0]
+                                                                displayMembers[0] = displayMembers[1]
+                                                                displayMembers[1] = temp
+                                                            }
+
+                                                            return (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {displayMembers.map((name, idx) => {
+                                                                        let roleLabel = ''
+                                                                        if (idx === 0) roleLabel = '감독'
+                                                                        else if (idx === 1) roleLabel = '부감독'
+                                                                        else if (idx === 2) roleLabel = '영상'
+
+                                                                        return (
+                                                                            <span key={idx} className="inline-flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                                                                <span>{name}</span>
+                                                                                {roleLabel && <span className="text-[9px] text-slate-400 font-normal">({roleLabel})</span>}
+                                                                            </span>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            )
+                                                        })()}
                                                     </div>
                                                 </div>
 
@@ -122,11 +149,38 @@ export function ShiftDetailDialog({ config, open, onOpenChange, teamMembers = {}
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-bold bg-slate-800 text-white px-1.5 py-0.5 rounded border border-slate-700">야간(S)</span>
                                                         <span className="font-semibold text-slate-900">{day.N.team}</span>
+                                                        {day.N.is_swap && <Badge variant="outline" className="h-4 px-1 text-[9px] border-orange-200 text-orange-600 bg-orange-50">SWAP</Badge>}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground pl-1 break-keep leading-snug">
-                                                        {teamMembers?.[day.N.team]?.length > 0
-                                                            ? teamMembers[day.N.team].join(', ')
-                                                            : <span className="text-slate-300">-</span>}
+                                                        {(() => {
+                                                            const members = teamMembers?.[day.N.team] || []
+                                                            if (members.length === 0) return <span className="text-slate-300">-</span>
+
+                                                            let displayMembers = [...members]
+                                                            if (day.N.is_swap && displayMembers.length >= 2) {
+                                                                const temp = displayMembers[0]
+                                                                displayMembers[0] = displayMembers[1]
+                                                                displayMembers[1] = temp
+                                                            }
+
+                                                            return (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {displayMembers.map((name, idx) => {
+                                                                        let roleLabel = ''
+                                                                        if (idx === 0) roleLabel = '감독'
+                                                                        else if (idx === 1) roleLabel = '부감독'
+                                                                        else if (idx === 2) roleLabel = '영상'
+
+                                                                        return (
+                                                                            <span key={idx} className="inline-flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                                                                <span>{name}</span>
+                                                                                {roleLabel && <span className="text-[9px] text-slate-400 font-normal">({roleLabel})</span>}
+                                                                            </span>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            )
+                                                        })()}
                                                     </div>
                                                 </div>
                                             </div>

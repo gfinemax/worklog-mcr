@@ -43,23 +43,35 @@ export async function GET(request: Request) {
                 .eq('date', todayStr)
                 .eq('type', '주간')
                 .neq('status', '서명완료')
+                .neq('status', '근무종료') // Don't touch if already closed by Director
 
             if (staleDayLogs && staleDayLogs.length > 0) {
                 for (const log of staleDayLogs) {
-                    const newSignatures = {
-                        ...(log.signatures || {}),
-                        operation: 'System Auto-Close',
-                        leader: 'System Auto-Close'
+                    // Check if Operation is pre-signed
+                    const isPreSigned = log.signatures?.operation && log.signatures.operation.length > 0
+
+                    let newSignatures = log.signatures || {}
+                    if (!isPreSigned) {
+                        newSignatures = {
+                            ...newSignatures,
+                            operation: 'System Auto-Close',
+                            leader: 'System Auto-Close'
+                        }
                     }
+
                     const newIssues = [
                         ...(log.systemIssues || []),
-                        { id: crypto.randomUUID(), summary: '근무 종료 시간(19:00) 10분 초과로 인한 시스템 자동 종료' }
+                        {
+                            id: crypto.randomUUID(), summary: isPreSigned
+                                ? '근무 종료 시간(19:00) 경과로 인한 시스템 자동 마감 (사전 결재 완료)'
+                                : '근무 종료 시간(19:00) 10분 초과로 인한 시스템 자동 종료'
+                        }
                     ]
 
                     await supabaseAdmin
                         .from('worklogs')
                         .update({
-                            status: '서명완료',
+                            status: '근무종료', // Use '근무종료' as final state for now, or '서명완료' if that's the convention
                             signatures: newSignatures,
                             systemIssues: newIssues,
                             signature: '4/4' // Legacy support
@@ -86,23 +98,35 @@ export async function GET(request: Request) {
                 .eq('date', yesterdayStr)
                 .eq('type', '야간')
                 .neq('status', '서명완료')
+                .neq('status', '근무종료') // Don't touch if already closed by Director
 
             if (staleNightLogs && staleNightLogs.length > 0) {
                 for (const log of staleNightLogs) {
-                    const newSignatures = {
-                        ...(log.signatures || {}),
-                        operation: 'System Auto-Close',
-                        leader: 'System Auto-Close'
+                    // Check if Operation is pre-signed
+                    const isPreSigned = log.signatures?.operation && log.signatures.operation.length > 0
+
+                    let newSignatures = log.signatures || {}
+                    if (!isPreSigned) {
+                        newSignatures = {
+                            ...newSignatures,
+                            operation: 'System Auto-Close',
+                            leader: 'System Auto-Close'
+                        }
                     }
+
                     const newIssues = [
                         ...(log.systemIssues || []),
-                        { id: crypto.randomUUID(), summary: '근무 종료 시간(08:00) 10분 초과로 인한 시스템 자동 종료' }
+                        {
+                            id: crypto.randomUUID(), summary: isPreSigned
+                                ? '근무 종료 시간(08:00) 경과로 인한 시스템 자동 마감 (사전 결재 완료)'
+                                : '근무 종료 시간(08:00) 10분 초과로 인한 시스템 자동 종료'
+                        }
                     ]
 
                     await supabaseAdmin
                         .from('worklogs')
                         .update({
-                            status: '서명완료',
+                            status: '근무종료', // Use '근무종료' as final state
                             signatures: newSignatures,
                             systemIssues: newIssues,
                             signature: '4/4' // Legacy support

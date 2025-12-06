@@ -207,19 +207,38 @@ export default function ShiftDetailPage() {
                                                             <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                                                                 {day.A.team}
                                                             </Badge>
+                                                            {day.A.is_swap && <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-orange-200 text-orange-600 bg-orange-50">SWAP</Badge>}
                                                         </div>
                                                         <div className="text-sm text-slate-600 pl-1">
-                                                            {teamMembers?.[day.A.team]?.length > 0 ? (
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {teamMembers[day.A.team].map((member, idx) => (
-                                                                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
-                                                                            {member}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-slate-300">-</span>
-                                                            )}
+                                                            {(() => {
+                                                                const members = teamMembers?.[day.A.team] || []
+                                                                if (members.length === 0) return <span className="text-slate-300">-</span>
+
+                                                                let displayMembers = [...members]
+                                                                if (day.A.is_swap && displayMembers.length >= 2) {
+                                                                    const temp = displayMembers[0]
+                                                                    displayMembers[0] = displayMembers[1]
+                                                                    displayMembers[1] = temp
+                                                                }
+
+                                                                return (
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {displayMembers.map((name, idx) => {
+                                                                            let roleLabel = ''
+                                                                            if (idx === 0) roleLabel = '감독'
+                                                                            else if (idx === 1) roleLabel = '부감독'
+                                                                            else if (idx === 2) roleLabel = '영상'
+
+                                                                            return (
+                                                                                <span key={idx} className="inline-flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                                                                    <span>{name}</span>
+                                                                                    {roleLabel && <span className="text-[9px] text-slate-400 font-normal">({roleLabel})</span>}
+                                                                                </span>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
+                                                            })()}
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -229,19 +248,38 @@ export default function ShiftDetailPage() {
                                                             <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">
                                                                 {day.N.team}
                                                             </Badge>
+                                                            {day.N.is_swap && <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-orange-200 text-orange-600 bg-orange-50">SWAP</Badge>}
                                                         </div>
                                                         <div className="text-sm text-slate-600 pl-1">
-                                                            {teamMembers?.[day.N.team]?.length > 0 ? (
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {teamMembers[day.N.team].map((member, idx) => (
-                                                                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
-                                                                            {member}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-slate-300">-</span>
-                                                            )}
+                                                            {(() => {
+                                                                const members = teamMembers?.[day.N.team] || []
+                                                                if (members.length === 0) return <span className="text-slate-300">-</span>
+
+                                                                let displayMembers = [...members]
+                                                                if (day.N.is_swap && displayMembers.length >= 2) {
+                                                                    const temp = displayMembers[0]
+                                                                    displayMembers[0] = displayMembers[1]
+                                                                    displayMembers[1] = temp
+                                                                }
+
+                                                                return (
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {displayMembers.map((name, idx) => {
+                                                                            let roleLabel = ''
+                                                                            if (idx === 0) roleLabel = '감독'
+                                                                            else if (idx === 1) roleLabel = '부감독'
+                                                                            else if (idx === 2) roleLabel = '영상'
+
+                                                                            return (
+                                                                                <span key={idx} className="inline-flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                                                                    <span>{name}</span>
+                                                                                    {roleLabel && <span className="text-[9px] text-slate-400 font-normal">({roleLabel})</span>}
+                                                                                </span>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )
+                                                            })()}
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -254,6 +292,6 @@ export default function ShiftDetailPage() {
                     </div>
                 )}
             </div>
-        </MainLayout>
+        </MainLayout >
     )
 }
