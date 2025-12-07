@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X, AlertCircle, CheckCircle2, Upload } from "lucide-react"
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X, AlertCircle, CheckCircle2, Upload, LayoutList } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useWorklogStore, Worklog } from "@/store/worklog"
 import { supabase } from "@/lib/supabase"
@@ -231,11 +231,21 @@ function WorklogListView() {
           bValue = b.workers.director[0] || ''
         }
 
-        // Special handling for status sorting (include '근무중')
+        // Special handling for status sorting (include '근무중' and '대기중')
         if (sortConfig.key === 'status') {
           const getEffectiveStatus = (log: Worklog) => {
-            if (isWorkingNow(log) && log.status === '작성중') return '근무중'
-            return log.status
+            if (log.status !== '작성중') return log.status
+            if (isWorkingNow(log)) return '근무중'
+
+            // Check for Future (Waiting)
+            const now = new Date()
+            const [year, month, day] = log.date.split('-').map(Number)
+            let start = new Date(year, month - 1, day)
+            if (log.type === '주간') start.setHours(7, 30, 0, 0)
+            else start.setHours(18, 30, 0, 0)
+
+            if (now < start) return '대기중'
+            return '작성중'
           }
           aValue = getEffectiveStatus(a)
           bValue = getEffectiveStatus(b)
@@ -468,11 +478,40 @@ function WorklogListView() {
                         className={cn(
                           "text-xs",
                           isWorkingNow(log) && log.status === '작성중' && "bg-green-600 hover:bg-green-700",
+                          // [NEW] 'Waiting' style for future logs
+                          !isWorkingNow(log) && log.status === '작성중' && (
+                            (() => {
+                              const now = new Date()
+                              const [year, month, day] = log.date.split('-').map(Number)
+                              let start = new Date(year, month - 1, day)
+                              if (log.type === '주간') start.setHours(7, 30, 0, 0)
+                              else start.setHours(18, 30, 0, 0)
+                              return now < start
+                            })()
+                          ) && "bg-amber-100 text-amber-800 hover:bg-amber-200",
                           log.status === '일지확정' && "bg-indigo-600 hover:bg-indigo-700",
                           log.status === '결재완료' && "bg-slate-600 hover:bg-slate-700"
                         )}
                       >
-                        {isWorkingNow(log) && log.status === '작성중' ? '근무중' : (log.status === '일지확정' ? '확정됨' : log.status)}
+                        {(() => {
+                          if (log.status !== '작성중') {
+                            if (log.status === '일지확정') return '확정됨'
+                            if (log.status === '결재완료') return '결재됨'
+                            return log.status
+                          }
+                          if (isWorkingNow(log)) return '근무중'
+
+                          // Check for Future (Waiting)
+                          const now = new Date()
+                          const [year, month, day] = log.date.split('-').map(Number)
+                          let start = new Date(year, month - 1, day)
+                          if (log.type === '주간') start.setHours(7, 30, 0, 0)
+                          else start.setHours(18, 30, 0, 0)
+
+                          if (now < start) return '대기중'
+
+                          return '작성중'
+                        })()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -653,23 +692,19 @@ function WorkLogPageContent() {
   const { currentSession } = useAuthStore()
 
   // Effect 1: Handle URL -> ActiveTab Sync (Routing)
-  // This should NOT depend on worklogs to avoid race conditions
   useEffect(() => {
     const id = searchParams.get('id')
 
     if (mode === 'today') return
 
     if (id) {
-      // Check if tab already exists
       const existingTab = tabs.find(t => t.id === id)
       if (existingTab) {
         if (activeTab !== id) {
           setActiveTab(id)
         }
       }
-      // If tab doesn't exist, we wait for Effect 2 to add it
     } else {
-      // No ID, should be on list
       if (activeTab !== 'list') {
         setActiveTab('list')
       }
@@ -686,6 +721,7 @@ function WorkLogPageContent() {
 
     if (!existingTab) {
       if (id === 'new') {
+        // 'new' tab is handled by the creation flow, but if accessed directly:
         addTab({
           id: 'new',
           title: '새 업무일지',
@@ -701,27 +737,23 @@ function WorkLogPageContent() {
             type: log.type
           })
         } else {
-          // If not found in store yet, we can add a temporary tab
           addTab({
             id: id,
-            title: `로딩중...`, // Better placeholder than UUID
+            title: `로딩중...`,
             date: '',
             type: ''
           })
         }
       }
     } else {
-      // Tab exists, check if we need to update title (e.g. from "Loading..." to actual data)
       if (log) {
         const expectedTitle = `${log.date} ${log.groupName}`
-
         const needsUpdate =
           existingTab.title !== expectedTitle ||
           existingTab.date !== log.date ||
           existingTab.type !== log.type
 
         if (needsUpdate) {
-          // Use getState() to avoid dependency cycle if possible, though we are in effect
           useWorklogTabStore.getState().updateTab(id, {
             title: expectedTitle,
             date: log.date,
@@ -732,12 +764,6 @@ function WorkLogPageContent() {
     }
   }, [searchParams, worklogs, tabs, addTab, mode])
 
-  // Effect 3: Clean up Today's log from tabs - REMOVED to prevent infinite loop
-  // The handleRowClick logic already redirects to mode=today for active sessions.
-  // If a tab exists for the active session (e.g. via direct URL), we should let it exist
-  // rather than fighting with Effect 2 which tries to add it back.
-
-
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     removeTab(id)
@@ -747,21 +773,18 @@ function WorkLogPageContent() {
 
   useEffect(() => {
     if (mode === 'today') {
-      // Calculate today's worklog ID to pass to detail
       const today = format(new Date(), 'yyyy-MM-dd')
       const now = new Date()
       const hour = now.getHours()
       const isDayShift = hour >= 7 && hour < 18
       const defaultShiftType = isDayShift ? '주간' : '야간'
 
-      // Check for overrides from URL (e.g. Next Shift tab)
       const paramTeam = searchParams.get('team')
-      const paramType = searchParams.get('type') // 'day' | 'night'
+      const paramType = searchParams.get('type')
 
       const targetGroup = paramTeam || (currentSession ? currentSession.groupName : null)
       const targetShift = paramType ? (paramType === 'day' ? '주간' : '야간') : defaultShiftType
 
-      // Find matching worklog
       const todayLog = worklogs.find(w =>
         w.date === today &&
         (targetGroup ? w.groupName === targetGroup : true) &&
@@ -771,6 +794,43 @@ function WorkLogPageContent() {
       setTodayWorklogId(todayLog ? String(todayLog.id) : 'new')
     }
   }, [mode, worklogs, currentSession, searchParams])
+
+  // Dialog State
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [newLogDate, setNewLogDate] = useState<Date>(new Date())
+  const [newLogTeam, setNewLogTeam] = useState<string>("")
+  const [newLogType, setNewLogType] = useState<string>("day")
+
+  const handleCreateWorklog = () => {
+    const dateStr = format(newLogDate, 'yyyy-MM-dd')
+    const typeStr = newLogType
+    const teamStr = newLogTeam
+
+    if (!teamStr) {
+      toast.error("근무조를 선택해주세요.")
+      return
+    }
+
+    setCreateDialogOpen(false)
+
+    addTab({
+      id: 'new',
+      title: '새 업무일지',
+      date: dateStr,
+      type: typeStr === 'day' ? '주간' : '야간'
+    })
+
+    // Force navigation to new context
+    router.push(`/worklog?id=new&date=${dateStr}&team=${teamStr}&type=${typeStr}`)
+  }
+
+  const handleTabChange = (value: string) => {
+    if (value === 'list') {
+      router.push('/worklog', { scroll: false })
+    } else {
+      router.push(`/worklog?id=${value}`, { scroll: false })
+    }
+  }
 
   if (mode === 'today') {
     if (todayWorklogId === null) {
@@ -792,14 +852,6 @@ function WorkLogPageContent() {
     )
   }
 
-  const handleTabChange = (value: string) => {
-    if (value === 'list') {
-      router.push('/worklog', { scroll: false })
-    } else {
-      router.push(`/worklog?id=${value}`, { scroll: false })
-    }
-  }
-
   return (
     <MainLayout>
       <div className="px-8 pt-2 pb-8">
@@ -808,15 +860,26 @@ function WorkLogPageContent() {
             <h1 className="text-2xl font-bold tracking-tight">업무일지 저장소</h1>
             <p className="text-muted-foreground">주조정실 업무일지 목록입니다.</p>
           </div>
-          <Button onClick={() => router.push('/worklog?mode=today')}>
+          <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />새 일지 작성
           </Button>
         </div>
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <div className="print:hidden relative z-10">
+          <div className="print:hidden relative z-10 w-full overflow-x-auto">
             <FolderTabsList>
-              <FolderTabsTrigger value="list">
-                업무일지 목록
+              <FolderTabsTrigger
+                value="list"
+                className={cn(
+                  activeTab !== 'list' && "text-blue-600 font-semibold"
+                )}
+              >
+                <div className="flex items-center gap-2 relative z-10">
+                  <LayoutList className={cn(
+                    "h-4 w-4",
+                    activeTab !== 'list' ? "animate-lighthouse-shake text-blue-500" : "text-foreground"
+                  )} />
+                  <span className={cn(activeTab !== 'list' && "text-blue-600 font-semibold")}>업무일지 목록</span>
+                </div>
               </FolderTabsTrigger>
               {tabs.map((tab) => (
                 <FolderTabsTrigger key={tab.id} value={tab.id}>
@@ -849,6 +912,78 @@ function WorkLogPageContent() {
             </TabsContent>
           ))}
         </Tabs>
+
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>새 업무일지 작성</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <span className="text-right text-sm font-medium">날짜</span>
+                <div className="col-span-3">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !newLogDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newLogDate ? format(newLogDate, "PPP", { locale: require("date-fns/locale/ko") }) : <span>날짜 선택</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={newLogDate}
+                        onSelect={(date) => date && setNewLogDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <span className="text-right text-sm font-medium">근무조</span>
+                <div className="col-span-3">
+                  <Select value={newLogTeam} onValueChange={setNewLogTeam}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="근무조 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1조">1조</SelectItem>
+                      <SelectItem value="2조">2조</SelectItem>
+                      <SelectItem value="3조">3조</SelectItem>
+                      <SelectItem value="4조">4조</SelectItem>
+                      <SelectItem value="5조">5조</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <span className="text-right text-sm font-medium">근무 형태</span>
+                <div className="col-span-3">
+                  <Select value={newLogType} onValueChange={setNewLogType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">주간 (07:30 ~ 18:30)</SelectItem>
+                      <SelectItem value="night">야간 (18:30 ~ 08:00)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>취소</Button>
+              <Button onClick={handleCreateWorklog}>작성하기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   )

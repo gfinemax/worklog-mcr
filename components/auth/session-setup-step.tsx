@@ -177,57 +177,72 @@ export function SessionSetupStep({
                 </div>
 
                 <div className="space-y-3">
-                    {members.map((member) => (
-                        <div
-                            key={member.id}
-                            className="relative flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200"
-                        >
-                            <Avatar className="h-10 w-10 border border-slate-100">
-                                <AvatarImage src={member.profile_image_url} />
-                                <AvatarFallback className="bg-slate-100 text-slate-600 font-bold">
-                                    {member.name[0]}
-                                </AvatarFallback>
-                            </Avatar>
 
-                            <div className="flex flex-col flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-semibold text-slate-700">{member.name}</span>
-                                    {member.isSubstitute && (
-                                        <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-orange-100 text-orange-700">교체됨</Badge>
-                                    )}
+                    {[...members]
+                        .sort((a, b) => {
+                            const rolePriority: { [key: string]: number } = {
+                                '감독': 1,
+                                '부감독': 2,
+                                '영상': 3
+                            }
+                            const roleA = (a.role || '').trim()
+                            const roleB = (b.role || '').trim()
+                            const pA = rolePriority[roleA] || 4
+                            const pB = rolePriority[roleB] || 4
+                            return pA - pB
+                        })
+                        .map((member) => (
+                            <div
+                                key={member.id}
+                                className="relative flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200"
+                            >
+                                <Avatar className="h-10 w-10 border border-slate-100">
+                                    <AvatarImage src={member.profile_image_url} />
+                                    <AvatarFallback className="bg-slate-100 text-slate-600 font-bold">
+                                        {member.name[0]}
+                                    </AvatarFallback>
+                                </Avatar>
+
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-semibold text-slate-700">{member.name}</span>
+                                        {member.isSubstitute && (
+                                            <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-orange-100 text-orange-700">교체됨</Badge>
+                                        )}
+                                    </div>
+                                    <Select value={member.role} onValueChange={(val) => handleRoleChange(member.id, val)}>
+                                        <SelectTrigger className="h-7 text-xs border-none shadow-none p-0 focus:ring-0 w-fit gap-1 text-slate-500 font-medium">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableRoles.map(role => (
+                                                <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <Select value={member.role} onValueChange={(val) => handleRoleChange(member.id, val)}>
-                                    <SelectTrigger className="h-7 text-xs border-none shadow-none p-0 focus:ring-0 w-fit gap-1 text-slate-500 font-medium">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {availableRoles.map(role => (
-                                            <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
 
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 px-2 text-xs text-slate-400 hover:text-blue-600"
-                                    onClick={() => openSearch('substitute', member.id)}
-                                >
-                                    교체
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-slate-400 hover:text-red-600"
-                                    onClick={() => handleRemoveMember(member.id)}
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs text-slate-400 hover:text-blue-600"
+                                        onClick={() => openSearch('substitute', member.id)}
+                                    >
+                                        교체
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                        onClick={() => handleRemoveMember(member.id)}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+
                 </div>
             </div>
 
@@ -288,6 +303,6 @@ export function SessionSetupStep({
                     </div>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     )
 }

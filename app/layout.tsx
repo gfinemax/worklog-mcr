@@ -12,6 +12,7 @@ const notoSansKr = Noto_Sans_KR({
   variable: "--font-noto-sans-kr",
 })
 
+
 export const metadata: Metadata = {
   title: "MBC플러스 주조정실 업무일지",
   description: "MBC PLUS 주조정실 업무일지 디지털 관리 시스템",

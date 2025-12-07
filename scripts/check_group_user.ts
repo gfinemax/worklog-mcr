@@ -11,16 +11,18 @@ const supabase = createClient(
 )
 
 async function checkGroupUser() {
-    const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('name', '3조')
-        .single()
+    // 1. Check schema
+    const { data: sample } = await supabase.from('users').select('*').limit(1)
+    console.log('User Schema Sample:', sample && sample[0] ? Object.keys(sample[0]) : 'No users found')
 
-    if (error) {
-        console.log('Error or not found:', error.message)
-    } else {
-        console.log('Found user:', data)
+    // 2. Try to find members of 1조
+    // Assuming column might be 'group_name' or similar, strict check first
+    // or just list all users and I will filter in code if needed
+    const { data: allUsers } = await supabase.from('users').select('id, name, group_name, role').order('name')
+
+    if (allUsers) {
+        const team1 = allUsers.filter(u => u.group_name === '1조')
+        console.log('Team 1 Members:', team1)
     }
 }
 

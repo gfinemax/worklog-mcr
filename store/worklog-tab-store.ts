@@ -34,15 +34,15 @@ export const useWorklogTabStore = create<WorklogTabState>()(
                     return
                 }
 
-                // Limit to 5 tabs (excluding list tab which is virtual)
+                // Limit to 4 tabs (excluding list tab which is virtual)
                 // If full, remove the oldest tab (first in array)
                 let updatedTabs = [...tabs]
-                if (updatedTabs.length >= 5) {
-                    updatedTabs.shift()
+                if (updatedTabs.length >= 4) {
+                    updatedTabs.pop()
                 }
 
                 set({
-                    tabs: [...updatedTabs, newTab],
+                    tabs: [newTab, ...updatedTabs],
                     activeTab: newTab.id
                 })
             },

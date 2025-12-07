@@ -622,9 +622,14 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
 
     // Handle Query Params Override
     useEffect(() => {
+        const paramDate = searchParams.get('date')
+        if (paramDate) {
+            const [year, month, day] = paramDate.split('-').map(Number)
+            setSelectedDate(new Date(year, month - 1, day))
+        }
         if (paramTeam) setSelectedTeam(paramTeam)
         if (paramType) setShiftType(paramType as 'day' | 'night')
-    }, [paramTeam, paramType])
+    }, [searchParams, paramTeam, paramType])
 
 
     // Sync state from store (Existing Worklogs)
@@ -645,7 +650,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 let cleanStatus = worklog.status
                 if (cleanStatus === '서명완료') cleanStatus = '작성중'
 
-                const sigs = worklog.signatures || {}
+                const sigs = (worklog.signatures || {}) as any
                 // 1. Check if all 4 are signed
                 if (sigs.operation && sigs.team_leader && sigs.mcr && sigs.network) {
                     cleanStatus = '결재완료'
@@ -739,19 +744,40 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                             setChannelLogs(fetchedLog.channelLogs || {})
                             setSystemIssues(fetchedLog.systemIssues || [])
                             setIsLoaded(true) // Data loaded
+                        } else {
+                            toast.error("업무일지를 찾을 수 없습니다.")
+                            router.replace('/worklog')
                         }
                     })
                 }
             }
         } else if (!id || id === 'new') {
             // New Worklog: Check if a worklog already exists for today/team/shift
-            // Note: Initialization of date/shift is now handled in a separate effect
             const dateStr = format(selectedDate, 'yyyy-MM-dd')
 
+            // [FIX] Use params if available, BUT override if activeTab is 'next' to prevent stale state
+            let effectiveShiftType = paramType ? (paramType === 'day' ? '주간' : '야간') : (shiftType === 'day' ? '주간' : '야간')
+            let effectiveTeamName = paramTeam || selectedTeam
+
+            // Force Next Session context if tab is manually selected
+            if (activeTab === 'next' && nextSession) {
+                effectiveTeamName = nextSession.groupName
+
+                const hour = new Date().getHours()
+                const isDayTime = hour >= 7 && hour < 18
+                // If paramType is missing and shiftType is 'day', we force 'night'
+                if ((!paramType && shiftType === 'day') || (currentSession && isDayTime)) {
+                    effectiveShiftType = '야간'
+                }
+            }
+
+            const checkKey = `${dateStr}-${effectiveTeamName}-${effectiveShiftType}`
+
+            // Local Store Check first
             const existingWorklog = worklogs.find(w =>
                 w.date === dateStr &&
-                w.groupName === selectedTeam &&
-                (w.type === '주간' ? 'day' : 'night') === shiftType
+                w.groupName === effectiveTeamName &&
+                w.type === effectiveShiftType
             )
 
             if (existingWorklog) {
@@ -1417,7 +1443,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 signatures: {
                     ...worklogs.find(w => String(w.id) === id)?.signatures,
                     [signatureToDelete]: null
-                }
+                } as any
             })
             toast.success("서명이 삭제되었습니다.")
             setSignatureCancelOpen(false)
@@ -1506,6 +1532,87 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             }
         } catch (e) {
             console.error("Failed to log handover cancel:", e)
+        }
+
+        // [New] Cleanup drafted worklog if exists and is for next session
+        if (nextSession && currentSession) {
+            const now = new Date()
+            const hour = now.getHours()
+            const isDayTime = hour >= 7 && hour < 18
+
+            // Logic: 
+            // If currently Day (07-18), we are working Day shift. Next is Night (Today).
+            // If currently Night (18-07), we are working Night shift. Next is Day (Today).
+            // Usually handover happens near the end of shift.
+            // Night->Day Handover is at 07:30 (Day Time? No, 07:30 is > 07). 
+            // 07:30 is isDayTime=true. Next is Night?
+            // Wait.
+            // If it is 07:30. 'isDayTime' is TRUE.
+            // If 'isDayTime' is true, Current is Day??
+            // NO. If it is 07:30, I am finishing NIGHT shift.
+            // THIS is the ambiguity.
+
+            // Let's refine 'isDayTime' based on accurate handover windows.
+            // Morning Handover: 06:00 - 09:00. (Night -> Day)
+            // Evening Handover: 17:00 - 20:00. (Day -> Night)
+
+            let deleteShiftType = '야간'
+            const deleteDateStr = format(now, 'yyyy-MM-dd')
+
+            // If it's Morning (06-09), we are transitioning TO 'Day'. So delete 'Day'.
+            if (hour >= 5 && hour < 10) {
+                deleteShiftType = '주간'
+            }
+            // If it's Evening (17-20), we are transitioning TO 'Night'. So delete 'Night'.
+            else if (hour >= 16 && hour < 21) {
+                deleteShiftType = '야간'
+            }
+            // For other times, fall back to simple day/night flip of CURRENT time?
+            // If I am active in 'Day' shift (14:00), Next is 'Night'.
+            else {
+                deleteShiftType = isDayTime ? '야간' : '주간'
+            }
+
+            const { data } = await supabase
+                .from('worklogs')
+                .select('id, status, signatures, channel_logs, system_issues')
+                .eq('date', deleteDateStr)
+                .eq('group_name', nextSession.groupName)
+                .eq('type', deleteShiftType)
+                .maybeSingle()
+
+            if (data) {
+                // Check safety conditions
+                const hasSignatures = data.signatures && Object.values(data.signatures).some((v: any) => v !== null)
+
+                // Check if there is any text content
+                let hasContent = false
+
+                // Check channel logs for actual text
+                if (data.channel_logs) {
+                    const logs = data.channel_logs as any
+                    for (const key of Object.keys(logs)) {
+                        const channelData = logs[key]
+                        if (channelData && channelData.posts && channelData.posts.length > 0) {
+                            hasContent = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Check system issues (if length > 0)
+                if (!hasContent && data.system_issues && Array.isArray(data.system_issues) && data.system_issues.length > 0) {
+                    hasContent = true
+                }
+
+                // We delete if it is In Progress (or Pending/Waiting which is also status=작성중), NO signatures, AND NO content.
+                if (data.status === '작성중' && !hasSignatures && !hasContent) {
+                    await supabase.from('worklogs').delete().eq('id', data.id)
+                    toast.info("작성 중인 대기 업무일지가 삭제되었습니다. (내용 없음)")
+                } else if (hasContent) {
+                    // console.log("Worklog has content, skipping delete")
+                }
+            }
         }
 
         const { setNextSession, setNextUser } = useAuthStore.getState()

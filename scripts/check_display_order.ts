@@ -2,40 +2,51 @@
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseKey) {
-    process.exit(1)
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 async function checkDisplayOrder() {
-    const { data: group } = await supabase.from('groups').select('id').eq('name', '1조').single()
-    if (!group) return
+    console.log('Checking display order for 1조...')
 
-    const { data: members } = await supabase
+    // 1. Get Group ID from groups table
+    const { data: group, error: groupError } = await supabase
+        .from('groups')
+        .select('id, name')
+        .eq('name', '1조')
+        .single()
+
+    if (groupError || !group) {
+        console.log('Group 1조 not found in groups table.', groupError?.message)
+        // Fallback: List all groups to see names
+        const { data: allGroups } = await supabase.from('groups').select('name')
+        console.log('Available Groups:', allGroups)
+        return
+    }
+
+    console.log('Group ID:', group.id)
+
+    const { data: members, error: membersError } = await supabase
         .from('group_members')
         .select(`
-            display_order,
-            role,
-            users (name)
-        `)
+        user_id,
+        role,
+        display_order,
+        users ( name )
+    `)
         .eq('group_id', group.id)
         .order('display_order', { ascending: true })
 
-    console.log('4조 Members (Ordered by display_order):')
-    members?.forEach((m: any) => {
-        console.log(`${m.display_order}: ${m.users.name} (${m.role})`)
-    })
+    if (membersError) {
+        console.log('Error fetching members:', membersError.message)
+        return
+    }
+
+    console.log('Members Display Order:', JSON.stringify(members, null, 2))
 }
 
 checkDisplayOrder()

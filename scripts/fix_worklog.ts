@@ -1,0 +1,56 @@
+
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
+import path from 'path'
+
+dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+async function fixWorklogRoles() {
+    const today = new Date().toISOString().split('T')[0]
+    console.log(`Fixing worklog for today: ${today}`)
+
+    const { data: worklogs, error } = await supabase
+        .from('worklogs')
+        .select('*, groups(name)')
+        .eq('date', today)
+
+    if (error || !worklogs || worklogs.length === 0) {
+        console.log('No worklogs found for today.')
+        return
+    }
+
+    const targetLog = worklogs.find(w => w.group_name === '1조' || w.groups?.name === '1조')
+
+    if (targetLog) {
+        console.log('Found 1조 Worklog:', targetLog.id)
+        console.log('Current Workers JSON:', JSON.stringify(targetLog.workers, null, 2))
+
+        const newWorkers = {
+            ...targetLog.workers,
+            director: ['박상필'],
+            assistant: ['김준일']
+        }
+
+        const { error: updateError } = await supabase
+            .from('worklogs')
+            .update({ workers: newWorkers })
+            .eq('id', targetLog.id)
+
+        if (updateError) {
+            console.log('Error updating worklog:', updateError)
+        } else {
+            console.log('Successfully updated worklog workers.')
+            console.log('New Workers JSON:', JSON.stringify(newWorkers, null, 2))
+        }
+
+    } else {
+        console.log('No 1조 worklog found.')
+    }
+}
+
+fixWorklogRoles()

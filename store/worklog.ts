@@ -71,6 +71,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 else if (priorities.includes('일반')) maxPriority = '일반'
             }
 
+            const signatures = log.signatures || { operation: null, mcr: null, team_leader: null, network: null }
+            const sigCount = Object.values(signatures).filter(Boolean).length
+
             return {
                 id: log.id,
                 date: log.date,
@@ -78,8 +81,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 type: log.type,
                 workers: log.workers || { director: [], assistant: [], video: [] },
                 status: log.status,
-                signature: log.signature || "0/4",
-                signatures: log.signatures || { operation: null, mcr: null, team_leader: null, network: null },
+                signature: `${sigCount}/4`, // Calculate dynamically
+                signatures: signatures,
                 isImportant: false,
                 isAutoCreated: log.is_auto_created || false,
                 aiSummary: log.ai_summary,
@@ -196,6 +199,9 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
 
         get().fetchWorklogs()
 
+        const signatures = createdLog.signatures || { operation: null, mcr: null, team_leader: null, network: null }
+        const sigCount = Object.values(signatures).filter(Boolean).length
+
         return {
             id: createdLog.id,
             date: createdLog.date,
@@ -203,8 +209,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             type: createdLog.type,
             workers: worklog.workers,
             status: createdLog.status,
-            signature: createdLog.signature || "0/4",
-            signatures: createdLog.signatures || { operation: null, mcr: null, team_leader: null, network: null },
+            signature: `${sigCount}/4`,
+            signatures: signatures,
             isImportant: false,
             isAutoCreated: createdLog.is_auto_created || false,
             channelLogs: createdLog.channel_logs || {},
@@ -222,11 +228,18 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .single()
 
         if (error) {
-            console.error('Error fetching worklog by id:', error)
+            // Ignore "Row not found" error
+            if (error.code === 'PGRST116') {
+                return null
+            }
+            console.error(`Error fetching worklog by id (${id}):`, JSON.stringify(error, null, 2))
             return null
         }
 
         if (data) {
+            const signatures = data.signatures || { operation: null, mcr: null, team_leader: null, network: null }
+            const sigCount = Object.values(signatures).filter(Boolean).length
+
             const formattedLog: Worklog = {
                 id: data.id,
                 date: data.date,
@@ -234,8 +247,8 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 type: data.type,
                 workers: data.workers || { director: [], assistant: [], video: [] },
                 status: data.status,
-                signature: data.signature || "0/4",
-                signatures: data.signatures || { operation: null, mcr: null, team_leader: null, network: null },
+                signature: `${sigCount}/4`,
+                signatures: signatures,
                 isImportant: false,
                 isAutoCreated: data.is_auto_created || false,
                 aiSummary: data.ai_summary,

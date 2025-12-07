@@ -1,0 +1,379 @@
+[
+  {
+    "id": "46ca0150-ec09-4cfb-bda4-ad1f28972eae",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:51:38.870Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:51:19.958383+00:00"
+  },
+  {
+    "id": "ec28a0be-4c54-45d1-b995-abe9c06e9c9f",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:41:49.663Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:41:30.747686+00:00"
+  },
+  {
+    "id": "c83c95a4-1598-4e04-9443-2ad9b5a2afde",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:28:28.568Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:28:09.652652+00:00"
+  },
+  {
+    "id": "72fdce08-1775-43d0-b4e9-b4f0eaeb5343",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:26:45.505Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:26:26.611625+00:00"
+  },
+  {
+    "id": "20292e11-840d-438b-b2a8-b8f0bb72601d",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:14:49.961Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:14:31.03919+00:00"
+  },
+  {
+    "id": "4b9863d5-af5e-49ee-a14f-2416619e531d",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-07T02:10:14.829Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-07T02:09:55.922473+00:00"
+  },
+  {
+    "id": "7fa5ba9b-93c2-434a-9518-a2df0017484f",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "HANDOVER_CANCEL",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "timestamp": "2025-12-05T12:59:06.043Z",
+      "cancelled_session": "5조"
+    },
+    "created_at": "2025-12-05T12:58:50.110848+00:00"
+  },
+  {
+    "id": "8a85f948-7168-4389-ad2d-a8fec891ba0e",
+    "user_id": "bfff84a6-bc23-410c-8752-34d51ca9b5da",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "근무자 순서 조정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-05T10:02:25.909793+00:00"
+  },
+  {
+    "id": "0cdf68a3-43d6-485e-b7ca-c4230bdcd735",
+    "user_id": "1e53b74b-6034-4b96-ae69-f2a887b4ec26",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "조별 근무자 위치 조정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-05T04:07:46.536064+00:00"
+  },
+  {
+    "id": "4b6096f2-061c-4560-9aa1-99ae5e9d4be9",
+    "user_id": "9e479378-24b4-4845-bc6e-2b8beb527255",
+    "action": "HANDOVER_COMPLETE",
+    "target_type": "SESSION",
+    "target_id": null,
+    "changes": {
+      "new_group": "2조",
+      "timestamp": "2025-12-04T10:54:59.185Z",
+      "previous_group": "3조"
+    },
+    "created_at": "2025-12-04T10:54:45.017264+00:00"
+  },
+  {
+    "id": "b781d761-2602-4b13-be46-663fa51c7102",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "조별 근무자 위치 조정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-03T02:33:21.104585+00:00"
+  },
+  {
+    "id": "54b878c9-8838-4f18-a66a-3224b0ae0d76",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "근무자 순서 조정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-03T02:22:36.923776+00:00"
+  },
+  {
+    "id": "fd5b4396-ae39-4047-9b1e-9bdb0961a2a1",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "근무자 위치 조정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-03T01:57:49.521472+00:00"
+  },
+  {
+    "id": "421b9101-98be-4fb9-8f7f-48891e3b2944",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "근무자 순서 재배정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-03T01:51:52.142056+00:00"
+  },
+  {
+    "id": "675bcfea-a206-404f-a6f5-22b2c495bae7",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "배정 미배정 수정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T22:27:24.393246+00:00"
+  },
+  {
+    "id": "c1c2c4b7-36ea-4427-aa11-e215e9e7ea85",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "천남웅 사원 퇴사로 근무자 배정 업데이트함",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T14:06:30.866397+00:00"
+  },
+  {
+    "id": "a1a14b2c-ee05-4afb-b5da-6256df96e392",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "천남웅 사원 퇴사로 근무자 배정 업데이트함",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T14:05:11.971839+00:00"
+  },
+  {
+    "id": "4eb43079-b459-4a74-95c3-a12edcc12434",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "천남웅사원 퇴사로 근무자배정 수정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T13:54:27.417712+00:00"
+  },
+  {
+    "id": "2dd2c3ea-063c-4cad-ae7a-be2888ffa135",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "천남웅사원 퇴사로 근무자배정 수정",
+      "teams": [
+        "4조",
+        "3조",
+        "5조",
+        "1조",
+        "2조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T13:35:08.373581+00:00"
+  },
+  {
+    "id": "a816cfb0-5a5e-4834-b48c-1ea1852d3e0f",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "UPDATE_SHIFT_PATTERN",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "1d52aea4-f283-4cd1-8d59-408f0d29316b",
+    "changes": {
+      "memo": "천남웅사원 퇴사로 근무자배정 수정",
+      "teams": [
+        "1조",
+        "4조",
+        "5조",
+        "2조",
+        "3조"
+      ],
+      "valid_from": "2025-11-15",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T12:48:33.358521+00:00"
+  },
+  {
+    "id": "d1e80942-7779-4a76-92f8-e10d093d86a3",
+    "user_id": "0858753d-4662-4eb7-b7b2-a61561209f67",
+    "action": "CREATE_SHIFT_CONFIG",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "65983ddd-a6bc-42d3-8156-7e7385d8b8db",
+    "changes": {
+      "memo": "천남웅사원 퇴사로 기존 5조 10일 교대 수정",
+      "teams": [
+        "1조",
+        "4조",
+        "5조",
+        "2조",
+        "3조"
+      ],
+      "valid_from": "2025-10-12",
+      "cycle_length": 10
+    },
+    "created_at": "2025-12-02T12:32:26.690177+00:00"
+  },
+  {
+    "id": "bb913a8c-511b-4c84-8083-2b4ecd73daaa",
+    "user_id": "273b5471-4c25-4d62-8e0d-c65daf8cc1c7",
+    "action": "CREATE_SHIFT_CONFIG",
+    "target_type": "SHIFT_CONFIG",
+    "target_id": "430560a2-2967-430e-90af-eac449b7d81c",
+    "changes": {
+      "memo": "ㅇㄹㄴㅇㄹ",
+      "teams": [
+        "1조",
+        "3조",
+        "2조",
+        "4조",
+        "5조"
+      ],
+      "valid_from": "2026-01-01",
+      "cycle_length": 4
+    },
+    "created_at": "2025-12-01T15:37:30.872448+00:00"
+  }
+]

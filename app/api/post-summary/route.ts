@@ -68,55 +68,44 @@ ${plainText.substring(0, 1500)}
         console.log('Calling Gemini API...')
 
         const genAI = new GoogleGenerativeAI(apiKey)
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { responseMimeType: "application/json" } })
+        // Use stable model 1.5-flash
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', generationConfig: { responseMimeType: "application/json" } })
 
         let resultData = { summary: '', title: '' }
-        let retryCount = 0
-        const maxRetries = 3
 
-        while (retryCount < maxRetries) {
-            try {
-                const result = await model.generateContent(prompt)
-                const response = await result.response
-                let text = response.text().trim()
+        try {
+            const result = await model.generateContent(prompt)
+            const response = await result.response
+            let text = response.text().trim()
 
-                // Remove markdown code blocks if present
-                if (text.startsWith('```')) {
-                    text = text.replace(/^```(json)?\n/, '').replace(/\n```$/, '')
-                }
-
-                resultData = JSON.parse(text)
-                break
-            } catch (error: any) {
-                if (error.message?.includes('429') || error.status === 429) {
-                    retryCount++
-                    console.log(`Rate limited (429). Retrying... (${retryCount}/${maxRetries})`)
-                    if (retryCount === maxRetries) throw error
-
-                    const match = error.message?.match(/retryDelay":"([\d\.]+)s"/)
-                    const delaySeconds = match ? parseFloat(match[1]) : 10
-                    const waitTime = Math.ceil(delaySeconds * 1000) + 1000
-
-                    console.log(`Waiting ${waitTime}ms before retry...`)
-                    await new Promise(resolve => setTimeout(resolve, waitTime))
-                } else {
-                    throw error
-                }
+            // Remove markdown code blocks if present
+            if (text.startsWith('```')) {
+                text = text.replace(/^```(json)?\n/, '').replace(/\n```$/, '')
             }
+
+            resultData = JSON.parse(text)
+        } catch (error: any) {
+            console.error("Gemini API Error:", error)
+            if (error.message?.includes('429') || error.status === 429) {
+                return NextResponse.json(
+                    { error: '일일 AI 사용량이 초과되었습니다. 내일 다시 시도해주세요.' },
+                    { status: 429 }
+                )
+            }
+            throw error
         }
 
         console.log('Generated summary:', resultData)
         return NextResponse.json(resultData)
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('=== Post Summary Error ===')
         console.error('Error:', error)
 
         return NextResponse.json(
             {
                 error: 'AI 요약 생성 실패',
-                fallbackSummary: '요약을 생성할 수 없습니다.',
-                details: error instanceof Error ? error.message : String(error)
+                details: error.message || String(error)
             },
             { status: 500 }
         )

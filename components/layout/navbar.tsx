@@ -300,9 +300,8 @@ export function Navbar() {
                           >
                             <User className="h-4 w-4" />
                             <span>{member.name}</span>
-                            <span className="text-[10px] text-muted-foreground ml-0.5">
-                              ({member.role === "감독" ? "주조" : member.role === "부감독" ? "CMS" : member.role})
-                            </span>
+                            ({member.role})
+
                             {selectedMember?.id === member.id && (
                               <Badge variant="outline" className="ml-auto text-[10px]">
                                 선택됨
