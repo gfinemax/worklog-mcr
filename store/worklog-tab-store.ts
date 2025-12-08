@@ -7,6 +7,7 @@ export interface WorklogTab {
     title: string
     date: string
     type: string
+    team?: string  // Team for 'new' worklogs
 }
 
 interface WorklogTabState {
@@ -29,8 +30,17 @@ export const useWorklogTabStore = create<WorklogTabState>()(
                 const { tabs } = get()
 
                 // Check if tab already exists
-                if (tabs.some(t => t.id === newTab.id)) {
-                    set({ activeTab: newTab.id })
+                const existingIndex = tabs.findIndex(t => t.id === newTab.id)
+                if (existingIndex !== -1) {
+                    // For 'new' tabs, ALWAYS replace completely to get fresh dialog settings
+                    // For other tabs, merge the updates
+                    const updatedTabs = [...tabs]
+                    if (newTab.id === 'new') {
+                        updatedTabs[existingIndex] = newTab  // Complete replacement
+                    } else {
+                        updatedTabs[existingIndex] = { ...updatedTabs[existingIndex], ...newTab }
+                    }
+                    set({ tabs: updatedTabs, activeTab: newTab.id })
                     return
                 }
 

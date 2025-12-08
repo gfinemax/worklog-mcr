@@ -445,23 +445,45 @@ function SystemIssuesList({
 
 interface WorklogDetailProps {
     worklogId?: string | null
+    tabDate?: string
+    tabType?: string
+    tabTeam?: string
 }
 
-export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) {
+export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabTeam }: WorklogDetailProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
 
     // Use prop ID if available, otherwise check search params (for backward compatibility or direct links)
     const id = propWorklogId || searchParams.get('id')
-    const paramTeam = searchParams.get('team')
-    const paramType = searchParams.get('type')
+
+    // Use TAB PROPS FIRST, then fall back to searchParams
+    const paramTeam = tabTeam || searchParams.get('team')
+    const paramType = tabType || searchParams.get('type')
+    const paramDate = tabDate || searchParams.get('date')
 
     const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts } = useWorklogStore()
     const { user, currentSession, nextSession, promoteNextSession } = useAuthStore()
 
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-    const [shiftType, setShiftType] = useState<'day' | 'night'>('day')
-    const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+    // Initialize state from props if available
+    const getInitialShiftType = (): 'day' | 'night' => {
+        if (paramType === 'day' || paramType === 'night') return paramType
+        if (paramType === '주간') return 'day'
+        if (paramType === '야간') return 'night'
+        return 'day'  // Default
+    }
+
+    const getInitialDate = (): Date => {
+        if (paramDate) {
+            const [year, month, day] = paramDate.split('-').map(Number)
+            return new Date(year, month - 1, day)
+        }
+        return new Date()
+    }
+
+    const [selectedDate, setSelectedDate] = useState<Date>(getInitialDate)
+    const [shiftType, setShiftType] = useState<'day' | 'night'>(getInitialShiftType)
+    const [selectedTeam, setSelectedTeam] = useState<string | null>(paramTeam || null)
     const [workers, setWorkers] = useState<{ director: string[], assistant: string[], video: string[] }>({
         director: [],
         assistant: [],
@@ -473,6 +495,33 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
     const [pinDialogOpen, setPinDialogOpen] = useState(false)
     const [pendingAction, setPendingAction] = useState<'handover' | 'sign' | null>(null)
     const [signingType, setSigningType] = useState<'operation' | 'team_leader' | 'mcr' | 'network' | null>(null)
+
+    // Sync state from props when they change (useState initializer only runs on first mount)
+    useEffect(() => {
+        console.log('[WorklogDetail] Props sync effect:', { paramType, paramTeam, paramDate })
+
+        // Sync shiftType from paramType
+        if (paramType) {
+            if (paramType === 'day' || paramType === 'night') {
+                setShiftType(paramType)
+            } else if (paramType === '주간') {
+                setShiftType('day')
+            } else if (paramType === '야간') {
+                setShiftType('night')
+            }
+        }
+
+        // Sync team
+        if (paramTeam) {
+            setSelectedTeam(paramTeam)
+        }
+
+        // Sync date
+        if (paramDate) {
+            const [year, month, day] = paramDate.split('-').map(Number)
+            setSelectedDate(new Date(year, month - 1, day))
+        }
+    }, [paramType, paramTeam, paramDate])
 
     // [NEW] Fetch member types for permission check
     const [memberTypes, setMemberTypes] = useState<{ [key: string]: string }>({})
@@ -532,11 +581,12 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             if (activeTab !== 'current') setActiveTab("current")
 
             // Also revert to current team if we were viewing the next team
-            if (currentSession && selectedTeam !== currentSession.groupName) {
+            // BUT SKIP if paramTeam is provided (creating worklog for different team via dialog)
+            if (currentSession && selectedTeam !== currentSession.groupName && !paramTeam) {
                 setSelectedTeam(currentSession.groupName)
             }
         }
-    }, [selectedTeam, nextSession, currentSession])
+    }, [selectedTeam, nextSession, currentSession, paramTeam])
     // ... (existing state)
 
     // Auto-save effect
@@ -628,7 +678,16 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             setSelectedDate(new Date(year, month - 1, day))
         }
         if (paramTeam) setSelectedTeam(paramTeam)
-        if (paramType) setShiftType(paramType as 'day' | 'night')
+        // Parse shiftType properly (can be 'day'/'night' or '주간'/'야간')
+        if (paramType) {
+            if (paramType === 'day' || paramType === 'night') {
+                setShiftType(paramType)
+            } else if (paramType === '주간') {
+                setShiftType('day')
+            } else if (paramType === '야간') {
+                setShiftType('night')
+            }
+        }
     }, [searchParams, paramTeam, paramType])
 
 
@@ -904,6 +963,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
     // Auto-select team based on pattern when date or shift changes (Only for new logs)
     useEffect(() => {
         if (id && id !== 'new') return // Don't auto-change for existing logs
+        if (paramTeam) return // SKIP if explicit team from dialog is provided
 
         // If user is logged in, ALWAYS default to their team for new logs
         if (currentSession) {
@@ -928,7 +988,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
         }
 
         updateTeamFromPattern()
-    }, [selectedDate, shiftType, id, currentSession, selectedTeam])
+    }, [selectedDate, shiftType, id, currentSession, selectedTeam, paramTeam])
 
     // Fetch group members when team changes (only if no ID or creating new)
     useEffect(() => {
@@ -971,7 +1031,7 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
             return () => { ignore = true }
         }
 
-        if (id) return // Don't fetch for existing logs (they have their own workers saved)
+        if (id && id !== 'new') return // Don't fetch for existing logs (they have their own workers saved)
 
         const fetchGroupMembers = async () => {
             if (!selectedTeam) return
@@ -990,8 +1050,12 @@ export function WorklogDetail({ worklogId: propWorklogId }: WorklogDetailProps) 
                 const config = await shiftService.getConfig(selectedDate)
                 if (ignore) return
 
+                console.log('[fetchGroupMembers] Config:', config?.id, 'roster_json keys:', Object.keys(config?.roster_json || {}))
+                console.log('[fetchGroupMembers] Looking for team:', selectedTeam, 'Found:', config?.roster_json?.[selectedTeam])
+
                 if (config && config.roster_json && config.roster_json[selectedTeam]) {
                     const userIds = config.roster_json[selectedTeam]
+                    console.log('[fetchGroupMembers] User IDs:', userIds)
                     if (userIds && userIds.length > 0) {
                         // Fetch user details for these IDs
                         const { data: rosterUsers, error: rosterError } = await supabase

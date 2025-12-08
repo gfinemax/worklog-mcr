@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X, AlertCircle, CheckCircle2, Upload, LayoutList } from "lucide-react"
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Sparkles, CalendarIcon, X, AlertCircle, CheckCircle2, Upload, LayoutList, Download, MoreVertical, Trash2, Edit2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useWorklogStore, Worklog } from "@/store/worklog"
 import { supabase } from "@/lib/supabase"
@@ -19,13 +19,32 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { ko } from "date-fns/locale"
 import { FolderTabsList, FolderTabsTrigger } from "@/components/ui/folder-tabs"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useWorklogTabStore } from "@/store/worklog-tab-store"
 import { WorklogDetail } from "@/components/worklog/worklog-detail"
 import { toast } from "sonner"
 import { useAuthStore } from "@/store/auth"
+import { shiftService } from "@/lib/shift-rotation"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { exportWorklogsToExcel } from "@/lib/excel-export"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type SortConfig = {
   key: keyof Worklog
@@ -36,8 +55,9 @@ function WorklogListView() {
   const router = useRouter()
   const worklogs = useWorklogStore((state) => state.worklogs)
   const updateWorklog = useWorklogStore((state) => state.updateWorklog)
+  const deleteWorklog = useWorklogStore((state) => state.deleteWorklog)
   const fetchWorklogs = useWorklogStore((state) => state.fetchWorklogs)
-  const { addTab } = useWorklogTabStore()
+  const { addTab, closeAllTabs } = useWorklogTabStore()
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
   const [groupMembers, setGroupMembers] = useState<any[]>([])
 
@@ -94,6 +114,34 @@ function WorklogListView() {
     worklog: null,
     loading: false
   })
+
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean
+    worklog: Worklog | null
+  }>({
+    open: false,
+    worklog: null
+  })
+
+  const handleDeleteClick = (e: React.MouseEvent, log: Worklog) => {
+    e.stopPropagation()
+    setDeleteDialog({ open: true, worklog: log })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.worklog) return
+
+    const { error } = await deleteWorklog(deleteDialog.worklog.id)
+
+    if (error) {
+      toast.error("삭제 중 오류가 발생했습니다.")
+    } else {
+      toast.success("업무일지가 삭제되었습니다.")
+    }
+
+    setDeleteDialog({ open: false, worklog: null })
+  }
 
   const handleImportantToggle = (id: string | number, checked: boolean) => {
     updateWorklog(id, { isImportant: checked })
@@ -168,19 +216,6 @@ function WorklogListView() {
       const isToday = log.date === format(new Date(), 'yyyy-MM-dd')
       const isMyGroup = currentSession ? log.groupName === currentSession.groupName : true // If no session, can't filter by group strictly, but usually session exists
 
-      // Determine current shift type based on time
-      const now = new Date()
-      const hour = now.getHours()
-      const isDayShift = hour >= 7 && hour < 18 // Approx 07:00 - 18:00
-      const currentShiftType = isDayShift ? '주간' : '야간'
-
-      // We want to SHOW the current worklog in the list now, so we remove the hiding logic.
-      // But we still want to filter by team/shift/search if selected.
-
-      // Team Filter
-      if (teamFilter !== "all" && log.groupName !== teamFilter) return false
-      // Shift Filter
-      if (shiftFilter !== "all" && (shiftFilter === 'day' ? log.type !== '주간' : log.type !== '야간')) return false
 
       // Date Filter
       if (dateQuery && !log.date.includes(dateQuery)) return false
@@ -304,7 +339,8 @@ function WorklogListView() {
       id: String(log.id),
       title: `${log.date} ${log.groupName}`,
       date: log.date,
-      type: log.type
+      type: log.type,
+      team: log.groupName
     })
 
     // Explicitly push URL to navigate
@@ -372,6 +408,15 @@ function WorklogListView() {
                 <span className="text-gray-300">|</span>
                 <span>완료 <span className="font-bold text-teal-600">{statusSummary.signed}</span></span>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportWorklogsToExcel(filteredWorklogs)}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                엑셀 내보내기
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -441,9 +486,10 @@ function WorklogListView() {
                 </TableHead>
                 <TableHead className="text-center">비고</TableHead>
                 <TableHead className="text-center">이슈</TableHead>
-                <TableHead className="text-center">인계</TableHead>
+
                 <TableHead className="text-center">결제</TableHead>
                 <TableHead className="text-center">AI요약</TableHead>
+                <TableHead className="text-center w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -557,25 +603,7 @@ function WorklogListView() {
                       </div>
                     </TableCell>
 
-                    {/* Handover Status Column */}
-                    <TableCell className="text-center">
-                      <div className="flex justify-center">
-                        {log.signatures?.operation && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div>
-                                  <Upload className="h-4 w-4 text-blue-500" />
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                <p>운행 인계 완료</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </TableCell>
+
 
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -594,6 +622,29 @@ function WorklogListView() {
                           <span className="sr-only">AI 요약</span>
                         </Button>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">메뉴 열기</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleRowClick(log)}>
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            수정
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => handleDeleteClick(e, log)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            삭제
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 )
@@ -678,12 +729,36 @@ function WorklogListView() {
           </DialogFooter>
         </DialogContent>
       </Dialog >
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, worklog: open ? deleteDialog.worklog : null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>업무일지 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.worklog && (
+                <>
+                  <strong>{deleteDialog.worklog.date}</strong> {deleteDialog.worklog.groupName} {deleteDialog.worklog.type} 업무일지를 삭제하시겠습니까?
+                  <br />
+                  <span className="text-red-500">이 작업은 되돌릴 수 없습니다.</span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div >
   )
 }
 
 function WorkLogPageContent() {
-  const { tabs, activeTab, setActiveTab, removeTab, addTab } = useWorklogTabStore()
+  const { tabs, activeTab, setActiveTab, removeTab, addTab, closeAllTabs } = useWorklogTabStore()
   const searchParams = useSearchParams()
   const router = useRouter()
   const worklogs = useWorklogStore((state) => state.worklogs)
@@ -698,22 +773,22 @@ function WorkLogPageContent() {
     if (mode === 'today') return
 
     if (id) {
-      const existingTab = tabs.find(t => t.id === id)
-      if (existingTab) {
-        if (activeTab !== id) {
-          setActiveTab(id)
-        }
+      // Always sync activeTab to URL id, even if tab doesn't exist yet
+      // (addTab might not have finished updating the store)
+      if (activeTab !== id) {
+        setActiveTab(id)
       }
     } else {
       if (activeTab !== 'list') {
         setActiveTab('list')
       }
     }
-  }, [searchParams, mode, tabs, activeTab, setActiveTab])
+  }, [searchParams, mode, activeTab, setActiveTab])
 
   // Effect 2: Handle Data -> Tab Creation/Update (Hydration)
   useEffect(() => {
     const id = searchParams.get('id')
+
     if (!id || mode === 'today') return
 
     const existingTab = tabs.find(t => t.id === id)
@@ -721,22 +796,36 @@ function WorkLogPageContent() {
 
     if (!existingTab) {
       if (id === 'new') {
-        // 'new' tab is handled by the creation flow, but if accessed directly:
+        // 'new' tab is handled by the creation flow, but if accessed directly via URL:
+        // Read date/team/type from URL params
+        const urlDate = searchParams.get('date') || format(new Date(), 'yyyy-MM-dd')
+        const urlType = searchParams.get('type')
+        const urlTeam = searchParams.get('team')
         addTab({
           id: 'new',
           title: '새 업무일지',
-          date: format(new Date(), 'yyyy-MM-dd'),
-          type: 'new'
+          date: urlDate,
+          type: urlType === 'day' ? '주간' : urlType === 'night' ? '야간' : 'new',
+          team: urlTeam || undefined
         })
       } else {
+        // [CLEANUP] If we are navigating to a specific log, close the 'new' tab if it exists
+        // This handles the redirect from "New Worklog" -> "Existing Duplicate Log" case
+        const newTabExists = tabs.find(t => t.id === 'new')
+        if (newTabExists) {
+          removeTab('new')
+        }
+
         if (log) {
           addTab({
             id: String(log.id),
             title: `${log.date} ${log.groupName}`,
             date: log.date,
-            type: log.type
+            type: log.type,
+            team: log.groupName
           })
         } else {
+          // Log not in worklogs yet - add placeholder tab and wait for worklogs to load
           addTab({
             id: id,
             title: `로딩중...`,
@@ -762,7 +851,8 @@ function WorkLogPageContent() {
         }
       }
     }
-  }, [searchParams, worklogs, tabs, addTab, mode])
+  }, [searchParams, worklogs, tabs, addTab, removeTab, mode])
+
 
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -800,28 +890,88 @@ function WorkLogPageContent() {
   const [newLogDate, setNewLogDate] = useState<Date>(new Date())
   const [newLogTeam, setNewLogTeam] = useState<string>("")
   const [newLogType, setNewLogType] = useState<string>("day")
+  const [autoTeamLoading, setAutoTeamLoading] = useState(false)
 
-  const handleCreateWorklog = () => {
+  // Auto-calculate team when date or type changes
+  useEffect(() => {
+    const calculateTeam = async () => {
+      if (!createDialogOpen) return
+
+      console.log('[DEBUG calculateTeam] Starting with:', { newLogType, newLogDate: format(newLogDate, 'yyyy-MM-dd') })
+
+      setAutoTeamLoading(true)
+      try {
+        const dateStr = format(newLogDate, 'yyyy-MM-dd')
+        const config = await shiftService.getConfig(dateStr)
+
+        if (config) {
+          const teams = shiftService.getTeamsForDate(dateStr, config)
+          console.log('[DEBUG calculateTeam] Teams for date:', teams)
+          if (teams) {
+            const team = newLogType === 'day' ? teams.A : teams.N
+            console.log('[DEBUG calculateTeam] Calculated team:', team, '(newLogType:', newLogType, ')')
+            setNewLogTeam(team)
+          } else {
+            setNewLogTeam("")
+          }
+        } else {
+          setNewLogTeam("")
+        }
+      } catch (error) {
+        console.error('Error calculating team:', error)
+        setNewLogTeam("")
+      } finally {
+        setAutoTeamLoading(false)
+      }
+    }
+
+    calculateTeam()
+  }, [newLogDate, newLogType, createDialogOpen])
+
+  const handleCreateWorklog = async () => {
+    // Capture date and type from state
     const dateStr = format(newLogDate, 'yyyy-MM-dd')
     const typeStr = newLogType
-    const teamStr = newLogTeam
+
+    // COMPUTE TEAM DIRECTLY at click time to avoid stale state
+    let teamStr = ''
+    try {
+      const config = await shiftService.getConfig(newLogDate)
+      if (config) {
+        const teams = shiftService.getTeamsForDate(newLogDate, config)
+        if (teams) {
+          teamStr = typeStr === 'day' ? teams.A : teams.N
+        }
+      }
+    } catch (error) {
+      console.error('[handleCreateWorklog] Error calculating team:', error)
+    }
+
+    console.log('[DEBUG handleCreateWorklog] Computed values:', { dateStr, typeStr, teamStr })
 
     if (!teamStr) {
-      toast.error("근무조를 선택해주세요.")
+      toast.error("근무조 계산에 실패했습니다. 다시 시도해주세요.")
       return
     }
 
-    setCreateDialogOpen(false)
-
+    // Add the new worklog tab with team info BEFORE closing dialog
     addTab({
       id: 'new',
       title: '새 업무일지',
       date: dateStr,
-      type: typeStr === 'day' ? '주간' : '야간'
+      type: typeStr === 'day' ? '주간' : '야간',
+      team: teamStr
     })
 
-    // Force navigation to new context
-    router.push(`/worklog?id=new&date=${dateStr}&team=${teamStr}&type=${typeStr}`)
+    console.log('[DEBUG handleCreateWorklog] After addTab, tabs:', useWorklogTabStore.getState().tabs)
+
+    // Navigate to new worklog
+    const url = `/worklog?id=new&date=${dateStr}&team=${teamStr}&type=${typeStr}`
+    console.log('[DEBUG handleCreateWorklog] Navigating to:', url)
+    router.push(url)
+
+    // Close dialog LAST to prevent Effects from firing and overriding values
+    setCreateDialogOpen(false)
   }
 
   const handleTabChange = (value: string) => {
@@ -908,7 +1058,13 @@ function WorkLogPageContent() {
 
           {tabs.map((tab) => (
             <TabsContent key={tab.id} value={tab.id} className="mt-6">
-              <WorklogDetail worklogId={tab.id === 'new' ? null : tab.id} />
+              <WorklogDetail
+                key={`${tab.id}-${tab.date}-${tab.type}-${tab.team || searchParams.get('team') || 'default'}`}
+                worklogId={tab.id}
+                tabDate={tab.date}
+                tabType={tab.type}
+                tabTeam={tab.team || (tab.id === 'new' ? searchParams.get('team') || undefined : undefined)}
+              />
             </TabsContent>
           ))}
         </Tabs>
@@ -932,7 +1088,7 @@ function WorkLogPageContent() {
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newLogDate ? format(newLogDate, "PPP", { locale: require("date-fns/locale/ko") }) : <span>날짜 선택</span>}
+                        {newLogDate ? format(newLogDate, "PPP", { locale: ko }) : <span>날짜 선택</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
@@ -949,18 +1105,19 @@ function WorkLogPageContent() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <span className="text-right text-sm font-medium">근무조</span>
                 <div className="col-span-3">
-                  <Select value={newLogTeam} onValueChange={setNewLogTeam}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="근무조 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1조">1조</SelectItem>
-                      <SelectItem value="2조">2조</SelectItem>
-                      <SelectItem value="3조">3조</SelectItem>
-                      <SelectItem value="4조">4조</SelectItem>
-                      <SelectItem value="5조">5조</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {autoTeamLoading ? (
+                    <div className="h-10 flex items-center text-sm text-muted-foreground">
+                      조회 중...
+                    </div>
+                  ) : newLogTeam ? (
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 font-medium">
+                      {newLogTeam}
+                    </div>
+                  ) : (
+                    <div className="h-10 flex items-center px-3 border rounded-md text-sm text-red-500">
+                      해당 날짜의 근무 패턴이 없습니다
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -980,7 +1137,9 @@ function WorkLogPageContent() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>취소</Button>
-              <Button onClick={handleCreateWorklog}>작성하기</Button>
+              <Button onClick={handleCreateWorklog} disabled={autoTeamLoading || !newLogTeam}>
+                {autoTeamLoading ? '계산 중...' : '작성하기'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -39,6 +39,7 @@ interface WorklogStore {
     fetchWorklogs: () => Promise<void>
     addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | { error: any } | null>
     updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any }>
+    deleteWorklog: (id: string | number) => Promise<{ error: any | null }>
     fetchWorklogPosts: (worklogId: string) => Promise<{ id: string; summary: string; channel?: string }[]>
     fetchWorklogById: (id: string) => Promise<Worklog | null>
 }
@@ -315,6 +316,25 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             return []
         }
         return data || []
+    },
+
+    deleteWorklog: async (id: string | number) => {
+        const { error } = await supabase
+            .from('worklogs')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            console.error('Error deleting worklog:', error)
+            return { error }
+        }
+
+        // Update local state
+        set((state) => ({
+            worklogs: state.worklogs.filter(w => w.id !== id && String(w.id) !== String(id))
+        }))
+
+        return { error: null }
     }
 
 }))

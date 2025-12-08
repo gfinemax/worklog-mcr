@@ -43,7 +43,7 @@ export const shiftService = {
             .order('valid_from', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
 
         if (error) {
             console.error('Error fetching shift config:', error)
