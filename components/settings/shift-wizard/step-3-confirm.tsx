@@ -34,12 +34,7 @@ export function Step3Confirm({ data, onChange, onBack, onComplete }: Step3Confir
     const { user } = useAuthStore()
 
     const handleSave = async () => {
-        console.log('[DEBUG] handleSave called')
-        console.log('[DEBUG] user:', user)
-        console.log('[DEBUG] data:', data)
-
         if (!user) {
-            console.error('[DEBUG] No user! Aborting save.')
             setError('로그인 정보를 찾을 수 없습니다. 다시 로그인해주세요.')
             return
         }

@@ -498,8 +498,6 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
     // Sync state from props when they change (useState initializer only runs on first mount)
     useEffect(() => {
-        console.log('[WorklogDetail] Props sync effect:', { paramType, paramTeam, paramDate })
-
         // Sync shiftType from paramType
         if (paramType) {
             if (paramType === 'day' || paramType === 'night') {
@@ -1050,12 +1048,8 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 const config = await shiftService.getConfig(selectedDate)
                 if (ignore) return
 
-                console.log('[fetchGroupMembers] Config:', config?.id, 'roster_json keys:', Object.keys(config?.roster_json || {}))
-                console.log('[fetchGroupMembers] Looking for team:', selectedTeam, 'Found:', config?.roster_json?.[selectedTeam])
-
                 if (config && config.roster_json && config.roster_json[selectedTeam]) {
                     const userIds = config.roster_json[selectedTeam]
-                    console.log('[fetchGroupMembers] User IDs:', userIds)
                     if (userIds && userIds.length > 0) {
                         // Fetch user details for these IDs
                         const { data: rosterUsers, error: rosterError } = await supabase
@@ -1700,13 +1694,6 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
     return (
         <div className={cn("min-h-screen px-8 py-2 -mt-4 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
-            {/* DEBUG INFO */}
-            <div className="bg-red-100 p-2 mb-2 text-xs font-mono print:hidden">
-                DEBUG: CurrentSession: {currentSession?.groupName},
-                ShiftType: {shiftType},
-                ActiveTab: {activeTab},
-                Time: {format(new Date(), 'HH:mm')}
-            </div>
             <div className="mx-auto max-w-[210mm] print:max-w-none">
                 <style type="text/css" media="print">
                     {`
