@@ -1,0 +1,49 @@
+1. 인증 및 세션 관리 (Critical)
+사용자 흐름의 시작점이자 보안의 핵심입니다.
+
+파일: 
+store/auth.ts
+, components/auth/auth-provider.tsx, app/(dashboard)/login/page.tsx
+디버깅 포인트:
+세션 유지: 페이지 새로고침 시 로그인 상태(특히 currentSession 정보)가 올바르게 복구되는지 (persist 미들웨어 동작 확인).
+교대 근무 로그인: "교대 근무자 로그인" 기능을 통해 nextSession이 생성될 때, 현재 세션과 충돌 없이 상태가 분리되는지.
+권한 분기: 관리자 vs 일반 사용자, 혹은 감독 vs 부감독에 따라 UI 요소(예: 설정 메뉴 접근, 서명 버튼 활성화)가 올바르게 숨겨지는지.
+2. 업무일지 (Worklog) 데이터 로직
+핵심 기능인 업무일지의 데이터 무결성을 검증해야 합니다.
+
+파일: 
+store/worklog.ts
+, 
+components/worklog/worklog-detail.tsx
+디버깅 포인트:
+실시간 동기화: 다른 사용자가 업무일지를 수정하거나 서명했을 때, 내 화면에도 즉시 반영되는지 (Supabase Realtime 구독).
+자동 저장 (Auto-save): 
+WorklogDetail
+ 컴포넌트에서 입력 중 네트워크가 끊기거나 탭을 닫았을 때 데이터 손실 방지 로직이 있는지.
+서명 파싱: 앞서 작업한 signature 필드가 null, "System Auto-Close", 또는 손상된 JSON 데이터일 때 앱이 크래시(Crash)되지 않고 적절한 폴백(Fallback)을 보여주는지.
+채널 데이터 처리: channel-row.tsx에서 많은 수의 채널 데이터를 입력할 때 입력 렉(Lag)이 발생하는지 (렌더링 최적화 확인).
+3. 근무 교대 및 스케줄링 로직
+복잡한 알고리즘이 포함된 부분입니다.
+
+파일: 
+lib/shift-rotation.ts
+, 
+store/shift-wizard-store.ts
+디버깅 포인트:
+Shift 계산 정확성: 특정 날짜(예: 윤년, 월말/월초)에 3조 2교대/4조 3교대 패턴이 정확하게 계산되는지.
+스왑(Swap) 로직: 근무자 스왑이 발생했을 때, 해당 변경 사항이 대시보드와 업무일지 생성 시 올바르게 반영되는지 (이전 근무자가 뜨지 않는지).
+4. UI/UX 및 반응형
+사용자 경험과 직결된 UI 요소입니다.
+
+파일: 
+app/(dashboard)/page.tsx
+, components/ui/*
+디버깅 포인트:
+대시보드 레이아웃: 저희가 수정한 "업무확인 서명" 및 "서명 진행률" 카드가 데이터가 없을 때(0건) 혹은 데이터가 넘칠 때 레이아웃이 깨지지 않는지.
+다이얼로그(Dialog) 중첩: 업무일지 작성 중 다른 다이얼로그(예: 이슈 해결, 근무자 등록)를 띄웠을 때 포커스 관리나 닫기 동작이 꼬이지 않는지.
+모바일 뷰: 태블릿이나 모바일 사이즈에서 테이블(Table) 뷰가 가로 스크롤로 잘 처리되는지.
+5. 상태 관리 (Zustand Stores)
+파일: store/*.ts
+디버깅 포인트:
+상태 초기화: 로그아웃 시 worklog store, auth store, post store의 민감한 데이터가 메모리에서 완전히 비워지는지.
+불필요한 렌더링: useWorklogStore((state) => state.worklogs)와 같이 선택자(Selector)를 잘 사용하여, 관련 없는 상태 변경 시 컴포넌트 리렌더링을 방지하고 있는지.

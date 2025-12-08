@@ -1,98 +1,96 @@
 {
   "meta": {
-    "project": "Worklog and Community Management Platform",
-    "date": "2025-12-04",
+    "project": "ShiftWork Management System",
+    "date": "2025-12-05",
     "prepared_by": "Software Development Manager"
   },
-  "product_overview": "This platform provides integrated solutions for worklog management, shift scheduling, user authentication, community board interactions with AI-powered summaries, and live broadcast status monitoring. It supports seamless session handling, complex UI workflows for worklogs and shifts, and efficient communication features for users in an enterprise environment.",
+  "product_overview": "A comprehensive shift work management system designed to handle user authentication, worklog management, shift scheduling, and task posting with a responsive UI for desktop and mobile.",
   "core_goals": [
-    "Ensure robust authentication and session management with PIN security and smooth login/logout flows.",
-    "Facilitate comprehensive worklog and shift pattern management with dynamic data synchronization and UI responsiveness.",
-    "Enable rich community interactions through posts, comments, AI-generated summaries, and media management.",
-    "Provide real-time broadcast status monitoring with clear visual layouts and responsive design.",
-    "Maintain high usability with global UI/UX consistency including dark mode support and mobile responsiveness."
+    "Ensure secure and seamless user authentication with session persistence and role-based UI access.",
+    "Maintain data integrity and real-time synchronization for worklog management including signature handling and autosave features.",
+    "Implement accurate shift scheduling algorithms for complex multi-shift rotation patterns with swap capabilities.",
+    "Deliver stable and responsive UI/UX including dashboard widgets, dialogs, and mobile-friendly layouts.",
+    "Optimize state management to avoid data leaks and unnecessary re-renders ensuring smooth performance."
   ],
   "key_features": [
-    "Authentication system with session persistence, Google login integration, and PIN verification.",
-    "Worklog creation, editing, tabbed navigation, and automatic/manual data saving.",
-    "Shift pattern configuration wizard with multi-step data input and worker assignment functionalities.",
-    "Community board with post creation/editing, image upload, emoji supported comments, and AI-generated summaries.",
-    "Broadcasts list and detailed monitoring view with color-coded schedule filtering and full-screen layout support.",
-    "Global UI enhancements including dark mode toggle, responsive sidebar, and error message toasts."
+    "User Authentication with session management, role-based UI access, and separate shift worker login handling.",
+    "Worklog management enabling creation, editing, viewing, real-time data sync, auto-save, and robust signature parsing with fallback handling.",
+    "Shift management with accurate rotation logic for 3-shift and 4-shift or other complex patterns, including shift swap operations.",
+    "Main dashboard displaying statistics, recent posts, and signature progress with responsive and stable layout.",
+    "Issue and notice posting capability with editor components for communication.",
+    "State management optimized via Zustand to prevent stale or sensitive data retention and minimize unnecessary renders."
   ],
   "user_flow_summary": [
-    "User logs in with credentials or Google OAuth, with session persistence and PIN verification where configured.",
-    "User manages daily worklogs using tabbed interface, with auto-save and seamless data syncing.",
-    "Supervisor configures shift patterns using a step-by-step wizard and assigns workers accordingly.",
-    "User browses and interacts with community posts: writes posts with rich editor, adds images, comments with emojis, and views AI-generated summaries.",
-    "User monitors live broadcasts and their schedules via dedicated dashboard pages with responsive layouts across device types."
+    "User logs in via the login page, session persists across refreshes; depending on role, dashboard and UI access adjust accordingly.",
+    "User creates or edits worklogs; auto-save protects against data loss; modifications and signatures update in real-time across users.",
+    "Shift pattern is managed via wizard and algorithmically calculated shifts, including handling swaps with reflected updates in dashboard and worklogs.",
+    "User views dashboard with up-to-date stats, signature progress, and recent posts; dialogs for issues or worker registration can overlay without UI conflicts.",
+    "User logs out ensuring all sensitive states are cleared from memory to prevent leakage or stale data retention."
   ],
   "validation_criteria": [
-    "Session is maintained on page refresh without logout or redirect loops.",
-    "PIN authentication triggers correctly during login and validates user inputs.",
-    "Worklog tabs open and switch without data loss and URL updates accurately.",
-    "Shift wizard maintains data integrity across steps and lists unassigned workers correctly.",
-    "Post editor supports image resizing and uploads without errors; AI summaries display reliably.",
-    "Comments show emoji picker and apply emojis correctly with optimistic UI updates.",
-    "Broadcast monitor layout remains responsive and functional in full-screen mode.",
-    "Global UI features like dark mode toggle and mobile sidebar operate without flicker or errors.",
-    "API failures show user-friendly toasts and do not break the user experience."
+    "Session persistence and separation of concurrent shift worker login sessions verified without conflict.",
+    "Worklog real-time synchronization tested with multiple users editing or signing simultaneously.",
+    "Autosave functionality confirmed to prevent data loss on network failure or tab closure.",
+    "Signature data parsing handles null, system auto-close indicators, and corrupted JSON gracefully without application crash.",
+    "Shift rotation calculations checked for edge cases like leap years and month boundaries, and swap logic updates reflected correctly in UI and data.",
+    "Dashboard layout remains intact under no data and overflow conditions; dialog overlay and focus management perform correctly.",
+    "Mobile responsiveness validated for table views and layout stability on various device sizes.",
+    "State stores wipe sensitive data on logout and minimize unnecessary component re-renders via selective selectors."
   ],
   "code_summary": {
     "tech_stack": [
       "TypeScript",
       "Next.js",
-      "React",
       "Supabase",
-      "Tailwind CSS",
-      "Zustand"
+      "TailwindCSS",
+      "Zustand",
+      "Radix UI"
     ],
     "features": [
       {
         "name": "Authentication",
-        "description": "User login, session management, and PIN authentication",
+        "description": "User login, session management, and handover login logic.",
         "files": [
-          "app/login/page.tsx",
-          "components/auth-provider.tsx",
           "store/auth.ts",
-          "lib/supabase.ts"
+          "components/auth/auth-provider.tsx",
+          "app/(dashboard)/login/page.tsx",
+          "components/auth/login-form.tsx",
+          "components/auth/session-setup-step.tsx"
         ]
       },
       {
         "name": "Worklog Management",
-        "description": "Daily worklog creation, editing, and viewing",
+        "description": "Creating, editing, viewing worklogs, and signature management.",
         "files": [
-          "app/worklog/page.tsx",
           "store/worklog.ts",
-          "store/worklog-tab-store.ts",
-          "components/worklog/"
+          "components/worklog/worklog-detail.tsx",
+          "app/worklog/page.tsx",
+          "app/worklog/[id]/page.tsx",
+          "components/worklog/channel-row.tsx"
         ]
       },
       {
         "name": "Shift Management",
-        "description": "Shift pattern configuration and worker assignment",
+        "description": "Shift rotation logic, shift wizard for roster management.",
         "files": [
-          "app/settings/shift-pattern/page.tsx",
+          "lib/shift-rotation.ts",
           "store/shift-wizard-store.ts",
-          "components/worker-registration-dialog.tsx"
+          "app/(dashboard)/settings/shift-pattern/page.tsx"
         ]
       },
       {
-        "name": "Posts & Community",
-        "description": "Board posts, comments, and AI summaries",
+        "name": "Dashboard",
+        "description": "Main dashboard with stats, recent posts, and signature progress.",
         "files": [
-          "app/posts/page.tsx",
-          "app/posts/[id]/page.tsx",
+          "app/(dashboard)/page.tsx"
+        ]
+      },
+      {
+        "name": "Posts & Issues",
+        "description": "Posting issues and notices.",
+        "files": [
           "store/posts.ts",
           "components/post-editor.tsx"
-        ]
-      },
-      {
-        "name": "Broadcast Status",
-        "description": "Broadcast and reception schedule monitoring",
-        "files": [
-          "app/broadcasts/page.tsx",
-          "app/broadcasts/[id]/monitor/page.tsx"
         ]
       }
     ]

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -573,6 +573,9 @@ export function WorkerRegistrationDialog({
                                 <GripHorizontal className="h-5 w-5 text-muted-foreground" />
                                 <DialogTitle>{workerToEdit ? "근무자 정보 수정" : "근무자 등록"}</DialogTitle>
                             </div>
+                            <DialogDescription className="text-sm text-muted-foreground">
+                                {workerToEdit ? "근무자의 정보를 수정합니다." : "새로운 근무자를 등록합니다."}
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="p-6 pt-0">

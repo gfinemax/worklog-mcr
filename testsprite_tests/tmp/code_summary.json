@@ -2,57 +2,56 @@
     "tech_stack": [
         "TypeScript",
         "Next.js",
-        "React",
         "Supabase",
-        "Tailwind CSS",
-        "Zustand"
+        "TailwindCSS",
+        "Zustand",
+        "Radix UI"
     ],
     "features": [
         {
             "name": "Authentication",
-            "description": "User login, session management, and PIN authentication",
+            "description": "User login, session management, and handover login logic.",
             "files": [
-                "app/login/page.tsx",
-                "components/auth-provider.tsx",
                 "store/auth.ts",
-                "lib/supabase.ts"
+                "components/auth/auth-provider.tsx",
+                "app/(dashboard)/login/page.tsx",
+                "components/auth/login-form.tsx",
+                "components/auth/session-setup-step.tsx"
             ]
         },
         {
             "name": "Worklog Management",
-            "description": "Daily worklog creation, editing, and viewing",
+            "description": "Creating, editing, viewing worklogs, and signature management.",
             "files": [
-                "app/worklog/page.tsx",
                 "store/worklog.ts",
-                "store/worklog-tab-store.ts",
-                "components/worklog/"
+                "components/worklog/worklog-detail.tsx",
+                "app/worklog/page.tsx",
+                "app/worklog/[id]/page.tsx",
+                "components/worklog/channel-row.tsx"
             ]
         },
         {
             "name": "Shift Management",
-            "description": "Shift pattern configuration and worker assignment",
+            "description": "Shift rotation logic, shift wizard for roster management.",
             "files": [
-                "app/settings/shift-pattern/page.tsx",
+                "lib/shift-rotation.ts",
                 "store/shift-wizard-store.ts",
-                "components/worker-registration-dialog.tsx"
+                "app/(dashboard)/settings/shift-pattern/page.tsx"
             ]
         },
         {
-            "name": "Posts & Community",
-            "description": "Board posts, comments, and AI summaries",
+            "name": "Dashboard",
+            "description": "Main dashboard with stats, recent posts, and signature progress.",
             "files": [
-                "app/posts/page.tsx",
-                "app/posts/[id]/page.tsx",
+                "app/(dashboard)/page.tsx"
+            ]
+        },
+        {
+            "name": "Posts & Issues",
+            "description": "Posting issues and notices.",
+            "files": [
                 "store/posts.ts",
                 "components/post-editor.tsx"
-            ]
-        },
-        {
-            "name": "Broadcast Status",
-            "description": "Broadcast and reception schedule monitoring",
-            "files": [
-                "app/broadcasts/page.tsx",
-                "app/broadcasts/[id]/monitor/page.tsx"
             ]
         }
     ]

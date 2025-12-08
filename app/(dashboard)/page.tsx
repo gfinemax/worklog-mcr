@@ -16,16 +16,19 @@ import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/auth"
 import { LoginForm } from "@/components/auth/login-form"
 import { SessionSetupStep } from "@/components/auth/session-setup-step"
+import { PostEditor } from "@/components/post-editor"
 
 export default function Dashboard() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const worklogs = useWorklogStore((state) => state.worklogs)
+  const { fetchWorklogs } = useWorklogStore() // Added fetchWorklogs
   const importantWorklogs = worklogs.filter(log => log.isImportant).slice(0, 5)
 
   const { posts, fetchPosts, resolvePost } = usePostStore()
   const [emergencyPosts, setEmergencyPosts] = useState<Post[]>([])
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
+  const [postDialogOpen, setPostDialogOpen] = useState(false)
   const [resolutionNote, setResolutionNote] = useState("")
 
   const { loginMode, currentSession, nextSession, setNextUser, setNextSession } = useAuthStore()
@@ -61,9 +64,35 @@ export default function Dashboard() {
   // Shift Info State
   const [shiftInfo, setShiftInfo] = useState<any>(null)
 
+  // Hoist Logic for Current Worklog
+  const currentLog = currentSession ? worklogs.find(log =>
+    log.groupName === currentSession.groupName &&
+    (log.status === '작성중' || log.date === new Date().toISOString().split('T')[0])
+  ) : null
+
+  // Previous Worklog (First one that isn't current)
+  const previousLog = worklogs.find(log => log.id !== currentLog?.id)
+
+  // Calculate Progress for Current Log
+  const signatureProgress = currentLog ? Object.values(currentLog.signatures || {}).filter(Boolean).length : 0
+
+  // Helper to parse signature
+  const parseSignature = (value: string | null) => {
+    if (!value) return null
+    if (value === 'System Auto-Close') return { name: '시스템', time: '자동' }
+    try {
+      const parsed = JSON.parse(value)
+      const time = new Date(parsed.signed_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+      return { name: parsed.name, time }
+    } catch (e) {
+      return { name: value, time: '-' }
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     fetchPosts({ priority: '긴급' })
+    fetchWorklogs()
 
     // Fetch Shift Info if session is active
     const loadShiftInfo = async () => {
@@ -143,6 +172,10 @@ export default function Dashboard() {
               </>
             )}
 
+            <Button variant="outline" onClick={() => setPostDialogOpen(true)}>
+              <AlertCircle className="mr-2 h-4 w-4" />
+              이슈 등록
+            </Button>
             <Button onClick={() => router.push('/worklog')}>
               <FileText className="mr-2 h-4 w-4" />
               일지 작성하기
@@ -291,8 +324,132 @@ export default function Dashboard() {
               <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">75%</div>
-              <p className="text-xs text-muted-foreground">3/4 파트 서명 완료</p>
+              <div className="text-2xl font-bold">{currentLog ? Math.round((signatureProgress / 4) * 100) : 0}%</div>
+              <p className="text-xs text-muted-foreground">{currentLog ? `${signatureProgress}/4 파트 서명 완료` : "진행 중인 일지 없음"}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <Card className="col-span-4">
+            <CardHeader>
+              <CardTitle>최근 포스트</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {posts.slice(0, 3).map(post => (
+                  <div key={post.id} className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{post.category?.name || "일반"}</Badge>
+                        <span className="font-medium text-sm line-clamp-1">{post.title}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {post.summary || "내용 없음"}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+                {posts.length === 0 && (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    작성된 포스트가 없습니다.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-3">
+            <CardHeader>
+              <CardTitle>업무확인 서명</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Current Worklog Signatures */}
+                {currentLog ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-muted-foreground">현재 근무 ({currentLog.groupName} {currentLog.type})</h4>
+                      <Link href={`/worklog?id=${currentLog.id}`} className="text-xs text-blue-600 hover:underline">
+                        상세보기
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: 'operation', label: '운행' },
+                        { key: 'team_leader', label: '팀장' },
+                        { key: 'mcr', label: 'MCR' },
+                        { key: 'network', label: 'Net' },
+                      ].map(item => {
+                        const sigData = parseSignature(currentLog.signatures?.[item.key as keyof typeof currentLog.signatures])
+                        return (
+                          <div key={item.key} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded border">
+                            {sigData ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-medium text-xs text-muted-foreground">{item.label}</span>
+                              <span className="text-xs truncate font-bold">
+                                {sigData ? sigData.name : "대기"}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground bg-muted/50 rounded-lg">
+                    진행 중인 업무일지가 없습니다.
+                  </div>
+                )}
+
+                {/* Previous Worklog Signatures */}
+                {previousLog && (
+                  <>
+                    <div className="h-px bg-border my-2" />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-muted-foreground">이전 근무 ({previousLog.groupName} {previousLog.type})</h4>
+                        <Link href={`/worklog?id=${previousLog.id}`} className="text-xs text-blue-600 hover:underline">
+                          상세보기
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { key: 'operation', label: '운행' },
+                          { key: 'team_leader', label: '팀장' },
+                          { key: 'mcr', label: 'MCR' },
+                          { key: 'network', label: 'Net' },
+                        ].map(item => {
+                          // Use type assertion carefully or defined type
+                          const sigData = parseSignature(previousLog.signatures?.[item.key as keyof typeof previousLog.signatures])
+                          return (
+                            <div key={item.key} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded border">
+                              {sigData ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )}
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-medium text-xs text-muted-foreground">{item.label}</span>
+                                <span className="text-xs truncate font-bold">
+                                  {sigData ? sigData.name : "대기"}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -485,6 +642,22 @@ export default function Dashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* Post Editor Dialog */}
+        <Dialog open={postDialogOpen} onOpenChange={setPostDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>새 이슈/공지 등록</DialogTitle>
+              <DialogDescription>
+                업무 관련 이슈나 공지사항을 등록해주세요.
+              </DialogDescription>
+            </DialogHeader>
+            <PostEditor onSuccess={() => {
+              setPostDialogOpen(false)
+              fetchPosts({ priority: '긴급' })
+            }} />
+          </DialogContent>
+        </Dialog>
+
         {/* Handover Login Dialog */}
         <Dialog open={handoverDialogOpen} onOpenChange={(open) => {
           setHandoverDialogOpen(open)
@@ -513,13 +686,23 @@ export default function Dashboard() {
                 </div>
               </>
             ) : (
-              <SessionSetupStep
-                groupName={handoverData?.groupData?.name || ""}
-                initialMembers={handoverData?.initialMembers || []}
-                onConfirm={handleHandoverComplete}
-                onCancel={() => setHandoverStep('login')}
-                confirmLabel="교대 근무자 확정"
-              />
+              <>
+                <DialogHeader>
+                  <DialogTitle>근무 세션 설정</DialogTitle>
+                  <DialogDescription>
+                    참여 근무자를 확인하고 교대를 완료해주세요.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <SessionSetupStep
+                    groupName={handoverData?.groupData?.name || ""}
+                    initialMembers={handoverData?.initialMembers || []}
+                    onConfirm={handleHandoverComplete}
+                    onCancel={() => setHandoverStep('login')}
+                    confirmLabel="교대 근무자 확정"
+                  />
+                </div>
+              </>
             )}
           </DialogContent>
         </Dialog>

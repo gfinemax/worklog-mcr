@@ -286,9 +286,20 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         }
     }, [searchParams, paramTeam, paramType])
 
+    // [FIX] Reset isLoaded when id changes to ensure data is reloaded
+    const prevIdRef = useRef<string | undefined>(id)
+    useEffect(() => {
+        if (prevIdRef.current !== id) {
+            prevIdRef.current = id
+            setIsLoaded(false)
+        }
+    }, [id])
 
     // Sync state from store (Existing Worklogs)
     useEffect(() => {
+        // [FIX] Skip if already loaded to prevent overwriting local state with stale store data
+        if (isLoaded) return
+
         if (id && id !== 'new') {
             const worklog = worklogs.find(w => String(w.id) === id)
             if (worklog) {
@@ -360,14 +371,10 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
                     if (JSON.stringify(newChannelLogs) !== JSON.stringify(channelLogs)) {
                         setChannelLogs(newChannelLogs)
-                    } else {
-                        setChannelLogs(worklog.channelLogs || {})
                     }
 
                     if (JSON.stringify(newSystemIssues) !== JSON.stringify(systemIssues)) {
                         setSystemIssues(newSystemIssues)
-                    } else {
-                        setSystemIssues(worklog.systemIssues || [])
                     }
 
                     setIsLoaded(true) // Data loaded
@@ -437,14 +444,17 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
             if (existingWorklog) {
                 // If we are in 'today' mode, we don't want to redirect to the list view ID.
-                // The parent component (page.tsx) should handle switching the ID passed to us.
+                // Instead, we should load the existing worklog's data.
                 const mode = searchParams.get('mode')
                 if (mode === 'today') {
-                    // Even in today mode, if we found a log, we should probably use it?
-                    // But page.tsx handles the initial load. This effect runs when state changes.
-                    // If page.tsx passed 'new', but we found one in the store (maybe loaded after),
-                    // we should switch to it.
-                    // [FIX] Do NOT redirect if mode is today. Let parent component handle the ID switch.
+                    // [FIX] Load existing worklog data into state for TODAY mode
+                    setWorkers(existingWorklog.workers)
+                    setChannelLogs(existingWorklog.channelLogs || {})
+                    setSystemIssues(existingWorklog.systemIssues || [])
+                    setStatus(existingWorklog.status)
+                    setSelectedTeam(existingWorklog.groupName)
+                    setShiftType(existingWorklog.type === '주간' ? 'day' : 'night')
+                    setIsLoaded(true)
                     return
                 }
 
@@ -589,6 +599,9 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
     // Fetch group members when team changes (only if no ID or creating new)
     useEffect(() => {
         let ignore = false
+
+        // [FIX] Skip if already loaded to prevent overwriting saved workers
+        if (isLoaded) return
 
         // If we are in Next Session tab, we already set workers from session members in the previous effect
         if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) return
@@ -771,7 +784,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         fetchGroupMembers()
 
         return () => { ignore = true }
-    }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate])
+    }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate, isLoaded])
 
     const updateTitle = () => {
         const now = new Date()

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, CheckSquare, Calendar, UserCircle, LogOut, ChevronLeft, ChevronRight, Menu } from "lucide-react"
+import { LayoutDashboard, FileText, PenSquare, BarChart3, Settings, Users, Tv, Calendar, UserCircle, LogOut, ChevronLeft, ChevronRight, Menu } from "lucide-react"
 import { useState, useEffect, Fragment } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/store/auth"
@@ -24,7 +24,6 @@ const menuItems = [
 
   { icon: PenSquare, label: "포스트 목록", href: "/posts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
-  { icon: CheckSquare, label: "업무확인 서명", href: "/signatures" },
   { icon: BarChart3, label: "통계 및 보고서", href: "/statistics" },
   { icon: Users, label: "근무패턴 설정", href: "/settings/worker-pattern" },
   { icon: Settings, label: "프로그램 설정", href: "/settings", exact: true },

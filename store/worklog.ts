@@ -2,10 +2,64 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 
+// Channel timecode entry (운행표 수정)
+export interface ChannelTimecodeEntry {
+    [index: number]: string  // e.g., { 0: "MBC12:34:56:00부터 정규1번" }
+}
+
+// Channel post reference
+export interface ChannelPostRef {
+    id: string
+    summary: string
+}
+
+// Legacy interface for backward compatibility
 export interface ChannelLog {
-    content?: string // Deprecated, kept for backward compatibility if needed
-    posts: { id: string; summary: string }[]
-    timecodes: { [key: number]: string }
+    content?: string
+    posts: ChannelPostRef[]
+    timecodes: ChannelTimecodeEntry
+}
+
+// Helper function to merge new columns with legacy channel_logs for read operations
+function parseChannelData(log: any): {
+    channelLogs: { [key: string]: ChannelLog },
+    systemIssues: { id: string; summary: string }[]
+} {
+    // Check if new columns exist and have data
+    const channelTimecode = log.channel_timecode || {}
+    const channelPosts = log.channel_posts || {}
+    const legacyLogs = log.channel_logs || {}
+
+    const hasNewColumns = Object.keys(channelTimecode).length > 0 || Object.keys(channelPosts).length > 0
+
+    // If new columns have data, merge them with legacy. Otherwise, use legacy only.
+    if (!hasNewColumns) {
+        // Use legacy channel_logs directly
+        return {
+            channelLogs: legacyLogs,
+            systemIssues: log.system_issues || []
+        }
+    }
+
+    // Merge all channel keys from all sources
+    const allChannels = new Set([
+        ...Object.keys(channelTimecode),
+        ...Object.keys(channelPosts),
+        ...Object.keys(legacyLogs)
+    ])
+
+    const channelLogs: { [key: string]: ChannelLog } = {}
+    allChannels.forEach(channel => {
+        channelLogs[channel] = {
+            timecodes: channelTimecode[channel] || legacyLogs[channel]?.timecodes || {},
+            posts: channelPosts[channel] || legacyLogs[channel]?.posts || []
+        }
+    })
+
+    // System issues from new column or legacy empty array
+    const systemIssues = log.system_issues || []
+
+    return { channelLogs, systemIssues }
 }
 
 export interface Worklog {
@@ -87,8 +141,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 isImportant: false,
                 isAutoCreated: log.is_auto_created || false,
                 aiSummary: log.ai_summary,
-                channelLogs: log.channel_logs || {},
-                systemIssues: log.system_issues || [],
+                ...parseChannelData(log),
                 maxPriority
             }
         })
@@ -109,15 +162,16 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         }
 
         // 2. Insert or Update worklog (Upsert)
+        // NOTE: New columns (channel_timecode, channel_posts, system_issues) will be added after migration.
+        // For now, only write to channel_logs for backward compatibility.
         const payload = {
             date: worklog.date,
             type: worklog.type,
             status: worklog.status,
             channel_logs: worklog.channelLogs,
             workers: worklog.workers,
-            // system_issues: worklog.systemIssues, // Column missing in DB, disabling for now
             group_id: groupData.id,
-            group_name: worklog.groupName, // Renamed column
+            group_name: worklog.groupName,
             signatures: worklog.signatures,
             is_auto_created: worklog.isAutoCreated
         }
@@ -183,8 +237,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                         signatures: existing.signatures || { operation: null, mcr: null, team_leader: null, network: null },
                         isImportant: false,
                         isAutoCreated: existing.is_auto_created || false,
-                        channelLogs: existing.channel_logs || {},
-                        systemIssues: existing.system_issues || []
+                        ...parseChannelData(existing)
                     } as Worklog
                 }
             }
@@ -214,8 +267,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             signatures: signatures,
             isImportant: false,
             isAutoCreated: createdLog.is_auto_created || false,
-            channelLogs: createdLog.channel_logs || {},
-            systemIssues: createdLog.system_issues || []
+            ...parseChannelData(createdLog)
         } as Worklog
     },
     fetchWorklogById: async (id: string) => {
@@ -253,8 +305,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 isImportant: false,
                 isAutoCreated: data.is_auto_created || false,
                 aiSummary: data.ai_summary,
-                channelLogs: data.channel_logs || {},
-                systemIssues: data.system_issues || []
+                ...parseChannelData(data)
             }
 
             set(state => {
@@ -285,13 +336,15 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             status: updates.status,
         }
 
+        // NOTE: New columns (channel_timecode, channel_posts, system_issues) will be added after migration.
+        // For now, only write to channel_logs for backward compatibility.
         if (updates.channelLogs) dbUpdates.channel_logs = updates.channelLogs
         if (updates.type) dbUpdates.type = updates.type
         if (updates.workers) dbUpdates.workers = updates.workers
         if (updates.aiSummary) dbUpdates.ai_summary = updates.aiSummary
         if (updates.signatures) dbUpdates.signatures = updates.signatures
         if (updates.isAutoCreated !== undefined) dbUpdates.is_auto_created = updates.isAutoCreated
-        // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Column missing in DB
+        // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Enable after migration
 
         const { error } = await supabase
             .from('worklogs')

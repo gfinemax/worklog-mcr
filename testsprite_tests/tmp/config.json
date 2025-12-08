@@ -7,10 +7,10 @@
     "projectName": "worklog-mcr",
     "projectPath": "c:\\workspace\\antigravity\\worklog-mcr",
     "testIds": [],
-    "additionalInstruction": "Run all frontend tests",
+    "additionalInstruction": "Re-run the tests. Focus on validating that TC010, TC011, and Dialog interactions now pass with the accessibility fixes (DialogDescription) and Issue Posting UI implemented. Auth tests may still fail if env is missing.",
     "envs": {
       "API_KEY": "sk-user-AWf18odXwywDW_LPtyOGVg-010cyg2WfAu0lCRxOpofQIPRgBbNxw2Zor07jVEcEPQlgRTPkwiP6iP3jIyFqe-VfX6_SC6axzHF4HFhYFB1gizuN3GDX7EShWLZJVcjsSZg"
     }
   },
-  "proxy": "http://3272414f-3718-4142-924b-6eb2f6b0bfed:CWOpvS011kAJFhGlgFiZg6wwa6jE27Vw@tun.testsprite.com:8080"
+  "proxy": "http://08d9d733-c393-4c04-a1d6-2af74dc38526:tzjULd6dszNLVxPyBuO9JB0OQqJrwZR5@tun.testsprite.com:8080"
 }
