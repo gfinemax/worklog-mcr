@@ -42,9 +42,6 @@ export function useWorklogState({
     // Check if explicit props were provided from dialog
     const hasExplicitProps = !!(tabDate && tabTeam && tabType)
 
-    // Debug: log on every render
-    console.log('[useWorklogState] Hook called:', { id, tabDate, tabType, tabTeam, hasExplicitProps })
-
     // === INITIALIZATION FUNCTIONS ===
 
     const getInitialDate = (): Date => {
@@ -82,8 +79,6 @@ export function useWorklogState({
     useEffect(() => {
         if (!tabType) return
 
-        console.log('[useWorklogState] Syncing shiftType from tabType:', tabType)
-
         if (tabType === 'day' || tabType === 'night') {
             setShiftType(tabType)
         } else if (tabType === '주간') {
@@ -96,16 +91,12 @@ export function useWorklogState({
     // Effect 0b: Sync team when tabTeam changes (INDEPENDENT of other props)
     useEffect(() => {
         if (!tabTeam) return
-
-        console.log('[useWorklogState] Syncing team from tabTeam:', tabTeam)
         setSelectedTeam(tabTeam)
     }, [tabTeam])
 
     // Effect 0c: Sync date when tabDate changes (INDEPENDENT of other props)
     useEffect(() => {
         if (!tabDate) return
-
-        console.log('[useWorklogState] Syncing date from tabDate:', tabDate)
         const [year, month, day] = tabDate.split('-').map(Number)
         setSelectedDate(new Date(year, month - 1, day))
     }, [tabDate])
