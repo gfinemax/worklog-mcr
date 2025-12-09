@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { FolderTabsList, FolderTabsTrigger } from "@/components/ui/folder-tabs"
-import { BroadcastListView } from "@/components/broadcast/broadcast-list"
+import { DailyBroadcastList } from "@/components/broadcast/daily-broadcast-list"
 import { BroadcastDetail } from "@/components/broadcast/broadcast-detail"
 import { BroadcastWizard } from "@/components/broadcast/broadcast-wizard"
 import { useBroadcastTabStore } from "@/store/broadcast-tab-store"
@@ -126,7 +126,7 @@ function BroadcastPageContent() {
 
                     {/* List Content */}
                     <TabsContent value="list" className="-mt-[2px] relative z-0">
-                        <BroadcastListView onNewClick={() => { }} />
+                        <DailyBroadcastList onNewClick={() => { }} />
                     </TabsContent>
 
                     {/* Detail Contents */}

@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useAuthStore } from "@/store/auth"
+import { SimplePagination, usePagination } from "@/components/ui/simple-pagination"
 
 export default function PostList() {
   const router = useRouter()
@@ -31,7 +32,12 @@ export default function PostList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
+
   const [resolutionNote, setResolutionNote] = useState("")
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 15
 
   // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' })
@@ -46,13 +52,20 @@ export default function PostList() {
       categoryId: selectedCategory === "all" ? undefined : selectedCategory,
       search: searchQuery,
       tag: selectedTag || undefined
+
     })
+    setCurrentPage(1)
   }, [selectedCategory, searchQuery, selectedTag])
 
   const { user } = useAuthStore()
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
   const [hideResolved, setHideResolved] = useState(false)
   const [showMyPosts, setShowMyPosts] = useState(false)
+
+  // Reset pagination when local filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [priorityFilter, hideResolved, showMyPosts])
 
   // Sorting Logic
   const handleSort = (key: string) => {
@@ -106,6 +119,10 @@ export default function PostList() {
     if (aValue > bValue) return direction === 'asc' ? 1 : -1
     return 0
   })
+
+  // Pagination Logic
+  const { totalPages, getPageItems } = usePagination(sortedPosts, ITEMS_PER_PAGE)
+  const currentPosts = getPageItems(currentPage)
 
   const handleResolveClick = (post: Post, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -355,7 +372,7 @@ export default function PostList() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedPosts.map((post) => (
+                  currentPosts.map((post) => (
                     <TableRow
                       key={post.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -490,6 +507,12 @@ export default function PostList() {
             </Table>
           </CardContent>
         </Card>
+
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
 
         {/* Resolve Dialog */}
         <Dialog open={resolveDialog.open} onOpenChange={(open) => setResolveDialog({ ...resolveDialog, open })}>

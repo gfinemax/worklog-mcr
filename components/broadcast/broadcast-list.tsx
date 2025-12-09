@@ -42,6 +42,47 @@ interface BroadcastListViewProps {
     onNewClick?: () => void
 }
 
+// 수신 경로를 간결한 형식으로 변환 (JSX 반환)
+function formatReceptionPath(path: string): React.ReactNode {
+    if (!path) return null
+
+    let mainEquipment = ''
+    const backupEquipments: string[] = []
+
+    // 메인 추출 - 마지막 > 이후의 장비명만
+    const mainSection = path.match(/메인:\s*([^\/]+)/)
+    if (mainSection) {
+        const mainParts = mainSection[1].split('>')
+        mainEquipment = mainParts[mainParts.length - 1].trim()
+    }
+
+    // 백업 추출 - 각 백업에서 마지막 장비명만
+    const backupSection = path.match(/백업:\s*(.+)/)
+    if (backupSection) {
+        const backupSignals = backupSection[1].split(',')
+        for (const signal of backupSignals) {
+            const signalParts = signal.split('>')
+            const equipment = signalParts[signalParts.length - 1].trim()
+            if (equipment) backupEquipments.push(equipment)
+        }
+    }
+
+    // 기존 형식
+    if (!mainEquipment && backupEquipments.length === 0) {
+        const allParts = path.split('>')
+        return allParts[allParts.length - 1].trim() || path
+    }
+
+    return (
+        <>
+            {mainEquipment && <><span className="font-bold">(M)</span>{mainEquipment} </>}
+            {backupEquipments.length > 0 && (
+                <><span className="font-bold">(B)</span> {backupEquipments.join(' ')}</>
+            )}
+        </>
+    )
+}
+
 export function BroadcastListView({ onNewClick }: BroadcastListViewProps) {
     const router = useRouter()
     const schedules = useBroadcastStore((state) => state.schedules)
@@ -310,11 +351,11 @@ export function BroadcastListView({ onNewClick }: BroadcastListViewProps) {
                                                 <div className="text-sm text-muted-foreground">{schedule.match_info}</div>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-center text-sm text-blue-600">
-                                            {schedule.transmission_path}
+                                        <TableCell className="text-center text-sm text-red-600 font-medium">
+                                            {formatReceptionPath(schedule.transmission_path || '')}
                                         </TableCell>
-                                        <TableCell className="text-center text-sm">
-                                            {schedule.hq_network}
+                                        <TableCell className="text-center text-sm text-purple-600">
+                                            {schedule.return_info}
                                         </TableCell>
                                         <TableCell className="text-center text-sm">
                                             {schedule.manager}

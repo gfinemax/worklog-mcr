@@ -6,9 +6,11 @@ import { ko } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Printer, Edit2, Trash2, Phone, Monitor } from "lucide-react"
+import { Plus, Printer, Edit2, Trash2, Phone, Monitor, Radio, Satellite, CheckCircle2 } from "lucide-react"
 import { useBroadcastStore, BroadcastSchedule } from "@/store/broadcast"
 import { BroadcastWizard } from "./broadcast-wizard"
+import { BroadcastTimeline } from "./broadcast-timeline"
+import { StatusIndicator } from "./status-indicator"
 import { toast } from "sonner"
 import {
     AlertDialog,
@@ -23,6 +25,48 @@ import {
 
 interface BroadcastDetailProps {
     date: string
+}
+
+// 수신 경로를 간결한 형식으로 변환 (JSX 반환)
+// "메인: IP > LiveU > FA3AO / 백업: 위성 > TVRO > TVRO-1, TVRO-3" → "(M)FA3AO (B) TVRO-1 TVRO-3"
+function formatReceptionPath(path: string): React.ReactNode {
+    if (!path) return null
+
+    let mainEquipment = ''
+    const backupEquipments: string[] = []
+
+    // 메인 추출 - 마지막 > 이후의 장비명만
+    const mainSection = path.match(/메인:\s*([^\/]+)/)
+    if (mainSection) {
+        const mainParts = mainSection[1].split('>')
+        mainEquipment = mainParts[mainParts.length - 1].trim()
+    }
+
+    // 백업 추출 - 각 백업에서 마지막 장비명만
+    const backupSection = path.match(/백업:\s*(.+)/)
+    if (backupSection) {
+        const backupSignals = backupSection[1].split(',')
+        for (const signal of backupSignals) {
+            const signalParts = signal.split('>')
+            const equipment = signalParts[signalParts.length - 1].trim()
+            if (equipment) backupEquipments.push(equipment)
+        }
+    }
+
+    // 기존 형식 (메인/백업 구분 없는 경우)
+    if (!mainEquipment && backupEquipments.length === 0) {
+        const allParts = path.split('>')
+        return allParts[allParts.length - 1].trim() || path
+    }
+
+    return (
+        <>
+            {mainEquipment && <><span className="font-bold">(M)</span>{mainEquipment} </>}
+            {backupEquipments.length > 0 && (
+                <><span className="font-bold">(B)</span> {backupEquipments.join(' ')}</>
+            )}
+        </>
+    )
 }
 
 export function BroadcastDetail({ date }: BroadcastDetailProps) {
@@ -93,6 +137,53 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                     </Button>
                 </div>
             </div>
+
+            {/* Dashboard Header */}
+            {!loading && (broadcasts.length > 0 || receptions.length > 0) && (
+                <Card className="bg-gradient-to-r from-slate-50 to-slate-100">
+                    <CardContent className="pt-6">
+                        <div className="grid grid-cols-4 gap-4 mb-6">
+                            {/* 총 건수 */}
+                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                                <span className="text-3xl font-bold text-gray-800">{broadcasts.length + receptions.length}</span>
+                                <span className="text-sm text-muted-foreground">총 건수</span>
+                            </div>
+                            {/* 라이브 */}
+                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <Radio className="h-5 w-5 text-red-500" />
+                                    <span className="text-3xl font-bold text-red-600">{broadcasts.length}</span>
+                                </div>
+                                <span className="text-sm text-muted-foreground">라이브</span>
+                            </div>
+                            {/* 수신 */}
+                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <Satellite className="h-5 w-5 text-blue-500" />
+                                    <span className="text-3xl font-bold text-blue-600">{receptions.length}</span>
+                                </div>
+                                <span className="text-sm text-muted-foreground">수신</span>
+                            </div>
+                            {/* 완료 */}
+                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                    <span className="text-3xl font-bold text-green-600">
+                                        {[...broadcasts, ...receptions].filter(s => s.status === 'completed').length}
+                                    </span>
+                                </div>
+                                <span className="text-sm text-muted-foreground">완료</span>
+                            </div>
+                        </div>
+
+                        {/* 타임라인 */}
+                        <div>
+                            <h3 className="text-sm font-medium text-muted-foreground mb-2">⏱️ 타임라인</h3>
+                            <BroadcastTimeline schedules={[...broadcasts, ...receptions]} />
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {loading ? (
                 <div className="flex justify-center p-8">
@@ -234,13 +325,15 @@ function BroadcastCard({
                     {/* Technical Info */}
                     <div className="flex flex-col gap-1 text-sm min-w-[220px]">
                         {schedule.transmission_path && (
-                            <div className="font-medium text-blue-700">수신: {schedule.transmission_path}</div>
+                            <div className="font-medium text-red-600">
+                                수신: {formatReceptionPath(schedule.transmission_path)}
+                            </div>
                         )}
                         {schedule.video_source_info && (
                             <div className="font-medium text-green-700">송신: {schedule.video_source_info}</div>
                         )}
-                        {schedule.hq_network && (
-                            <div className="font-medium text-purple-700">본사망: {schedule.hq_network}</div>
+                        {schedule.return_info && (
+                            <div className="font-medium text-purple-700">리턴: {schedule.return_info}</div>
                         )}
                         {schedule.biss_code && (
                             <div className="font-mono text-xs text-gray-500">BISS: {schedule.biss_code}</div>

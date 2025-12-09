@@ -45,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { SimplePagination, usePagination } from "@/components/ui/simple-pagination"
 
 type SortConfig = {
   key: keyof Worklog
@@ -59,7 +60,12 @@ function WorklogListView() {
   const fetchWorklogs = useWorklogStore((state) => state.fetchWorklogs)
   const { addTab, closeAllTabs } = useWorklogTabStore()
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
+
   const [groupMembers, setGroupMembers] = useState<any[]>([])
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 15
 
   useEffect(() => {
     const fetchGroupMembers = async () => {
@@ -233,8 +239,14 @@ function WorklogListView() {
         )
       }
       return true
+
     })
   }, [worklogs, teamFilter, shiftFilter, searchQuery, dateQuery, currentSession])
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, dateQuery, teamFilter, shiftFilter])
 
   const sortedWorklogs = useMemo(() => {
     let sortableWorklogs = [...filteredWorklogs]
@@ -297,6 +309,10 @@ function WorklogListView() {
     }
     return sortableWorklogs
   }, [filteredWorklogs, sortConfig])
+
+  // Pagination Logic
+  const { totalPages, getPageItems } = usePagination(sortedWorklogs, ITEMS_PER_PAGE)
+  const currentItems = getPageItems(currentPage)
 
   const statusSummary = useMemo(() => {
     const total = filteredWorklogs.length
@@ -493,7 +509,7 @@ function WorklogListView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedWorklogs.map((log) => {
+              {currentItems.map((log) => {
                 const workerChanges = getWorkerChanges(log)
                 return (
                   <TableRow
@@ -653,6 +669,12 @@ function WorklogListView() {
           </Table>
         </CardContent>
       </Card >
+
+      <SimplePagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+      />
 
       {/* AI Summary Dialog */}
       < Dialog open={summaryDialog.open} onOpenChange={(open) => setSummaryDialog({ open, worklog: null, loading: false })

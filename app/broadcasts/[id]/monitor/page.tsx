@@ -129,9 +129,9 @@ export default function BroadcastMonitorPage() {
                 </div>
             </header>
 
-            <div className="grid lg:grid-cols-2 gap-8">
-                {/* LIVE Section */}
-                <section>
+            <div className="grid lg:grid-cols-9 gap-8">
+                {/* LIVE Section - 5/9 */}
+                <section className="lg:col-span-5">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="h-8 w-2 bg-red-500 rounded-full animate-pulse"></div>
                         <h2 className="text-2xl font-bold">TITAN LIVE ON</h2>
@@ -151,8 +151,8 @@ export default function BroadcastMonitorPage() {
                     </div>
                 </section>
 
-                {/* Reception Section */}
-                <section>
+                {/* Reception Section - 4/9 */}
+                <section className="lg:col-span-4">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="h-8 w-2 bg-blue-500 rounded-full"></div>
                         <h2 className="text-2xl font-bold">수신 현황</h2>

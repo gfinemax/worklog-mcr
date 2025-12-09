@@ -6,7 +6,7 @@
  */
 
 // 망 종류
-export const NETWORK_TYPES = ['IP망', '광수신', '위성'] as const
+export const NETWORK_TYPES = ['IP', '광수신', '위성'] as const
 export type NetworkType = typeof NETWORK_TYPES[number]
 
 // IP망 수신 소스
@@ -23,7 +23,7 @@ export interface ReceptionConfig {
 // 네트워크 프리셋 데이터
 export const NETWORK_CONFIG = {
     reception: {
-        'IP망': {
+        'IP': {
             'LiveU': [
                 { id: 'FA3AO', label: 'FA3AO (1-1)', port: '1-1' },
                 { id: 'FA3BO', label: 'FA3BO (1-2)', port: '1-2' },
@@ -67,14 +67,14 @@ export const NETWORK_CONFIG = {
         })),
     },
     return: {
-        'LG 리턴': Array.from({ length: 4 }, (_, i) => ({
+        'LG RET': Array.from({ length: 4 }, (_, i) => ({
             id: `LG-RET-${i + 1}`,
-            label: `LG 리턴-${i + 1}`,
+            label: `LG RET-${i + 1}`,
             channel: String(i + 1),
         })),
-        'IP 리턴': Array.from({ length: 2 }, (_, i) => ({
+        'IP RET': Array.from({ length: 2 }, (_, i) => ({
             id: `IP-RET-${i + 1}`,
-            label: `IP 리턴-${i + 1}`,
+            label: `IP RET-${i + 1}`,
             channel: String(i + 1),
         })),
     },
