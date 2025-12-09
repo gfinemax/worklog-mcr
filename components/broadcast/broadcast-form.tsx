@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ChannelCombobox } from "./channel-combobox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Loader2 } from "lucide-react"
@@ -23,7 +24,7 @@ interface BroadcastFormProps {
     defaultDate?: string
 }
 
-const CHANNELS = ["SPORTS+", "ON", "FM", "M", "DRAMA", "Every1", "NET"]
+// Channels are now managed in ChannelCombobox component
 const STUDIOS = ["ST-A", "ST-B", "ST-C", "ST-D", "ST-E"]
 
 export function BroadcastForm({ open, onClose, schedule, defaultDate }: BroadcastFormProps) {
@@ -196,32 +197,24 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>채널 *</Label>
-                            <Select
+                            <ChannelCombobox
                                 value={formData.channel_name}
                                 onValueChange={(value) => setFormData({ ...formData, channel_name: value })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {CHANNELS.map(ch => (
-                                        <SelectItem key={ch} value={ch}>{ch}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                multiple
+                            />
                         </div>
 
                         <div className="space-y-2">
                             <Label>스튜디오</Label>
                             <Select
-                                value={formData.studio_label}
-                                onValueChange={(value) => setFormData({ ...formData, studio_label: value })}
+                                value={formData.studio_label || 'none'}
+                                onValueChange={(value) => setFormData({ ...formData, studio_label: value === 'none' ? '' : value })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="선택 (선택사항)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">없음</SelectItem>
+                                    <SelectItem value="none">없음</SelectItem>
                                     {STUDIOS.map(st => (
                                         <SelectItem key={st} value={st}>{st}</SelectItem>
                                     ))}

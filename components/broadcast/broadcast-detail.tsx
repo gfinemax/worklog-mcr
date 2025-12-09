@@ -6,7 +6,7 @@ import { ko } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Printer, Edit2, Trash2, Phone } from "lucide-react"
+import { Plus, Printer, Edit2, Trash2, Phone, Monitor } from "lucide-react"
 import { useBroadcastStore, BroadcastSchedule } from "@/store/broadcast"
 import { BroadcastForm } from "./broadcast-form"
 import { toast } from "sonner"
@@ -80,13 +80,16 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                     {format(dateObj, 'yyyy년 MM월 dd일 EEEE', { locale: ko })} 중계현황
                 </h1>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => window.open(`/broadcasts/${date}/monitor`, '_blank')}
+                    >
+                        <Monitor className="mr-2 h-4 w-4" />
+                        전체화면
+                    </Button>
                     <Button variant="outline" onClick={handlePrint}>
                         <Printer className="mr-2 h-4 w-4" />
                         인쇄하기
-                    </Button>
-                    <Button onClick={() => setFormOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        새 중계 추가
                     </Button>
                 </div>
             </div>

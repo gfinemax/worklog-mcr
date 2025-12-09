@@ -297,8 +297,11 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
     // Sync state from store (Existing Worklogs)
     useEffect(() => {
-        // [FIX] Skip if already loaded to prevent overwriting local state with stale store data
-        if (isLoaded) return
+        // [FIX] Skip if already loaded, UNLESS workers are still empty and we have currentSession
+        const workersAreEmpty = !workers.director?.length && !workers.assistant?.length && !workers.video?.length
+        const shouldRepopulateWorkers = isLoaded && workersAreEmpty && currentSession
+
+        if (isLoaded && !shouldRepopulateWorkers) return
 
         if (id && id !== 'new') {
             const worklog = worklogs.find(w => String(w.id) === id)
@@ -310,7 +313,67 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 setSelectedDate(dateObj)
                 setShiftType(worklog.type === '주간' ? 'day' : 'night')
                 setSelectedTeam(worklog.groupName)
-                setWorkers(worklog.workers)
+
+                // [FIX] If stored workers are empty, try to populate from currentSession or roster
+                const hasWorkers = worklog.workers && (
+                    worklog.workers.director?.length > 0 ||
+                    worklog.workers.assistant?.length > 0 ||
+                    worklog.workers.video?.length > 0
+                )
+
+                if (hasWorkers) {
+                    setWorkers(worklog.workers)
+                } else {
+                    // Try to populate from session or config
+
+                    // 1. Try currentSession if it matches the worklog's team (SYNC - fast path)
+                    // NOTE: currentSession.members already has swap applied during login.
+                    if (currentSession && currentSession.groupName === worklog.groupName) {
+                        const newWorkers = {
+                            director: [] as string[],
+                            assistant: [] as string[],
+                            video: [] as string[]
+                        }
+
+                        currentSession.members.forEach(m => {
+                            const role = (m.role || '').split(',')[0].trim()
+                            if (role === '감독') {
+                                newWorkers.director.push(m.name)
+                            } else if (role === '부감독') {
+                                newWorkers.assistant.push(m.name)
+                            } else {
+                                newWorkers.video.push(m.name)
+                            }
+                        })
+
+                        setWorkers(newWorkers)
+                    } else {
+                        // 2. Async fallback: Try roster_json from config
+                        const populateFromRoster = async () => {
+                            const config = await shiftService.getConfig(dateObj)
+                            if (config?.roster_json?.[worklog.groupName]) {
+                                const rosterMembers = shiftService.getMembersWithRoles(worklog.groupName, dateObj, config)
+                                if (rosterMembers.length > 0) {
+                                    const newWorkers = {
+                                        director: [] as string[],
+                                        assistant: [] as string[],
+                                        video: [] as string[]
+                                    }
+                                    rosterMembers.forEach(m => {
+                                        if (m.role === '감독') newWorkers.director.push(m.name)
+                                        else if (m.role === '부감독') newWorkers.assistant.push(m.name)
+                                        else newWorkers.video.push(m.name)
+                                    })
+                                    setWorkers(newWorkers)
+                                    return
+                                }
+                            }
+                            // 3. Fallback: use empty workers
+                            setWorkers(worklog.workers)
+                        }
+                        populateFromRoster()
+                    }
+                }
 
                 // [FIX] Sanitize Status: Remove '서명완료' and re-calculate based on signatures
                 let cleanStatus = worklog.status
@@ -520,7 +583,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 setIsLoaded(true) // New worklog is always "loaded"
             })
         }
-    }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession])
+    }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession, currentSession])
 
     // Smart Initialization: Determine initial Date and Shift Type
     // Prioritizes logged-in user's active shift over strict time-based shift to prevent auto-switching during handover.
@@ -565,6 +628,36 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
         initializeSmartShift()
     }, [id, paramType, currentSession])
+
+    // [NEW] Dedicated effect to populate workers when currentSession loads late
+    useEffect(() => {
+        if (!currentSession) return
+        if (!selectedTeam || selectedTeam !== currentSession.groupName) return
+
+        // Check if workers are empty
+        const workersAreEmpty = !workers.director?.length && !workers.assistant?.length && !workers.video?.length
+        if (!workersAreEmpty) return
+
+        // Populate from currentSession.members (roles already have swap applied)
+        const newWorkers = {
+            director: [] as string[],
+            assistant: [] as string[],
+            video: [] as string[]
+        }
+
+        currentSession.members.forEach(m => {
+            const role = (m.role || '').split(',')[0].trim()
+            if (role === '감독') {
+                newWorkers.director.push(m.name)
+            } else if (role === '부감독') {
+                newWorkers.assistant.push(m.name)
+            } else {
+                newWorkers.video.push(m.name)
+            }
+        })
+
+        setWorkers(newWorkers)
+    }, [currentSession, selectedTeam, workers])
 
     // Auto-select team based on pattern when date or shift changes (Only for new logs)
     useEffect(() => {
@@ -660,58 +753,29 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 if (ignore) return
 
                 if (config && config.roster_json && config.roster_json[selectedTeam]) {
-                    const userIds = config.roster_json[selectedTeam]
-                    if (userIds && userIds.length > 0) {
-                        // Fetch user details for these IDs
-                        const { data: rosterUsers, error: rosterError } = await supabase
-                            .from('users')
-                            .select('id, name, role')
-                            .in('id', userIds)
-                            .order('name')
+                    // roster_json is now { 감독: "name", 부감독: "name", 영상: "name" }
+                    // Use getMembersWithRoles which handles the structure and swap logic
+                    const rosterMembers = shiftService.getMembersWithRoles(selectedTeam, selectedDate, config)
 
-                        if (rosterError) throw rosterError
-
-                        if (rosterUsers && !ignore) {
-                            // Sort by the order in userIds array to preserve roster order
-                            rosterUsers.sort((a, b) => userIds.indexOf(a.id) - userIds.indexOf(b.id))
-
-                            // Check swap
-                            const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
-                            const isSwap = info.isSwap
-
-                            const newWorkers = {
-                                director: [] as string[],
-                                assistant: [] as string[],
-                                video: [] as string[]
-                            }
-                            // Filter out video staff first
-                            const daMembers: any[] = []
-                            rosterUsers.forEach((u: any) => {
-                                const primaryRole = (u.role || '').split(',')[0].trim()
-                                if (primaryRole === '영상') {
-                                    newWorkers.video.push(u.name)
-                                } else {
-                                    daMembers.push(u)
-                                }
-                            })
-
-                            // Assign Director/Assistant based on order
-                            if (daMembers.length > 0) {
-                                // Normal: 0->Director, 1->Assistant
-                                // Swap: 0->Assistant, 1->Director
-                                const idx0 = isSwap ? 'assistant' : 'director'
-                                const idx1 = isSwap ? 'director' : 'assistant'
-
-                                if (daMembers[0]) newWorkers[idx0].push(daMembers[0].name)
-                                if (daMembers[1]) newWorkers[idx1].push(daMembers[1].name)
-
-                                for (let i = 2; i < daMembers.length; i++) {
-                                    newWorkers.assistant.push(daMembers[i].name)
-                                }
-                            }
-                            setWorkers(newWorkers)
-                            return // Exit if successful
+                    if (rosterMembers.length > 0 && !ignore) {
+                        const newWorkers = {
+                            director: [] as string[],
+                            assistant: [] as string[],
+                            video: [] as string[]
                         }
+
+                        rosterMembers.forEach(m => {
+                            if (m.role === '감독') {
+                                newWorkers.director.push(m.name)
+                            } else if (m.role === '부감독') {
+                                newWorkers.assistant.push(m.name)
+                            } else {
+                                newWorkers.video.push(m.name)
+                            }
+                        })
+
+                        setWorkers(newWorkers)
+                        return // Exit if successful
                     }
                 }
 

@@ -120,86 +120,78 @@ export default function LoginPage() {
         .order('display_order', { ascending: true })
 
       if (memberData) {
+        // Prepare User Map for Roster Lookup (Name -> User Object)
+        const userMap = new Map<string, any>()
+        memberData.forEach((m: any) => {
+          if (m.users) {
+            userMap.set(m.users.name, m.users)
+          }
+        })
+
         const today = new Date()
         const shiftConfig = await shiftService.getConfig(today)
         let shiftInfo: ShiftInfo | null = null
+        let initialMembers: SessionMember[] = []
 
         if (shiftConfig) {
           shiftInfo = shiftService.calculateShift(today, globalGroup.name, shiftConfig)
           if (shiftInfo) {
             setCurrentShiftType(shiftInfo.shiftType)
           }
+
+          // 1. Try Roster JSON (SSoT)
+          if (shiftConfig.roster_json?.[globalGroup.name]) {
+            const rosterMembers = shiftService.getMembersWithRoles(globalGroup.name, today, shiftConfig)
+
+            rosterMembers.forEach(rm => {
+              const user = userMap.get(rm.name)
+              if (user) {
+                initialMembers.push({
+                  id: user.id,
+                  name: user.name,
+                  role: rm.role,
+                  profile_image_url: user.profile_image_url
+                })
+              }
+            })
+          }
         } else {
           setCurrentShiftType(null)
         }
 
-        const initialMembers: SessionMember[] = memberData
-          .filter((m: any) => m.users)
-          .map((m: any) => ({
-            id: m.users.id,
-            name: m.users.name,
-            role: "영상", // Default role
-            profile_image_url: m.users.profile_image_url
-          }))
+        // 2. Fallback to group_members (if roster_json didn't yield results)
+        if (initialMembers.length === 0) {
+          initialMembers = memberData
+            .filter((m: any) => m.users)
+            .map((m: any) => ({
+              id: m.users.id,
+              name: m.users.name,
+              role: "영상", // Default role
+              profile_image_url: m.users.profile_image_url
+            }))
 
-        // Removed Role Sorting Logic to respect display_order
-
-        if (shiftInfo) {
-          const { director, assistant, video } = shiftInfo.roles
-          // shiftInfo.roles returns indices for director/assistant/video
-          // But those indices are based on a sorted list.
-          // We need to ensure initialMembers is sorted by display_order (which it is now).
-
-          // However, shiftInfo.roles logic (in shift-rotation.ts) assumes:
-          // Normal: director=0, assistant=1
-          // Swap: director=1, assistant=0
-
-          // So if we just use these indices on our display_order sorted list:
-          // Normal: initialMembers[0] gets "Director", initialMembers[1] gets "Assistant"
-          // Swap: initialMembers[1] gets "Director", initialMembers[0] gets "Assistant"
-
-          // This matches exactly what we want!
-          // 4조 (Kwon, Kim):
-          // Normal: Kwon(0) -> Director, Kim(1) -> Assistant.
-          // Swap: Kim(1) -> Director, Kwon(0) -> Assistant.
-
-          // We just need to make sure we don't accidentally overwrite roles for video staff if indices overlap?
-          // shiftInfo.roles.video is usually 2.
-
-          // Wait, we need to filter out 'Video' staff first if we want to be safe, 
-          // OR we assume the first 2 are always Director/Assistant candidates.
-          // Given the query filters by group, and we know the structure, let's stick to the indices provided by shiftInfo
-          // BUT we must ensure initialMembers has the right people at 0 and 1.
-          // We sorted by display_order.
-
-          // Let's iterate and assign based on index match
-          initialMembers.forEach((m, i) => {
-            if (i === director) m.role = "감독"
-            else if (i === assistant) m.role = "부감독"
-            else m.role = "영상" // Default or keep existing?
-          })
-
-        } else {
-          const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
-          memberData.forEach((m: any, i: number) => {
-            if (m.role) initialMembers[i].role = m.role
-          })
-          // Keep sorting by role if no shift info? Or just respect display_order?
-          // Let's respect display_order as primary source of truth if no shift info.
-          // initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
+          if (shiftInfo) {
+            // Apply index-based roles if Swap/Pattern logic exists
+            const { director, assistant } = shiftInfo.roles
+            initialMembers.forEach((m, i) => {
+              if (i === director) m.role = "감독"
+              else if (i === assistant) m.role = "부감독"
+              else m.role = "영상"
+            })
+          } else {
+            // Apply DB roles
+            memberData.forEach((m: any, i: number) => {
+              if (m.role) initialMembers[i].role = m.role
+            })
+          }
         }
 
-        // Final sort by role for display? No, keep list order.
-        // const rolePriority: Record<string, number> = { "감독": 1, "부감독": 2, "영상": 3 }
-        // initialMembers.sort((a, b) => (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99))
-
         setSessionMembers(initialMembers)
-
-        setSessionMembers(initialMembers)
+        setStep("session-setup")
       }
-      setStep("session-setup")
-    } catch (error) {
-      toast.error("멤버 정보를 불러오는데 실패했습니다.")
+    } catch (error: any) {
+      console.error("prepareSessionSetup Error:", error)
+      toast.error(`멤버 정보를 불러오는데 실패했습니다: ${error?.message || '알 수 없는 오류'}`)
     } finally {
       setLoading(false)
     }

@@ -217,5 +217,67 @@ export const shiftService = {
             shift: shiftType,
             team
         }
+    },
+
+    // Get members with roles for a specific team and date
+    // Returns array of { name, role } based on roster_json and swap logic
+    getMembersWithRoles(teamName: string, date: Date | string, config: ShiftPatternConfig): { name: string; role: string }[] {
+        const roster = config.roster_json?.[teamName]
+        if (!roster) {
+            return []
+        }
+
+        // Get shift info to determine swap status
+        const shiftInfo = this.calculateShift(date, teamName, config)
+        const isSwap = shiftInfo.isSwap
+
+        // Case 1: roster is an array of names/IDs (e.g., ["name1", "name2", "name3"])
+        if (Array.isArray(roster)) {
+            if (roster.length === 0) return []
+
+            // Define role mapping based on swap status
+            // Normal: index 0 = 감독, index 1 = 부감독, index 2+ = 영상
+            // Swap: index 0 = 부감독, index 1 = 감독, index 2+ = 영상
+            const result: { name: string; role: string }[] = []
+
+            roster.forEach((name, index) => {
+                let role = '영상'
+                if (index === 0) {
+                    role = isSwap ? '부감독' : '감독'
+                } else if (index === 1) {
+                    role = isSwap ? '감독' : '부감독'
+                }
+                result.push({ name: String(name), role })
+            })
+
+            return result
+        }
+
+        // Case 2: roster is an object with role keys (e.g., { 감독: "name1", 부감독: "name2", 영상: "name3" })
+        if (typeof roster === 'object') {
+            const rosterObj = roster as unknown as Record<string, string>
+            const result: { name: string; role: string }[] = []
+
+            // Extract names from role-based object
+            if (rosterObj['감독']) {
+                result.push({
+                    name: rosterObj['감독'],
+                    role: isSwap ? '부감독' : '감독'
+                })
+            }
+            if (rosterObj['부감독']) {
+                result.push({
+                    name: rosterObj['부감독'],
+                    role: isSwap ? '감독' : '부감독'
+                })
+            }
+            if (rosterObj['영상']) {
+                result.push({ name: rosterObj['영상'], role: '영상' })
+            }
+
+            return result
+        }
+
+        return []
     }
 }

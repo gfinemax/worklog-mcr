@@ -25,7 +25,7 @@ export function SystemIssuesList({
                 <ul className="list-none space-y-1">
                     {issues.map(issue => (
                         <li key={issue.id}
-                            onClick={() => handlePostClick(issue.id)}
+                            onDoubleClick={() => handlePostClick(issue.id)}
                             className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
                         >
                             <span className="mr-1">•</span>

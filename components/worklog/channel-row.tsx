@@ -211,7 +211,7 @@ export function ChannelRow({
                         <ul className="list-none space-y-1">
                             {posts.map(post => (
                                 <li key={post.id}
-                                    onClick={() => handlePostClick(post.id)}
+                                    onDoubleClick={() => handlePostClick(post.id)}
                                     className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
                                 >
                                     <span className="mr-1">•</span>
