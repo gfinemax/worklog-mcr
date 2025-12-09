@@ -1,22 +1,25 @@
 "use client"
 
-import { Suspense, useEffect } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { FolderTabsList, FolderTabsTrigger } from "@/components/ui/folder-tabs"
 import { BroadcastListView } from "@/components/broadcast/broadcast-list"
 import { BroadcastDetail } from "@/components/broadcast/broadcast-detail"
+import { BroadcastWizard } from "@/components/broadcast/broadcast-wizard"
 import { useBroadcastTabStore } from "@/store/broadcast-tab-store"
+import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { ko } from "date-fns/locale"
-import { X, FileText } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { X, LayoutList, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 function BroadcastPageContent() {
     const { tabs, activeTab, setActiveTab, removeTab, addTab } = useBroadcastTabStore()
     const searchParams = useSearchParams()
     const router = useRouter()
+    const [wizardOpen, setWizardOpen] = useState(false)
 
     // Handle URL sync
     useEffect(() => {
@@ -70,48 +73,76 @@ function BroadcastPageContent() {
 
     return (
         <MainLayout>
-            <div className="p-6 pt-3 h-full flex-col">
+            <div className="px-8 pt-2 pb-8">
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                    <FolderTabsList>
-                        {/* Fixed "List" Tab */}
-                        <FolderTabsTrigger value="list" className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            중계현황
-                        </FolderTabsTrigger>
-
-                        {/* Dynamic Tabs */}
-                        {tabs.map((tab) => (
-                            <FolderTabsTrigger
-                                key={tab.id}
-                                value={tab.id}
-                                className="flex items-center gap-1 group/tab"
-                            >
-                                {tab.title}
-                                <span
-                                    role="button"
-                                    tabIndex={0}
-                                    className="h-4 w-4 ml-1 opacity-0 group-hover/tab:opacity-100 transition-opacity flex items-center justify-center rounded hover:bg-slate-200"
-                                    onClick={(e) => handleRemoveTab(e, tab.id)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleRemoveTab(e as any, tab.id)}
+                    {/* Tabs Header with Add Button */}
+                    <div className="print:hidden relative z-10 w-full flex items-center justify-between mb-0">
+                        <div className="overflow-x-auto">
+                            <FolderTabsList>
+                                {/* Fixed "List" Tab - matches worklog style */}
+                                <FolderTabsTrigger
+                                    value="list"
+                                    className={cn(
+                                        activeTab !== 'list' && "text-blue-600 font-semibold"
+                                    )}
                                 >
-                                    <X className="h-3 w-3" />
-                                </span>
-                            </FolderTabsTrigger>
-                        ))}
-                    </FolderTabsList>
+                                    <div className="flex items-center gap-2 relative z-10">
+                                        <LayoutList className={cn(
+                                            "h-4 w-4",
+                                            activeTab !== 'list' ? "animate-lighthouse-shake text-blue-500" : "text-foreground"
+                                        )} />
+                                        <span className={cn(activeTab !== 'list' && "text-blue-600 font-semibold")}>중계현황</span>
+                                    </div>
+                                </FolderTabsTrigger>
+
+                                {/* Dynamic Tabs */}
+                                {tabs.map((tab) => (
+                                    <FolderTabsTrigger key={tab.id} value={tab.id}>
+                                        <div className="flex items-center gap-2">
+                                            <span>{tab.title}</span>
+                                            <div
+                                                role="button"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault()
+                                                    e.stopPropagation()
+                                                    handleRemoveTab(e, tab.id)
+                                                }}
+                                                className="rounded-full p-0.5 hover:bg-slate-300/50 text-slate-500 hover:text-slate-700 transition-colors z-50"
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </div>
+                                        </div>
+                                    </FolderTabsTrigger>
+                                ))}
+                            </FolderTabsList>
+                        </div>
+
+                        {/* Add Button */}
+                        <Button onClick={() => setWizardOpen(true)} className="ml-4 shrink-0">
+                            <Plus className="mr-2 h-4 w-4" />
+                            일정 추가
+                        </Button>
+                    </div>
 
                     {/* List Content */}
-                    <TabsContent value="list" className="mt-0">
+                    <TabsContent value="list" className="-mt-[2px] relative z-0">
                         <BroadcastListView onNewClick={() => { }} />
                     </TabsContent>
 
                     {/* Detail Contents */}
                     {tabs.map((tab) => (
-                        <TabsContent key={tab.id} value={tab.id} className="mt-0">
+                        <TabsContent key={tab.id} value={tab.id} className="mt-6">
                             <BroadcastDetail date={tab.date} />
                         </TabsContent>
                     ))}
                 </Tabs>
+
+                {/* Wizard Dialog */}
+                <BroadcastWizard
+                    open={wizardOpen}
+                    onClose={() => setWizardOpen(false)}
+                    defaultDate={activeTab !== 'list' ? activeTab : undefined}
+                />
             </div>
         </MainLayout>
     )
@@ -124,3 +155,4 @@ export default function BroadcastsPage() {
         </Suspense>
     )
 }
+

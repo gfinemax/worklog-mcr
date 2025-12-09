@@ -46,6 +46,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
         audio_source_info: '',
         send_line: '',
         hq_network: '',
+        return_info: '',
         broadcast_van: '',
         manager: '',
         contact_info: '',
@@ -68,6 +69,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                 audio_source_info: schedule.audio_source_info || '',
                 send_line: schedule.send_line || '',
                 hq_network: schedule.hq_network || '',
+                return_info: schedule.return_info || '',
                 broadcast_van: schedule.broadcast_van || '',
                 manager: schedule.manager || '',
                 contact_info: schedule.contact_info || '',
@@ -89,6 +91,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                 audio_source_info: '',
                 send_line: '',
                 hq_network: '',
+                return_info: '',
                 broadcast_van: '',
                 manager: '',
                 contact_info: '',
@@ -235,7 +238,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                         </div>
 
                         <div className="space-y-2">
-                            <Label>경기 정보</Label>
+                            <Label>부제</Label>
                             <Input
                                 value={formData.match_info}
                                 onChange={(e) => setFormData({ ...formData, match_info: e.target.value })}
@@ -247,7 +250,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                     {/* Row 4: Transmission Path, Video Source */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>수신 경로</Label>
+                            <Label>수신</Label>
                             <Input
                                 value={formData.transmission_path}
                                 onChange={(e) => setFormData({ ...formData, transmission_path: e.target.value })}
@@ -256,7 +259,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                         </div>
 
                         <div className="space-y-2">
-                            <Label>송신 라인</Label>
+                            <Label>송신</Label>
                             <Input
                                 value={formData.video_source_info}
                                 onChange={(e) => setFormData({ ...formData, video_source_info: e.target.value })}
@@ -265,7 +268,7 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                         </div>
                     </div>
 
-                    {/* Row 5: HQ Network, Broadcast Van */}
+                    {/* Row 5: HQ Network, Return Info */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>본사망</Label>
@@ -276,6 +279,18 @@ export function BroadcastForm({ open, onClose, schedule, defaultDate }: Broadcas
                             />
                         </div>
 
+                        <div className="space-y-2">
+                            <Label>리턴</Label>
+                            <Input
+                                value={formData.return_info}
+                                onChange={(e) => setFormData({ ...formData, return_info: e.target.value })}
+                                placeholder="예: RET-1, RET-2"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Row 6: Broadcast Van */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>중계차</Label>
                             <Input

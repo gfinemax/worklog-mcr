@@ -15,6 +15,7 @@ export interface BroadcastSchedule {
     audio_source_info?: string
     send_line?: string               // 송신 라인
     hq_network?: string              // NCC TX-9
+    return_info?: string             // 리턴
     broadcast_van?: string           // 중계차
     manager?: string                 // 담당자
     contact_info?: string            // 010-8776-9169

@@ -271,7 +271,7 @@ export function BroadcastListView({ onNewClick }: BroadcastListViewProps) {
                                         </Button>
                                     </TableHead>
                                     <TableHead className="text-center">종목/제목</TableHead>
-                                    <TableHead className="text-center">수신경로</TableHead>
+                                    <TableHead className="text-center">수신</TableHead>
                                     <TableHead className="text-center">본사망</TableHead>
                                     <TableHead className="text-center">담당</TableHead>
                                     <TableHead className="text-center w-12"></TableHead>

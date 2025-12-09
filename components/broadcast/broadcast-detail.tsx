@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Printer, Edit2, Trash2, Phone, Monitor } from "lucide-react"
 import { useBroadcastStore, BroadcastSchedule } from "@/store/broadcast"
-import { BroadcastForm } from "./broadcast-form"
+import { BroadcastWizard } from "./broadcast-wizard"
 import { toast } from "sonner"
 import {
     AlertDialog,
@@ -160,8 +160,8 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                 </div>
             )}
 
-            {/* Form Dialog */}
-            <BroadcastForm
+            {/* Wizard Dialog */}
+            <BroadcastWizard
                 open={formOpen}
                 onClose={handleFormClose}
                 schedule={editingSchedule}

@@ -108,6 +108,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Hide scrollbars globally but keep scroll functionality */
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 /* Added print styles to hide UI elements and format page for A4 */
@@ -152,6 +162,7 @@
   scrollbar-width: none !important;
   /* Firefox */
 }
+
 @layer utilities {
   .animate-lighthouse-wave {
     animation: lighthouse-wave 3s ease-out infinite;
@@ -163,10 +174,12 @@
     transform: scaleX(0);
     opacity: 0;
   }
+
   20% {
     transform: scaleX(0.5);
     opacity: 1;
   }
+
   100% {
     transform: scaleX(1);
     opacity: 0;
@@ -180,11 +193,40 @@
 }
 
 @keyframes lighthouse-shake {
-  0%, 85% { transform: rotate(0deg); color: #3b82f6; }
-  87% { transform: rotate(-10deg); color: #ec4899; }
-  89% { transform: rotate(10deg); color: #ec4899; }
-  91% { transform: rotate(-10deg); color: #ec4899; }
-  93% { transform: rotate(10deg); color: #ec4899; }
-  95% { transform: rotate(0deg); color: #3b82f6; }
-  100% { transform: rotate(0deg); color: #3b82f6; }
+
+  0%,
+  85% {
+    transform: rotate(0deg);
+    color: #3b82f6;
+  }
+
+  87% {
+    transform: rotate(-10deg);
+    color: #ec4899;
+  }
+
+  89% {
+    transform: rotate(10deg);
+    color: #ec4899;
+  }
+
+  91% {
+    transform: rotate(-10deg);
+    color: #ec4899;
+  }
+
+  93% {
+    transform: rotate(10deg);
+    color: #ec4899;
+  }
+
+  95% {
+    transform: rotate(0deg);
+    color: #3b82f6;
+  }
+
+  100% {
+    transform: rotate(0deg);
+    color: #3b82f6;
+  }
 }
