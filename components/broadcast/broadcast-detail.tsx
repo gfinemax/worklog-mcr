@@ -295,14 +295,34 @@ function BroadcastCard({
 }) {
     return (
         <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
+            <CardContent className="py-0.5 px-4">
                 <div className="flex flex-col md:flex-row gap-4">
                     {/* Time & Channel */}
                     <div className="flex flex-col min-w-[140px] gap-1">
-                        <span className="text-2xl font-bold text-gray-900">{schedule.time.slice(0, 5)}</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-bold text-gray-900">{schedule.time.slice(0, 5)}</span>
+                            {schedule.end_time && (
+                                <span className="text-lg text-gray-500">~{schedule.end_time.slice(0, 5)}</span>
+                            )}
+                        </div>
+                        {schedule.end_time && (() => {
+                            const [sh, sm] = schedule.time.slice(0, 5).split(':').map(Number)
+                            const [eh, em] = schedule.end_time.slice(0, 5).split(':').map(Number)
+                            const duration = (eh * 60 + em) - (sh * 60 + sm)
+                            if (duration > 0) {
+                                const hours = Math.floor(duration / 60)
+                                const mins = duration % 60
+                                return (
+                                    <span className="text-xs text-gray-500">
+                                        ({hours > 0 ? `${hours}시간 ` : ''}{mins > 0 ? `${mins}분` : ''})
+                                    </span>
+                                )
+                            }
+                            return null
+                        })()}
                         <span className="text-lg font-bold text-red-600">{schedule.channel_name}</span>
                         {schedule.studio_label && (
-                            <Badge variant="outline" className="w-fit bg-yellow-200 text-yellow-900 font-bold border-yellow-400">
+                            <Badge variant="outline" className="w-fit text-base bg-yellow-400 text-yellow-900 font-bold border-transparent">
                                 {schedule.studio_label}
                             </Badge>
                         )}
@@ -336,12 +356,15 @@ function BroadcastCard({
                             <div className="font-medium text-purple-700">리턴: {schedule.return_info}</div>
                         )}
                         {schedule.biss_code && (
-                            <div className="font-mono text-xs text-gray-500">BISS: {schedule.biss_code}</div>
+                            <div className="font-mono font-medium text-gray-600">BISS: {schedule.biss_code}</div>
                         )}
-                        {schedule.contact_info && (
+                        {(schedule.manager || schedule.contact_info) && (
                             <div className="flex items-center gap-1 text-blue-600 font-medium mt-1">
                                 <Phone className="h-3 w-3" />
-                                {schedule.contact_info}
+                                {schedule.manager}
+                                {schedule.contact_info && (
+                                    <span className="text-muted-foreground">({schedule.contact_info})</span>
+                                )}
                             </div>
                         )}
                     </div>

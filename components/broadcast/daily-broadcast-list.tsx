@@ -159,26 +159,22 @@ export function DailyBroadcastList({ onNewClick }: DailyBroadcastListProps) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-[120px]">날짜</TableHead>
-                                    <TableHead className="w-[150px]">
-                                        <div className="flex items-center gap-1">
+                                    <TableHead className="w-[100px] text-center">날짜</TableHead>
+                                    <TableHead className="w-[100px] text-center">
+                                        <div className="flex items-center justify-center gap-1">
                                             <Radio className="h-4 w-4 text-red-500" />
                                             라이브
                                         </div>
                                     </TableHead>
-                                    <TableHead className="w-[150px]">
-                                        <div className="flex items-center gap-1">
+                                    <TableHead className="w-[80px] text-center">
+                                        <div className="flex items-center justify-center gap-1">
                                             <Satellite className="h-4 w-4 text-blue-500" />
                                             수신
                                         </div>
                                     </TableHead>
-                                    <TableHead>주요내용</TableHead>
-                                    <TableHead className="w-[180px]">
-                                        <div className="flex items-center gap-1">
-                                            <Clock className="h-4 w-4" />
-                                            중계/수신 시간
-                                        </div>
-                                    </TableHead>
+                                    <TableHead className="text-center">주요내용</TableHead>
+                                    <TableHead className="w-[110px] text-center">🔴 중계(합계)</TableHead>
+                                    <TableHead className="w-[110px] text-center">🔵 수신(합계)</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -194,16 +190,16 @@ export function DailyBroadcastList({ onNewClick }: DailyBroadcastListProps) {
                                         onClick={() => handleRowClick(summary, index)}
                                         onMouseEnter={() => setSelectedIndex(index)}
                                     >
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
+                                        <TableCell className="text-center font-medium">
+                                            <div className="flex items-center justify-center gap-2">
                                                 {summary.hasLiveNow && (
                                                     <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                                                 )}
                                                 {summary.displayDate}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
+                                        <TableCell className="text-center">
+                                            <div className="flex items-center justify-center gap-2">
                                                 <span className="font-semibold">{summary.liveCount}건</span>
                                                 {summary.liveCompletedCount > 0 && (
                                                     <StatusBadge status="completed" count={summary.liveCompletedCount} />
@@ -213,15 +209,15 @@ export function DailyBroadcastList({ onNewClick }: DailyBroadcastListProps) {
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
+                                        <TableCell className="text-center">
+                                            <div className="flex items-center justify-center gap-2">
                                                 <span className="font-semibold">{summary.receptionCount}건</span>
                                                 {summary.receptionCompletedCount > 0 && (
                                                     <StatusBadge status="completed" count={summary.receptionCompletedCount} />
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="text-center">
                                             <div className="text-sm text-muted-foreground truncate max-w-[300px]">
                                                 {summary.topPrograms.length > 0
                                                     ? summary.topPrograms.join(', ') + (summary.liveCount + summary.receptionCount > 3 ? ' 외' : '')
@@ -229,17 +225,11 @@ export function DailyBroadcastList({ onNewClick }: DailyBroadcastListProps) {
                                                 }
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="text-sm space-y-0.5">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-red-600">중계</span>
-                                                    <span>{formatDuration(summary.liveDuration)}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-blue-600">수신</span>
-                                                    <span>{formatDuration(summary.receptionDuration)}</span>
-                                                </div>
-                                            </div>
+                                        <TableCell className="text-center text-red-600 font-medium">
+                                            {formatDuration(summary.liveDuration)}
+                                        </TableCell>
+                                        <TableCell className="text-center text-blue-600 font-medium">
+                                            {formatDuration(summary.receptionDuration)}
                                         </TableCell>
                                     </TableRow>
                                 ))}

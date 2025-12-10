@@ -217,9 +217,14 @@ function MonitorCard({ schedule, type, globalDismissed }: { schedule: BroadcastS
             <div className="flex gap-5 relative">
                 {/* Time & Channel */}
                 <div className="flex flex-col items-center min-w-[100px]">
-                    <span className={`text-3xl font-bold ${timeColor}`}>
-                        {schedule.time.slice(0, 5)}
-                    </span>
+                    <div className="flex items-baseline gap-1">
+                        <span className={`text-3xl font-bold ${timeColor}`}>
+                            {schedule.time.slice(0, 5)}
+                        </span>
+                        {schedule.end_time && (
+                            <span className="text-xl text-slate-400">~{schedule.end_time.slice(0, 5)}</span>
+                        )}
+                    </div>
                     <span className="text-xl font-bold text-yellow-400 mt-1">
                         {schedule.channel_name}
                     </span>
@@ -260,16 +265,22 @@ function MonitorCard({ schedule, type, globalDismissed }: { schedule: BroadcastS
                     {schedule.video_source_info && (
                         <div className="text-green-300">송신: {schedule.video_source_info}</div>
                     )}
+                    {schedule.return_info && (
+                        <div className="text-purple-300">리턴: {schedule.return_info}</div>
+                    )}
                     {schedule.hq_network && (
                         <div className="text-purple-300">본사망: {schedule.hq_network}</div>
                     )}
                     {schedule.biss_code && (
-                        <div className="font-mono text-xs text-slate-400">BISS: {schedule.biss_code}</div>
+                        <div className="font-mono text-slate-400">BISS: {schedule.biss_code}</div>
                     )}
-                    {schedule.contact_info && (
+                    {(schedule.manager || schedule.contact_info) && (
                         <div className="flex items-center gap-1 text-cyan-300 mt-2">
                             <Phone className="h-3 w-3" />
-                            {schedule.contact_info}
+                            {schedule.manager}
+                            {schedule.contact_info && (
+                                <span className="text-slate-400">({schedule.contact_info})</span>
+                            )}
                         </div>
                     )}
                 </div>

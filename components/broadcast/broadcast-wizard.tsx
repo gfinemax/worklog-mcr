@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react"
 import { format } from "date-fns"
 import { ko } from "date-fns/locale"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import {
@@ -21,9 +22,13 @@ import {
     Satellite,
     ArrowRight,
     ArrowLeft,
-    X
+    X,
+    ChevronsUpDown,
+    Plus,
+    Settings
 } from "lucide-react"
 import { useBroadcastStore, BroadcastSchedule } from "@/store/broadcast"
+import { useContactsStore, Contact } from "@/store/contacts"
 import {
     NETWORK_TYPES,
     CHANNELS,
@@ -36,6 +41,7 @@ import {
     type NetworkType
 } from "@/lib/network-config"
 import { toast } from "sonner"
+import Link from "next/link"
 
 interface BroadcastWizardProps {
     open: boolean
@@ -50,6 +56,14 @@ const STEP_TITLES = {
     1: '기본 정보',
     2: '신호 설정',
     3: '확인'
+}
+
+// 전화번호 자동 포맷 (010-1234-5678)
+const formatPhoneNumber = (value: string): string => {
+    const numbers = value.replace(/[^\d]/g, '')
+    if (numbers.length <= 3) return numbers
+    if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`
 }
 
 // 개별 신호 설정
@@ -85,6 +99,7 @@ interface FormData {
     date: string
     startTime: string
     endTime: string
+    duration?: number  // 방송 시간 (분)
 
     // Step 2: 프로그램 정보
     channels: string[]
@@ -167,6 +182,18 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
     const updateSchedule = useBroadcastStore((state) => state.updateSchedule)
     const fetchSchedules = useBroadcastStore((state) => state.fetchSchedules)
 
+    // Contacts store
+    const { contacts, fetchContacts, addContact } = useContactsStore()
+    const [contactsOpen, setContactsOpen] = useState(false)
+    const [newContactDialogOpen, setNewContactDialogOpen] = useState(false)
+    const [newContactForm, setNewContactForm] = useState({ name: "", phone: "", organization: "" })
+    const [addingContact, setAddingContact] = useState(false)
+
+    // Fetch contacts on mount
+    useEffect(() => {
+        fetchContacts()
+    }, [fetchContacts])
+
     const [step, setStep] = useState<WizardStep>(1)
     const [loading, setLoading] = useState(false)
 
@@ -223,7 +250,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                 type: schedule.type,
                 date: schedule.date,
                 startTime: schedule.time?.slice(0, 5) || '',
-                endTime: '',
+                endTime: schedule.end_time?.slice(0, 5) || '',
                 channels: schedule.channel_name ? schedule.channel_name.split(', ') : [],
                 studio: schedule.studio_label || '',
                 programTitle: schedule.program_title || '',
@@ -371,6 +398,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                 type: formData.type,
                 date: formData.date,
                 time: formattedTime,
+                end_time: formData.endTime ? (formData.endTime.length === 5 ? `${formData.endTime}:00` : formData.endTime) : undefined,
                 channel_name: formData.channels.length > 0 ? formData.channels.join(', ') : '',
                 studio_label: formData.studio || null,
                 program_title: formData.programTitle,
@@ -497,8 +525,8 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
             </div>
 
             {/* 날짜 & 시간 */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
+            <div className="flex gap-4">
+                <div className="space-y-2 w-[160px]">
                     <Label>날짜 *</Label>
                     <Popover>
                         <PopoverTrigger asChild>
@@ -527,21 +555,97 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                     </Popover>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 w-[100px]">
                     <Label>시작 시간 *</Label>
-                    <Input
-                        type="time"
+                    <Select
                         value={formData.startTime}
-                        onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                    />
+                        onValueChange={(value) => {
+                            setFormData(prev => {
+                                // 방송시간이 설정되어 있으면 종료시간 자동 계산
+                                if (prev.duration && value) {
+                                    const [h, m] = value.split(':').map(Number)
+                                    const totalMins = h * 60 + m + prev.duration
+                                    const endH = Math.floor(totalMins / 60) % 24
+                                    const endM = totalMins % 60
+                                    return {
+                                        ...prev,
+                                        startTime: value,
+                                        endTime: `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`
+                                    }
+                                }
+                                return { ...prev, startTime: value }
+                            })
+                        }}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {Array.from({ length: 48 }, (_, i) => {
+                                const h = Math.floor(i / 2)
+                                const m = (i % 2) * 30
+                                const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+                                return <SelectItem key={time} value={time}>{time}</SelectItem>
+                            })}
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 w-[130px]">
+                    <Label>방송 시간</Label>
+                    <Select
+                        value={formData.duration?.toString() || ""}
+                        onValueChange={(value) => {
+                            const duration = parseInt(value)
+                            setFormData(prev => {
+                                if (prev.startTime && prev.startTime.length === 5 && duration) {
+                                    const [h, m] = prev.startTime.split(':').map(Number)
+                                    if (!isNaN(h) && !isNaN(m)) {
+                                        const totalMins = h * 60 + m + duration
+                                        const endH = Math.floor(totalMins / 60) % 24
+                                        const endM = totalMins % 60
+                                        return {
+                                            ...prev,
+                                            duration,
+                                            endTime: `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`
+                                        }
+                                    }
+                                }
+                                return { ...prev, duration }
+                            })
+                        }}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="30">30분</SelectItem>
+                            <SelectItem value="60">1시간</SelectItem>
+                            <SelectItem value="90">1시간 30분</SelectItem>
+                            <SelectItem value="120">2시간</SelectItem>
+                            <SelectItem value="150">2시간 30분</SelectItem>
+                            <SelectItem value="180">3시간</SelectItem>
+                            <SelectItem value="210">3시간 30분</SelectItem>
+                            <SelectItem value="240">4시간</SelectItem>
+                            <SelectItem value="300">5시간</SelectItem>
+                            <SelectItem value="360">6시간</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="space-y-2 w-[100px]">
                     <Label>종료 시간</Label>
                     <Input
-                        type="time"
+                        placeholder="11:00"
                         value={formData.endTime}
-                        onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                        onChange={(e) => {
+                            let value = e.target.value.replace(/[^\d:]/g, '')
+                            if (value.length === 2 && !value.includes(':')) {
+                                value = value + ':'
+                            }
+                            if (value.length > 5) value = value.slice(0, 5)
+                            setFormData(prev => ({ ...prev, endTime: value, duration: undefined }))
+                        }}
                     />
                 </div>
             </div>
@@ -650,13 +754,12 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
         }
 
         // 리턴 토글
-        const toggleReturn = (returnType: string, channel: string) => {
-            const value = `${returnType} ${channel}`
+        const toggleReturn = (channel: string) => {
             setFormData(prev => ({
                 ...prev,
-                returns: prev.returns.includes(value)
-                    ? prev.returns.filter(r => r !== value)
-                    : [...prev.returns, value]
+                returns: prev.returns.includes(channel)
+                    ? prev.returns.filter(r => r !== channel)
+                    : [...prev.returns, channel]
             }))
         }
 
@@ -858,7 +961,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                                         <button
                                             key={ch.id}
                                             type="button"
-                                            onClick={() => toggleReturn(returnType, ch.label)}
+                                            onClick={() => toggleReturn(ch.label)}
                                             className={cn(
                                                 "px-2 py-0.5 rounded text-xs font-medium border transition-all",
                                                 isSelected
@@ -982,20 +1085,151 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>담당자</Label>
-                    <Input
-                        value={formData.manager}
-                        onChange={(e) => setFormData(prev => ({ ...prev, manager: e.target.value }))}
-                    />
+                    <Popover open={contactsOpen} onOpenChange={setContactsOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={contactsOpen}
+                                className="w-full justify-between font-normal"
+                            >
+                                {formData.manager || "담당자 선택..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[280px] p-0">
+                            <Command>
+                                <CommandInput placeholder="이름 검색..." />
+                                <CommandList>
+                                    <CommandEmpty>검색 결과 없음</CommandEmpty>
+                                    <CommandGroup>
+                                        {contacts.map((contact) => (
+                                            <CommandItem
+                                                key={contact.id}
+                                                value={contact.name}
+                                                onSelect={() => {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        manager: contact.name,
+                                                        contactInfo: contact.phone || ""
+                                                    }))
+                                                    setContactsOpen(false)
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        formData.manager === contact.name ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                <div className="flex-1">
+                                                    <span>{contact.name}</span>
+                                                    {contact.phone && (
+                                                        <span className="ml-2 text-xs text-muted-foreground">
+                                                            ({contact.phone})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    <CommandGroup>
+                                        <CommandItem
+                                            onSelect={() => {
+                                                setNewContactForm({ name: "", phone: "", organization: "" })
+                                                setNewContactDialogOpen(true)
+                                                setContactsOpen(false)
+                                            }}
+                                            className="text-blue-600"
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            새 담당자 추가
+                                        </CommandItem>
+                                        <CommandItem asChild>
+                                            <Link
+                                                href="/settings/contacts"
+                                                className="flex items-center text-muted-foreground"
+                                                onClick={() => setContactsOpen(false)}
+                                            >
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                담당자 관리
+                                            </Link>
+                                        </CommandItem>
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 <div className="space-y-2">
                     <Label>연락처</Label>
                     <Input
                         value={formData.contactInfo}
-                        onChange={(e) => setFormData(prev => ({ ...prev, contactInfo: e.target.value }))}
+                        onChange={(e) => setFormData(prev => ({ ...prev, contactInfo: formatPhoneNumber(e.target.value) }))}
                         placeholder="010-0000-0000"
                     />
                 </div>
             </div>
+
+            {/* New Contact Dialog */}
+            <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
+                <DialogContent className="sm:max-w-[380px]">
+                    <DialogHeader>
+                        <DialogTitle>새 담당자 추가</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>이름 *</Label>
+                            <Input
+                                value={newContactForm.name}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="담당자 이름"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>연락처</Label>
+                            <Input
+                                value={newContactForm.phone}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                                placeholder="010-0000-0000"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>
+                            취소
+                        </Button>
+                        <Button
+                            onClick={async () => {
+                                if (!newContactForm.name.trim()) {
+                                    toast.error("이름을 입력해주세요.")
+                                    return
+                                }
+                                setAddingContact(true)
+                                const result = await addContact(
+                                    newContactForm.name.trim(),
+                                    newContactForm.phone.trim()
+                                )
+                                setAddingContact(false)
+                                if (result) {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        manager: result.name,
+                                        contactInfo: result.phone || ""
+                                    }))
+                                    setNewContactDialogOpen(false)
+                                    toast.success("담당자가 추가되었습니다.")
+                                } else {
+                                    toast.error("추가에 실패했습니다.")
+                                }
+                            }}
+                            disabled={addingContact}
+                        >
+                            {addingContact ? "추가 중..." : "추가"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

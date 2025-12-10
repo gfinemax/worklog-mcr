@@ -9,6 +9,7 @@ export interface BroadcastSchedule {
     type: 'broadcast' | 'reception'  // 라이브 / 수신
     date: string
     time: string
+    end_time?: string                // 예정 종료 시간
     channel_name: string
     studio_label?: string            // ST-C, ST-D, ST-A
     program_title: string
@@ -212,13 +213,21 @@ export const useBroadcastStore = create<BroadcastStore>((set, get) => ({
             const dayNames = ['일', '월', '화', '수', '목', '금', '토']
             const displayDate = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')} (${dayNames[dateObj.getDay()]})`
 
-            // 방송 시간 계산 (실제 종료 시간이 있는 경우만)
+            // 방송 시간 계산 (예정 종료 시간 또는 실제 종료 시간 사용)
             const calculateDuration = (schedules: BroadcastSchedule[]) => {
                 return schedules.reduce((total, s) => {
+                    // 실제 종료 시간이 있으면 사용
                     if (s.actual_end_time) {
                         const start = new Date(`${s.date}T${s.time}`)
                         const end = new Date(s.actual_end_time)
                         return total + Math.max(0, (end.getTime() - start.getTime()) / 60000)
+                    }
+                    // 예정 종료 시간이 있으면 사용
+                    if (s.end_time) {
+                        const [sh, sm] = s.time.slice(0, 5).split(':').map(Number)
+                        const [eh, em] = s.end_time.slice(0, 5).split(':').map(Number)
+                        const duration = (eh * 60 + em) - (sh * 60 + sm)
+                        return total + Math.max(0, duration)
                     }
                     return total
                 }, 0)
