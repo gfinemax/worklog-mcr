@@ -143,7 +143,7 @@ export function GuestLoginDialog({ open, onOpenChange }: GuestLoginDialogProps) 
 
                 <form onSubmit={handleLogin} className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="guest-email">사번 / 이메일</Label>
+                        <Label htmlFor="guest-email">아이디/이메일</Label>
                         <Input
                             id="guest-email"
                             type="text"
