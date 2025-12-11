@@ -168,6 +168,9 @@ export default function PostDetailPage() {
     const rootComments = comments.filter(c => !c.parent_id)
     const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId)
 
+    // Maximum nesting level to prevent excessive indentation
+    const MAX_NESTING_LEVEL = 5
+
     return (
         <MainLayout>
             <div className="max-w-4xl mx-auto space-y-6">
@@ -363,11 +366,14 @@ export default function PostDetailPage() {
                                         key={comment.id}
                                         comment={comment}
                                         replies={getReplies(comment.id)}
+                                        getReplies={getReplies}
                                         currentUserId={(useAuthStore.getState().activeMemberId && useAuthStore.getState().activeMemberId !== "GROUP_COMMON") ? useAuthStore.getState().activeMemberId! : user?.id}
                                         onDelete={handleDeleteComment}
                                         onUpdate={handleUpdateComment}
                                         onReply={handleReplyComment}
                                         onReaction={handleReaction}
+                                        nestingLevel={0}
+                                        maxNestingLevel={MAX_NESTING_LEVEL}
                                     />
                                 ))
                             )}
@@ -413,14 +419,17 @@ export default function PostDetailPage() {
 interface CommentItemProps {
     comment: Comment
     replies: Comment[]
+    getReplies: (parentId: string) => Comment[]
     currentUserId?: string
     onDelete: (id: string) => void
     onUpdate: (id: string, content: string) => void
     onReply: (parentId: string, content: string) => void
     onReaction: (id: string, emoji: string) => void
+    nestingLevel: number
+    maxNestingLevel: number
 }
 
-function CommentItem({ comment, replies, currentUserId, onDelete, onUpdate, onReply, onReaction }: CommentItemProps) {
+function CommentItem({ comment, replies, getReplies, currentUserId, onDelete, onUpdate, onReply, onReaction, nestingLevel, maxNestingLevel }: CommentItemProps) {
     const [isEditing, setIsEditing] = useState(false)
     const [editContent, setEditContent] = useState(comment.content)
     const [isReplying, setIsReplying] = useState(false)
@@ -528,16 +537,18 @@ function CommentItem({ comment, replies, currentUserId, onDelete, onUpdate, onRe
                         </div>
                     )}
 
-                    <div className="flex items-center gap-4 mt-1">
-                        <Button
-                            variant="link"
-                            size="sm"
-                            className="h-auto p-0 text-xs text-muted-foreground"
-                            onClick={() => setIsReplying(!isReplying)}
-                        >
-                            답글 달기
-                        </Button>
-                    </div>
+                    {nestingLevel < maxNestingLevel && (
+                        <div className="flex items-center gap-4 mt-1">
+                            <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-xs text-muted-foreground"
+                                onClick={() => setIsReplying(!isReplying)}
+                            >
+                                답글 달기
+                            </Button>
+                        </div>
+                    )}
 
                     {isReplying && (
                         <div className="flex gap-3 mt-3">
@@ -568,12 +579,15 @@ function CommentItem({ comment, replies, currentUserId, onDelete, onUpdate, onRe
                         <CommentItem
                             key={reply.id}
                             comment={reply}
-                            replies={[]} // Only support 1 level nesting for now
+                            replies={getReplies(reply.id)}
+                            getReplies={getReplies}
                             currentUserId={currentUserId}
                             onDelete={onDelete}
                             onUpdate={onUpdate}
-                            onReply={onReply} // Recursion possible but limited by UI
+                            onReply={onReply}
                             onReaction={onReaction}
+                            nestingLevel={nestingLevel + 1}
+                            maxNestingLevel={maxNestingLevel}
                         />
                     ))}
                 </div>

@@ -62,8 +62,10 @@ interface WorklogStore {
     worklogs: Worklog[]
     fetchWorklogs: () => Promise<void>
     addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | { error: any } | null>
-    updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any }>
+    updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any, conflict?: boolean }>
     deleteWorklog: (id: string | number) => Promise<{ error: any | null }>
+    softDeleteWorklog: (id: string | number, userId?: string) => Promise<{ error: any | null }>
+    restoreWorklog: (id: string | number) => Promise<{ error: any | null }>
     fetchWorklogPosts: (worklogId: string) => Promise<{ id: string; summary: string; channel?: string }[]>
     fetchWorklogById: (id: string) => Promise<Worklog | null>
 }
@@ -78,6 +80,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 group:groups(name),
                 posts(priority)
             `)
+            .is('deleted_at', null) // Soft delete filter
             .order('date', { ascending: false })
             .order('type', { ascending: true }) // '야간' < '주간', so Night comes first (Latest)
 
@@ -248,6 +251,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
                 group:groups(name)
             `)
             .eq('id', id)
+            .is('deleted_at', null) // Soft delete filter
             .single()
 
         if (error) {
@@ -342,13 +346,21 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
     },
 
     deleteWorklog: async (id: string | number) => {
+        // Use soft delete by default for safety
+        return get().softDeleteWorklog(id)
+    },
+
+    softDeleteWorklog: async (id: string | number, userId?: string) => {
         const { error } = await supabase
             .from('worklogs')
-            .delete()
+            .update({
+                deleted_at: new Date().toISOString(),
+                deleted_by: userId || null
+            })
             .eq('id', id)
 
         if (error) {
-            console.error('Error deleting worklog:', error)
+            console.error('Error soft deleting worklog:', error)
             return { error }
         }
 
@@ -356,6 +368,26 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         set((state) => ({
             worklogs: state.worklogs.filter(w => w.id !== id && String(w.id) !== String(id))
         }))
+
+        return { error: null }
+    },
+
+    restoreWorklog: async (id: string | number) => {
+        const { error } = await supabase
+            .from('worklogs')
+            .update({
+                deleted_at: null,
+                deleted_by: null
+            })
+            .eq('id', id)
+
+        if (error) {
+            console.error('Error restoring worklog:', error)
+            return { error }
+        }
+
+        // Refresh worklogs to include restored item
+        get().fetchWorklogs()
 
         return { error: null }
     }

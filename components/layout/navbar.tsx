@@ -211,7 +211,7 @@ export function Navbar() {
 
   return (
     <>
-      <header className={`fixed right-0 top-0 z-30 h-16 border-b border-border bg-card print:hidden transition-all duration-300 left-0 ${isCollapsed ? 'lg:left-16' : 'lg:left-64'}`}>
+      <header className={`fixed right-0 top-0 z-30 h-16 border-b border-border bg-card print:hidden transition-all duration-300 left-0 ${isCollapsed ? 'lg:left-16' : 'lg:left-60'}`}>
         <div className="flex h-full items-center justify-between px-6 gap-4">
           {/* Left side - Search */}
           < div className="flex items-center gap-4 flex-1 max-w-xl" >

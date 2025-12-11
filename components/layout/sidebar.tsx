@@ -19,10 +19,10 @@ import { SessionSetupStep } from "@/components/auth/session-setup-step"
 const menuItems = [
   { icon: LayoutDashboard, label: "대시보드", href: "/" },
   { icon: Calendar, label: "오늘 업무일지", href: "/worklog?mode=today" },
-  { icon: Tv, label: "오늘 중계현황", href: "/broadcasts" },
   { icon: FileText, label: "업무일지 목록", href: "/worklog", exact: true },
 
   { icon: PenSquare, label: "포스트 목록", href: "/posts" },
+  { icon: Tv, label: "오늘 중계현황", href: "/broadcasts" },
   { icon: Tv, label: "채널 관리", href: "/channels" },
   { icon: BarChart3, label: "통계 및 보고서", href: "/statistics" },
   { icon: Users, label: "근무패턴 설정", href: "/settings/worker-pattern" },
