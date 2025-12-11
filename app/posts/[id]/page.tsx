@@ -5,7 +5,7 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle, MessageSquare, Trash2, Loader2, Smile, Edit2, CornerDownRight } from "lucide-react"
+import { ArrowLeft, Calendar, User, Eye, Paperclip, Download, AlertTriangle, MessageSquare, Trash2, Loader2, Smile, Edit2, CornerDownRight, Share2 } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import { usePostStore, Post, Comment } from "@/store/posts"
 import { useAuthStore } from "@/store/auth"
@@ -16,6 +16,13 @@ export default function PostDetailPage() {
     const router = useRouter()
     const params = useParams()
     const id = params.id as string
+
+    const handleShare = () => {
+        if (typeof window !== 'undefined') {
+            navigator.clipboard.writeText(window.location.href)
+            toast.success("링크가 클립보드에 복사되었습니다.")
+        }
+    }
 
     const { posts, fetchPosts, fetchComments, addComment, deleteComment, updateComment, deletePost } = usePostStore()
     const { user } = useAuthStore()
@@ -181,23 +188,29 @@ export default function PostDetailPage() {
                         </Button>
                         <h1 className="text-2xl font-bold">포스트 상세</h1>
                     </div>
-                    {user && (
-                        (post.author_id === user.id) ||
-                        (post.created_by === user.id) ||
-                        (useAuthStore.getState().activeMemberId && post.created_by === useAuthStore.getState().activeMemberId) ||
-                        (post.worklog?.group?.id === user.id)
-                    ) && (
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={() => router.push(`/posts/${id}/edit`)}>
-                                    <Edit2 className="mr-2 h-4 w-4" />
-                                    수정
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={handleDeletePost} className="text-destructive hover:text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    삭제
-                                </Button>
-                            </div>
-                        )}
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={handleShare}>
+                            <Share2 className="mr-2 h-4 w-4" />
+                            공유
+                        </Button>
+                        {user && (
+                            (post.author_id === user.id) ||
+                            (post.created_by === user.id) ||
+                            (useAuthStore.getState().activeMemberId && post.created_by === useAuthStore.getState().activeMemberId) ||
+                            (post.worklog?.group?.id === user.id)
+                        ) && (
+                                <>
+                                    <Button variant="outline" size="sm" onClick={() => router.push(`/posts/${id}/edit`)}>
+                                        <Edit2 className="mr-2 h-4 w-4" />
+                                        수정
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={handleDeletePost} className="text-destructive hover:text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        삭제
+                                    </Button>
+                                </>
+                            )}
+                    </div>
                 </div>
 
                 <Card>

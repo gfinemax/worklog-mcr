@@ -144,11 +144,14 @@ export default function NewPostPage() {
 
     // Set default author and worklog
     useEffect(() => {
-        // Default to Group (represented by "GROUP" value) if session exists
-        if (currentSession && !authorId) {
-            setAuthorId("GROUP")
-        } else if (user && !authorId) {
+        // [FIX] Priority: User > Group default
+        // If user is logged in, default to user (individual post) first, UNLESS it's a strongly group-context action?
+        // Actually, user requested "Auto-select current user".
+
+        if (user && !authorId) {
             setAuthorId(user.id)
+        } else if (currentSession && !authorId) {
+            setAuthorId("GROUP")
         }
     }, [currentSession, user])
 
@@ -257,7 +260,14 @@ export default function NewPostPage() {
                 name = `${currentSession.groupName} (공동대표)`
             } else {
                 const member = currentSession.members.find(m => m.id === authorId)
-                name = member ? member.name : "알 수 없음"
+                if (member) {
+                    name = member.name
+                } else if (authorId === user.id) {
+                    // [FIX] If authorId is current user but not in session members
+                    name = user.name
+                } else {
+                    name = "알 수 없음"
+                }
             }
         } else {
             name = user?.name || "알 수 없음"
@@ -284,11 +294,13 @@ export default function NewPostPage() {
             let finalCreatedBy: string | undefined = user?.id;
 
             if (currentSession) {
-                // Group Session: Always a group post (author_id = null/undefined)
-                // created_by reflects the actual writer (selected member or logged-in user)
-                finalAuthorId = undefined;
-                if (authorId && authorId !== 'GROUP') {
-                    finalCreatedBy = authorId;
+                // [FIX] Group context logic updated
+                if (authorId === 'GROUP') {
+                    // Group Post: author_id is null/undefined
+                    finalAuthorId = undefined;
+                } else {
+                    // Individual selected (either a member or the logged-in user themselves)
+                    finalAuthorId = authorId;
                 }
             } else {
                 // Individual Session
@@ -313,7 +325,20 @@ export default function NewPostPage() {
 
             console.log('Sending post data:', postData)
 
-            const newPost = await addPost(postData)
+            let newPost
+            try {
+                newPost = await addPost(postData)
+            } catch (error: any) {
+                // [FIX] Handle FK violation on worklog_id (likely stale session)
+                if (error?.code === '23503' || error?.message?.includes('posts_worklog_id_fkey') || error?.details?.includes('posts_worklog_id_fkey')) {
+                    console.warn('Invalid worklog_id detected, retrying without worklog link.')
+                    const retryData = { ...postData, worklog_id: undefined }
+                    newPost = await addPost(retryData)
+                    toast.warning("유효하지 않은 업무일지 세션이 감지되어, 업무일지 연결 없이 저장되었습니다.")
+                } else {
+                    throw error
+                }
+            }
 
             if (worklogId && sourceField) {
                 const worklogStore = useWorklogStore.getState()
@@ -423,9 +448,11 @@ export default function NewPostPage() {
                                                     {member.name} ({member.role})
                                                 </SelectItem>
                                             ))}
-                                            {!currentSession && user && (
+                                            {/* [FIX] Always include current user if logged in, ensuring no duplicate via key if they are already in members list (key=id handles it? No, SelectItem value must be unique) */}
+                                            {/* We need to check if user is already in members list */}
+                                            {user && (!currentSession || !currentSession.members.some(m => m.id === user.id)) && (
                                                 <SelectItem value={user.id}>
-                                                    {user.name}
+                                                    {user.name} (본인)
                                                 </SelectItem>
                                             )}
                                         </SelectContent>
@@ -615,3 +642,4 @@ export default function NewPostPage() {
         </MainLayout >
     )
 }
+

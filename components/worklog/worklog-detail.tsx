@@ -297,6 +297,8 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
     // Sync state from store (Existing Worklogs)
     useEffect(() => {
+        let ignore = false
+
         // [FIX] Skip if already loaded, UNLESS workers are still empty and we have currentSession
         const workersAreEmpty = !workers.director?.length && !workers.assistant?.length && !workers.video?.length
         const shouldRepopulateWorkers = isLoaded && workersAreEmpty && currentSession
@@ -310,9 +312,11 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 const [yearStr, monthStr, dayStr] = worklog.date.split('-')
                 const dateObj = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr))
 
-                setSelectedDate(dateObj)
-                setShiftType(worklog.type === '주간' ? 'day' : 'night')
-                setSelectedTeam(worklog.groupName)
+                if (!ignore) {
+                    setSelectedDate(dateObj)
+                    setShiftType(worklog.type === '주간' ? 'day' : 'night')
+                    setSelectedTeam(worklog.groupName)
+                }
 
                 // [FIX] If stored workers are empty, try to populate from currentSession or roster
                 const hasWorkers = worklog.workers && (
@@ -322,7 +326,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 )
 
                 if (hasWorkers) {
-                    setWorkers(worklog.workers)
+                    if (!ignore) setWorkers(worklog.workers)
                 } else {
                     // Try to populate from session or config
 
@@ -346,11 +350,13 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                             }
                         })
 
-                        setWorkers(newWorkers)
+                        if (!ignore) setWorkers(newWorkers)
                     } else {
                         // 2. Async fallback: Try roster_json from config
                         const populateFromRoster = async () => {
                             const config = await shiftService.getConfig(dateObj)
+                            if (ignore) return
+
                             if (config?.roster_json?.[worklog.groupName]) {
                                 const rosterMembers = shiftService.getMembersWithRoles(worklog.groupName, dateObj, config)
                                 if (rosterMembers.length > 0) {
@@ -400,10 +406,12 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     }
                 }
 
-                setStatus(cleanStatus)
+                if (!ignore) setStatus(cleanStatus)
 
                 // Fetch latest posts to ensure sync
                 fetchWorklogPosts(id).then(posts => {
+                    if (ignore) return
+
                     const newChannelLogs = { ...(worklog.channelLogs || {}) }
                     const newSystemIssues: { id: string; summary: string }[] = []
 
@@ -432,6 +440,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         }
                     })
 
+                    // Only update if actually changed to avoid re-renders
                     if (JSON.stringify(newChannelLogs) !== JSON.stringify(channelLogs)) {
                         setChannelLogs(newChannelLogs)
                     }
@@ -443,20 +452,23 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     setIsLoaded(true) // Data loaded
                 })
 
-                if (worklog.status === '서명완료') {
-                    toast.warning("이미 서명이 완료된 일지입니다. 수정 시 주의해주세요.", {
-                        duration: 5000,
-                    })
-                } else if (worklog.status === '근무종료') {
-                    toast.info("근무 시간이 종료되었습니다. 서명을 완료해주세요.", {
-                        duration: 5000,
-                    })
+                if (!ignore) {
+                    if (worklog.status === '서명완료') {
+                        toast.warning("이미 서명이 완료된 일지입니다. 수정 시 주의해주세요.", {
+                            duration: 5000,
+                        })
+                    } else if (worklog.status === '근무종료') {
+                        toast.info("근무 시간이 종료되었습니다. 서명을 완료해주세요.", {
+                            duration: 5000,
+                        })
+                    }
                 }
             } else {
                 // Not found in store, try fetching
                 if (!fetchAttempted.current.has(id)) {
                     fetchAttempted.current.add(id)
                     fetchWorklogById(id).then(fetchedLog => {
+                        if (ignore) return
                         if (fetchedLog) {
                             // Manually set state if fetched
                             const [yearStr, monthStr, dayStr] = fetchedLog.date.split('-')
@@ -477,20 +489,27 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 }
             }
         } else if (!id || id === 'new') {
+            // ... (New logs code - kept mostly same but wrapped in ignore check where async) ...
+            // Be careful to not break the Else block structure. 
+            // Since replace_file_content targets a block, I must include the Else block logic too or keep it intact.
+            // The original code has a long else if block.
+
+            // Wait, the ReplacementContent must match the chunk.
+            // The chunk I selected starts at line 299.
+            // I need to include the 'else if' block for id === 'new'.
+
+            // To be safe and concise, I will copy the logic for 'new' ID from the original file 
+            // and just wrap async sets with if (!ignore).
+
             // New Worklog: Check if a worklog already exists for today/team/shift
             const dateStr = format(selectedDate, 'yyyy-MM-dd')
-
-            // [FIX] Use params if available, BUT override if activeTab is 'next' to prevent stale state
             let effectiveShiftType = paramType ? (paramType === 'day' ? '주간' : '야간') : (shiftType === 'day' ? '주간' : '야간')
             let effectiveTeamName = paramTeam || selectedTeam
 
-            // Force Next Session context if tab is manually selected
             if (activeTab === 'next' && nextSession) {
                 effectiveTeamName = nextSession.groupName
-
                 const hour = new Date().getHours()
                 const isDayTime = hour >= 7 && hour < 18
-                // If paramType is missing and shiftType is 'day', we force 'night'
                 if ((!paramType && shiftType === 'day') || (currentSession && isDayTime)) {
                     effectiveShiftType = '야간'
                 }
@@ -498,7 +517,6 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
             const checkKey = `${dateStr}-${effectiveTeamName}-${effectiveShiftType}`
 
-            // Local Store Check first
             const existingWorklog = worklogs.find(w =>
                 w.date === dateStr &&
                 w.groupName === effectiveTeamName &&
@@ -506,26 +524,23 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             )
 
             if (existingWorklog) {
-                // If we are in 'today' mode, we don't want to redirect to the list view ID.
-                // Instead, we should load the existing worklog's data.
                 const mode = searchParams.get('mode')
                 if (mode === 'today') {
-                    // [FIX] Load existing worklog data into state for TODAY mode
-                    setWorkers(existingWorklog.workers)
-                    setChannelLogs(existingWorklog.channelLogs || {})
-                    setSystemIssues(existingWorklog.systemIssues || [])
-                    setStatus(existingWorklog.status)
-                    setSelectedTeam(existingWorklog.groupName)
-                    setShiftType(existingWorklog.type === '주간' ? 'day' : 'night')
-                    setIsLoaded(true)
+                    if (!ignore) {
+                        setWorkers(existingWorklog.workers)
+                        setChannelLogs(existingWorklog.channelLogs || {})
+                        setSystemIssues(existingWorklog.systemIssues || [])
+                        setStatus(existingWorklog.status)
+                        setSelectedTeam(existingWorklog.groupName)
+                        setShiftType(existingWorklog.type === '주간' ? 'day' : 'night')
+                        setIsLoaded(true)
+                    }
                     return
                 }
-
                 router.replace(`/worklog?id=${existingWorklog.id}`)
-                return // Stop execution here, let the redirect happen
+                return
             }
 
-            // [FIX] Check server for existing log for this date/shift/team (Team-specific Check)
             const checkServerForDuplicate = async () => {
                 const { data: serverLogs } = await supabase
                     .from('worklogs')
@@ -547,13 +562,13 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             }
 
             checkServerForDuplicate().then(exists => {
-                if (exists) return
+                if (ignore || exists) return
 
-                // If no existing worklog, we might need to populate workers from session members if available
                 if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) {
-                    // ... (existing logic)
                     const checkSwapAndSet = async () => {
                         const config = await shiftService.getConfig(selectedDate)
+                        if (ignore) return
+
                         let isSwap = false
                         if (config) {
                             const info = shiftService.calculateShift(selectedDate, selectedTeam, config)
@@ -581,10 +596,12 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     }
                     checkSwapAndSet()
                 }
-                setIsLoaded(true) // New worklog is always "loaded"
+                setIsLoaded(true)
             })
         }
-    }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession, currentSession])
+
+        return () => { ignore = true }
+    }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession, currentSession, currentSession?.members])
 
     // Smart Initialization: Determine initial Date and Shift Type
     // Prioritizes logged-in user's active shift over strict time-based shift to prevent auto-switching during handover.
@@ -896,8 +913,11 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
                 workers: workers,
-                channelLogs: channelLogs,
-                systemIssues: systemIssues
+                // [FIX] Do NOT update channelLogs/systemIssues here. 
+                // They are updated atomically via handleTimecodeUpdate or onNewPost.
+                // Including them here risks overwriting server data with stale local state.
+                // channelLogs: channelLogs,
+                // systemIssues: systemIssues
             })
 
             if (error) {

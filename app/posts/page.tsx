@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MessageSquare, Eye, ThumbsUp, AlertCircle, CheckCircle, Tag, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Search, Plus, MessageSquare, Eye, ThumbsUp, AlertCircle, CheckCircle, Tag, X, ArrowUpDown, ArrowUp, ArrowDown, Share2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -32,8 +32,11 @@ export default function PostList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean, post: Post | null }>({ open: false, post: null })
-
   const [resolutionNote, setResolutionNote] = useState("")
+  const { user } = useAuthStore()
+  const [priorityFilter, setPriorityFilter] = useState<string>("all")
+  const [hideResolved, setHideResolved] = useState(false)
+  const [showMyPosts, setShowMyPosts] = useState(false)
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
@@ -52,22 +55,23 @@ export default function PostList() {
       categoryId: selectedCategory === "all" ? undefined : selectedCategory,
       search: searchQuery,
       tag: selectedTag || undefined
-
     })
     setCurrentPage(1)
   }, [selectedCategory, searchQuery, selectedTag])
 
-  const { user } = useAuthStore()
-  const [priorityFilter, setPriorityFilter] = useState<string>("all")
-  const [hideResolved, setHideResolved] = useState(false)
-  const [showMyPosts, setShowMyPosts] = useState(false)
-
-  // Reset pagination when local filters change
+  // Reset pagination
   useEffect(() => {
     setCurrentPage(1)
   }, [priorityFilter, hideResolved, showMyPosts])
 
-  // Sorting Logic
+  const handleShare = (postId: string) => {
+    if (typeof window !== 'undefined') {
+      const url = `${window.location.origin}/posts/${postId}`
+      navigator.clipboard.writeText(url)
+      toast.success("링크가 클립보드에 복사되었습니다.")
+    }
+  }
+
   const handleSort = (key: string) => {
     setSortConfig(current => ({
       key,
@@ -76,24 +80,18 @@ export default function PostList() {
   }
 
   const filteredPosts = posts.filter(post => {
-    // Priority Filter
     if (priorityFilter !== "all" && post.priority !== priorityFilter) return false
-
-    // Hide Resolved Filter
     if (hideResolved && post.status === 'resolved') return false
-
-    // My Posts Filter
     if (showMyPosts && user && post.author_id !== user.id) return false
-
     return true
   })
 
+  // Sorting
   const sortedPosts = [...filteredPosts].sort((a, b) => {
     const { key, direction } = sortConfig
     let aValue: any = a
     let bValue: any = b
 
-    // Handle nested properties
     if (key === 'category.name') {
       aValue = a.category?.name || ''
       bValue = b.category?.name || ''
@@ -104,7 +102,6 @@ export default function PostList() {
       aValue = a.author?.name || ''
       bValue = b.author?.name || ''
     } else if (key === 'priority') {
-      // Custom priority order: 긴급 > 중요 > 일반
       const priorityOrder = { '긴급': 3, '중요': 2, '일반': 1 }
       aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0
       bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0
@@ -120,7 +117,6 @@ export default function PostList() {
     return 0
   })
 
-  // Pagination Logic
   const { totalPages, getPageItems } = usePagination(sortedPosts, ITEMS_PER_PAGE)
   const currentPosts = getPageItems(currentPage)
 
@@ -175,7 +171,6 @@ export default function PostList() {
   }
 
   const getCategoryColor = (slug: string) => {
-    // Simple color mapping based on slug
     if (slug === 'emergency') return "text-red-600 bg-red-50 border-red-200"
     if (slug === 'notice') return "text-blue-600 bg-blue-50 border-blue-200"
     if (slug === 'system-issue') return "text-orange-600 bg-orange-50 border-orange-200"
@@ -195,7 +190,6 @@ export default function PostList() {
           </Button>
         </div>
 
-        {/* Categories & Tag Filter */}
         <div className="flex flex-col gap-4">
           <ScrollArea className="w-full whitespace-nowrap rounded-md border">
             <div className="flex w-max space-x-2 p-4">
@@ -283,77 +277,29 @@ export default function PostList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead
-                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'category.name' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('category.name')}
-                  >
-                    <div className="flex items-center justify-center">
-                      카테고리
-                      {renderSortIcon('category.name')}
-                    </div>
+                  <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'category.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('category.name')}>
+                    <div className="flex items-center justify-center">카테고리 {renderSortIcon('category.name')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'priority' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('priority')}
-                  >
-                    <div className="flex items-center justify-center">
-                      우선순위
-                      {renderSortIcon('priority')}
-                    </div>
+                  <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'priority' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('priority')}>
+                    <div className="flex items-center justify-center">우선순위 {renderSortIcon('priority')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'title' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('title')}
-                  >
-                    <div className="flex items-center">
-                      제목
-                      {renderSortIcon('title')}
-                    </div>
+                  <TableHead className={cn("cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'title' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('title')}>
+                    <div className="flex items-center">제목 {renderSortIcon('title')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[120px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'worklog.work_date' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('worklog.work_date')}
-                  >
-                    <div className="flex items-center justify-center">
-                      업무일지
-                      {renderSortIcon('worklog.work_date')}
-                    </div>
+                  <TableHead className={cn("w-[120px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'worklog.work_date' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('worklog.work_date')}>
+                    <div className="flex items-center justify-center">업무일지 {renderSortIcon('worklog.work_date')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'author.name' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('author.name')}
-                  >
-                    <div className="flex items-center justify-center">
-                      작성자
-                      {renderSortIcon('author.name')}
-                    </div>
+                  <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'author.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('author.name')}>
+                    <div className="flex items-center justify-center">작성자 {renderSortIcon('author.name')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('created_at')}
-                  >
-                    <div className="flex items-center justify-center">
-                      날짜
-                      {renderSortIcon('created_at')}
-                    </div>
+                  <TableHead className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('created_at')}>
+                    <div className="flex items-center justify-center">날짜 {renderSortIcon('created_at')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'views' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('views')}
-                  >
-                    <div className="flex items-center justify-center">
-                      조회
-                      {renderSortIcon('views')}
-                    </div>
+                  <TableHead className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'views' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('views')}>
+                    <div className="flex items-center justify-center">조회 {renderSortIcon('views')}</div>
                   </TableHead>
-                  <TableHead
-                    className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'comments' && "text-primary font-bold bg-muted/30")}
-                    onClick={() => handleSort('comments')}
-                  >
-                    <div className="flex items-center justify-center">
-                      댓글
-                      {renderSortIcon('comments')}
-                    </div>
+                  <TableHead className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'comments' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('comments')}>
+                    <div className="flex items-center justify-center">댓글 {renderSortIcon('comments')}</div>
                   </TableHead>
                   <TableHead className="w-[100px] text-center">상태</TableHead>
                 </TableRow>
@@ -361,15 +307,11 @@ export default function PostList() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-10">
-                      로딩 중...
-                    </TableCell>
+                    <TableCell colSpan={9} className="text-center py-10">로딩 중...</TableCell>
                   </TableRow>
                 ) : sortedPosts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                      등록된 포스트가 없습니다.
-                    </TableCell>
+                    <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">등록된 포스트가 없습니다.</TableCell>
                   </TableRow>
                 ) : (
                   currentPosts.map((post) => (
@@ -389,6 +331,10 @@ export default function PostList() {
                             {getPriorityBadge(post.priority)}
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleShare(post.id)}>
+                              <Share2 className="mr-2 h-4 w-4" />
+                              링크 복사
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handlePriorityChange(post.id, '긴급')}>
                               <Badge variant="destructive" className="mr-2">긴급</Badge> 긴급
                             </DropdownMenuItem>
@@ -500,13 +446,13 @@ export default function PostList() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                    </TableRow>
+                    </TableRow >
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              </TableBody >
+            </Table >
+          </CardContent >
+        </Card >
 
         <SimplePagination
           currentPage={currentPage}
@@ -547,7 +493,7 @@ export default function PostList() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </div >
     </MainLayout >
   )
 }
