@@ -20,43 +20,13 @@ export interface ChannelLog {
     timecodes: ChannelTimecodeEntry
 }
 
-// Helper function to merge new columns with legacy channel_logs for read operations
+// Helper function to parse channel_logs data
 function parseChannelData(log: any): {
     channelLogs: { [key: string]: ChannelLog },
     systemIssues: { id: string; summary: string }[]
 } {
-    // Check if new columns exist and have data
-    const channelTimecode = log.channel_timecode || {}
-    const channelPosts = log.channel_posts || {}
-    const legacyLogs = log.channel_logs || {}
-
-    const hasNewColumns = Object.keys(channelTimecode).length > 0 || Object.keys(channelPosts).length > 0
-
-    // If new columns have data, merge them with legacy. Otherwise, use legacy only.
-    if (!hasNewColumns) {
-        // Use legacy channel_logs directly
-        return {
-            channelLogs: legacyLogs,
-            systemIssues: log.system_issues || []
-        }
-    }
-
-    // Merge all channel keys from all sources
-    const allChannels = new Set([
-        ...Object.keys(channelTimecode),
-        ...Object.keys(channelPosts),
-        ...Object.keys(legacyLogs)
-    ])
-
-    const channelLogs: { [key: string]: ChannelLog } = {}
-    allChannels.forEach(channel => {
-        channelLogs[channel] = {
-            timecodes: channelTimecode[channel] || legacyLogs[channel]?.timecodes || {},
-            posts: channelPosts[channel] || legacyLogs[channel]?.posts || []
-        }
-    })
-
-    // System issues from new column or legacy empty array
+    // Use channel_logs directly (single source of truth)
+    const channelLogs = log.channel_logs || {}
     const systemIssues = log.system_issues || []
 
     return { channelLogs, systemIssues }

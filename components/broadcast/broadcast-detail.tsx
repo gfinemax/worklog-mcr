@@ -195,7 +195,7 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                     <section>
                         <div className="flex items-center gap-2 mb-4">
                             <div className="h-6 w-1 bg-red-600 rounded-full"></div>
-                            <h2 className="text-xl font-bold text-gray-800">TITAN LIVE ON</h2>
+                            <h2 className="text-xl font-bold text-gray-800">LIVE ON</h2>
                             <Badge variant="destructive">{broadcasts.length}건</Badge>
                         </div>
 

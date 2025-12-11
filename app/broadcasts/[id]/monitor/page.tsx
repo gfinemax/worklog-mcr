@@ -134,7 +134,7 @@ export default function BroadcastMonitorPage() {
                 <section className="lg:col-span-5">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="h-8 w-2 bg-red-500 rounded-full animate-pulse"></div>
-                        <h2 className="text-2xl font-bold">TITAN LIVE ON</h2>
+                        <h2 className="text-2xl font-bold">LIVE ON</h2>
                         <Badge className="bg-red-600 text-white text-lg px-3 py-1">{broadcasts.length}건</Badge>
                     </div>
 

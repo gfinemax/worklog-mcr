@@ -28,7 +28,7 @@ export interface ChannelRowProps {
     posts: { id: string; summary: string }[]
     onPostsChange: (posts: { id: string; summary: string }[]) => void
     timecodeEntries: { [key: number]: string }
-    onTimecodesChange: (entries: { [key: number]: string }) => void
+    onTimecodeUpdate: (key: number, value: string | undefined) => void
     onNewPost: () => void
 }
 
@@ -40,7 +40,7 @@ export function ChannelRow({
     posts = [],
     onPostsChange,
     timecodeEntries,
-    onTimecodesChange,
+    onTimecodeUpdate,
     onNewPost
 }: ChannelRowProps) {
     const router = useRouter()
@@ -147,10 +147,7 @@ export function ChannelRow({
         }
 
         if (selectedType !== null) {
-            onTimecodesChange({
-                ...timecodeEntries,
-                [selectedType]: finalValue
-            })
+            onTimecodeUpdate(selectedType, finalValue)
         }
 
         setIsDialogOpen(false)
@@ -167,9 +164,7 @@ export function ChannelRow({
 
     const handleDelete = () => {
         if (selectedType !== null) {
-            const newEntries = { ...timecodeEntries }
-            delete newEntries[selectedType]
-            onTimecodesChange(newEntries)
+            onTimecodeUpdate(selectedType, undefined)
         }
 
         setIsDialogOpen(false)

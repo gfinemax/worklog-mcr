@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { useAuthStore } from "@/store/auth"
 import { PinVerificationDialog } from "@/components/auth/pin-verification-dialog"
+import { useSidebar } from "@/components/layout/sidebar-context"
 
 const NOTIFICATIONS = [
   {
@@ -44,6 +45,7 @@ type LoginMode = "TEAM" | "INDIVIDUAL"
 export function Navbar() {
   const router = useRouter()
   const { user, group, currentSession, activeMemberId, setActiveMemberId } = useAuthStore()
+  const { isCollapsed } = useSidebar()
 
   // State to simulate different login modes for demonstration
   const [loginMode, setLoginMode] = useState<LoginMode>("TEAM")
@@ -209,7 +211,7 @@ export function Navbar() {
 
   return (
     <>
-      <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-card print:hidden">
+      <header className={`fixed right-0 top-0 z-30 h-16 border-b border-border bg-card print:hidden transition-all duration-300 left-0 ${isCollapsed ? 'lg:left-16' : 'lg:left-64'}`}>
         <div className="flex h-full items-center justify-between px-6 gap-4">
           {/* Left side - Search */}
           < div className="flex items-center gap-4 flex-1 max-w-xl" >
@@ -218,7 +220,7 @@ export function Navbar() {
             </Button>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input type="search" placeholder="업무일지, 포스트 검색..." className="pl-9 bg-muted/50" />
+              <Input type="search" placeholder="업무일지, 포스트 검색..." className="pl-9 bg-muted/50 rounded-full border dark:border-slate-600 dark:bg-slate-800" />
             </div>
           </div >
 

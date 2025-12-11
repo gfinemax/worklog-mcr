@@ -525,13 +525,14 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 return // Stop execution here, let the redirect happen
             }
 
-            // [NEW] Check server for ANY existing log for this date/shift (Global Check)
+            // [FIX] Check server for existing log for this date/shift/team (Team-specific Check)
             const checkServerForDuplicate = async () => {
                 const { data: serverLogs } = await supabase
                     .from('worklogs')
                     .select('id')
                     .eq('date', dateStr)
-                    .eq('type', shiftType === 'day' ? '주간' : '야간')
+                    .eq('group_name', effectiveTeamName)
+                    .eq('type', effectiveShiftType)
                     .limit(1)
 
                 if (serverLogs && serverLogs.length > 0) {
@@ -1005,17 +1006,25 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         }, 100)
     }
 
-    const handleTimecodesChange = async (channelName: string, timecodes: any) => {
-        console.log(`Saving timecodes for ${channelName}:`, timecodes)
-        const newChannelLogs = {
+    const handleTimecodeUpdate = async (channelName: string, key: number, value: string | undefined) => {
+        // 1. Optimistic UI Update
+        const currentChannelCodes = { ...(channelLogs[channelName]?.timecodes || {}) }
+
+        if (value === undefined) {
+            delete currentChannelCodes[key]
+        } else {
+            currentChannelCodes[key] = value
+        }
+
+        const optimisticLogs = {
             ...channelLogs,
             [channelName]: {
                 ...channelLogs[channelName],
                 posts: channelLogs[channelName]?.posts || [],
-                timecodes: timecodes
+                timecodes: currentChannelCodes
             }
         }
-        setChannelLogs(newChannelLogs)
+        setChannelLogs(optimisticLogs)
 
         let currentId = id
         if (currentId === 'new') {
@@ -1025,14 +1034,46 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
         if (currentId && currentId !== 'new') {
             try {
+                // [SAFETY FIX] Fetch latest server data to prevent overwriting other channels
+                const { data: serverLog } = await supabase
+                    .from('worklogs')
+                    .select('channel_logs')
+                    .eq('id', currentId)
+                    .single()
+
+                const serverChannelLogs = serverLog?.channel_logs || {}
+
+                const targetChannelLog = serverChannelLogs[channelName] || { posts: [], timecodes: {} }
+                const targetTimecodes = { ...(targetChannelLog.timecodes || {}) }
+
+                // Apply atomic update to server state base
+                if (value === undefined) {
+                    delete targetTimecodes[key]
+                } else {
+                    targetTimecodes[key] = value
+                }
+
+                // Construct full update payload
+                const safeChannelLogs = {
+                    ...serverChannelLogs,
+                    [channelName]: {
+                        ...targetChannelLog,
+                        timecodes: targetTimecodes
+                    }
+                }
+
                 // @ts-ignore
                 await updateWorklog(currentId, {
                     groupName: selectedTeam || '',
                     type: shiftType === 'day' ? '주간' : '야간',
                     workers: workers,
-                    channelLogs: newChannelLogs,
+                    channelLogs: safeChannelLogs, // Use the safely merged logs
                     systemIssues: systemIssues
                 })
+
+                // Sync local state with the confirmed safe state
+                setChannelLogs(safeChannelLogs)
+
                 toast.success("운행표 수정사항이 저장되었습니다.")
             } catch (error) {
                 console.error("Failed to save timecodes", error)
@@ -1368,7 +1409,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         (isToday(selectedDate) || (isYesterday(selectedDate) && shiftType === 'night' && new Date().getHours() < 12))
 
     return (
-        <div className={cn("min-h-screen px-8 py-2 -mt-4 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50" : "bg-gray-100")}>
+        <div className={cn("min-h-screen px-8 py-2 -mt-4 print:bg-white print:p-0 font-sans", activeTab === 'next' ? "bg-amber-50/50 dark:bg-amber-950/30" : "bg-gray-100 dark:bg-background")}>
             <div className="mx-auto max-w-[210mm] print:max-w-none">
                 <style type="text/css" media="print">
                     {`
@@ -1518,7 +1559,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 </Dialog>
 
                 {/* A4 Page Container */}
-                <div className="bg-white p-[10mm] print:pt-[15mm] shadow-lg print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
+                <div className="bg-white text-black p-[10mm] print:pt-[15mm] shadow-lg dark:shadow-2xl dark:shadow-black/50 print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
 
                     {/* Header Section */}
                     <div className="mb-1">
@@ -1659,23 +1700,33 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 {shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
                             </div>
                             {/* Director */}
-                            <div className={`flex-1 border-r border-black p-1 flex ${workers.director.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                {workers.director.map((name, index) => (
-                                    <Input
-                                        key={index}
-                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.director.length === 2 ? 'flex-1' : 'w-full'}`}
-                                        value={name}
-                                        onChange={(e) => {
-                                            const newWorkers = [...workers.director];
-                                            newWorkers[index] = e.target.value;
-                                            setWorkers({ ...workers, director: newWorkers });
-                                        }}
-                                        placeholder="이름"
-                                    />
-                                ))}
+                            <div className="flex-1 border-r border-black p-1 flex flex-col justify-center gap-1 relative group">
+                                {workers.director.length > 1 && (
+                                    <div
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-red-500 text-sm print:hidden"
+                                        onClick={() => setWorkers({ ...workers, director: workers.director.slice(0, -1) })}
+                                    >
+                                        −
+                                    </div>
+                                )}
+                                <div className={`flex ${workers.director.length === 2 ? 'flex-row justify-center gap-2 px-4' : 'flex-col'}`}>
+                                    {workers.director.map((name, index) => (
+                                        <Input
+                                            key={index}
+                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg bg-white dark:bg-white text-black w-full"
+                                            value={name}
+                                            onChange={(e) => {
+                                                const newWorkers = [...workers.director];
+                                                newWorkers[index] = e.target.value;
+                                                setWorkers({ ...workers, director: newWorkers });
+                                            }}
+                                            placeholder="이름"
+                                        />
+                                    ))}
+                                </div>
                                 {workers.director.length < 4 && (
                                     <div
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black print:hidden"
                                         onClick={() => setWorkers({ ...workers, director: [...workers.director, ''] })}
                                     >
                                         +
@@ -1683,23 +1734,33 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 )}
                             </div>
                             {/* Assistant Director */}
-                            <div className={`flex-1 border-r border-black p-1 flex ${workers.assistant.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                {workers.assistant.map((name, index) => (
-                                    <Input
-                                        key={index}
-                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.assistant.length === 2 ? 'flex-1' : 'w-full'}`}
-                                        value={name}
-                                        onChange={(e) => {
-                                            const newWorkers = [...workers.assistant];
-                                            newWorkers[index] = e.target.value;
-                                            setWorkers({ ...workers, assistant: newWorkers });
-                                        }}
-                                        placeholder="이름"
-                                    />
-                                ))}
+                            <div className="flex-1 border-r border-black p-1 flex flex-col justify-center gap-1 relative group">
+                                {workers.assistant.length > 1 && (
+                                    <div
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-red-500 text-sm print:hidden"
+                                        onClick={() => setWorkers({ ...workers, assistant: workers.assistant.slice(0, -1) })}
+                                    >
+                                        −
+                                    </div>
+                                )}
+                                <div className={`flex ${workers.assistant.length === 2 ? 'flex-row justify-center gap-2 px-4' : 'flex-col'}`}>
+                                    {workers.assistant.map((name, index) => (
+                                        <Input
+                                            key={index}
+                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg bg-white dark:bg-white text-black w-full"
+                                            value={name}
+                                            onChange={(e) => {
+                                                const newWorkers = [...workers.assistant];
+                                                newWorkers[index] = e.target.value;
+                                                setWorkers({ ...workers, assistant: newWorkers });
+                                            }}
+                                            placeholder="이름"
+                                        />
+                                    ))}
+                                </div>
                                 {workers.assistant.length < 4 && (
                                     <div
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black print:hidden"
                                         onClick={() => setWorkers({ ...workers, assistant: [...workers.assistant, ''] })}
                                     >
                                         +
@@ -1707,23 +1768,33 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 )}
                             </div>
                             {/* Video */}
-                            <div className={`flex-1 p-1 flex ${workers.video.length === 2 ? 'flex-row items-center' : 'flex-col justify-center'} gap-1 relative group`}>
-                                {workers.video.map((name, index) => (
-                                    <Input
-                                        key={index}
-                                        className={`h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg ${workers.video.length === 2 ? 'flex-1' : 'w-full'}`}
-                                        value={name}
-                                        onChange={(e) => {
-                                            const newWorkers = [...workers.video];
-                                            newWorkers[index] = e.target.value;
-                                            setWorkers({ ...workers, video: newWorkers });
-                                        }}
-                                        placeholder="이름"
-                                    />
-                                ))}
+                            <div className="flex-1 p-1 flex flex-col justify-center gap-1 relative group">
+                                {workers.video.length > 1 && (
+                                    <div
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-red-500 text-sm print:hidden"
+                                        onClick={() => setWorkers({ ...workers, video: workers.video.slice(0, -1) })}
+                                    >
+                                        −
+                                    </div>
+                                )}
+                                <div className={`flex ${workers.video.length === 2 ? 'flex-row justify-center gap-2 px-4' : 'flex-col'}`}>
+                                    {workers.video.map((name, index) => (
+                                        <Input
+                                            key={index}
+                                            className="h-6 text-center border-none shadow-none focus-visible:ring-0 p-0 font-handwriting text-lg bg-white dark:bg-white text-black w-full"
+                                            value={name}
+                                            onChange={(e) => {
+                                                const newWorkers = [...workers.video];
+                                                newWorkers[index] = e.target.value;
+                                                setWorkers({ ...workers, video: newWorkers });
+                                            }}
+                                            placeholder="이름"
+                                        />
+                                    ))}
+                                </div>
                                 {workers.video.length < 4 && (
                                     <div
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 cursor-pointer text-gray-400 hover:text-black print:hidden"
                                         onClick={() => setWorkers({ ...workers, video: [...workers.video, ''] })}
                                     >
                                         +
@@ -1749,7 +1820,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 posts={channelLogs["MBC SPORTS+"]?.posts || []}
                                 onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC SPORTS+": { ...prev["MBC SPORTS+"], posts, timecodes: prev["MBC SPORTS+"]?.timecodes || {} } }))}
                                 timecodeEntries={channelLogs["MBC SPORTS+"]?.timecodes || {}}
-                                onTimecodesChange={(entries) => handleTimecodesChange("MBC SPORTS+", entries)}
+                                onTimecodeUpdate={(key, val) => handleTimecodeUpdate("MBC SPORTS+", key, val)}
                                 onNewPost={() => handleNewPostRequest("MBC SPORTS+", "channel-operation", "MBC SPORTS+", "MBC SPORTS+")}
                             />
                         </div>
@@ -1762,7 +1833,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 posts={channelLogs["MBC Every1"]?.posts || []}
                                 onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC Every1": { ...prev["MBC Every1"], posts, timecodes: prev["MBC Every1"]?.timecodes || {} } }))}
                                 timecodeEntries={channelLogs["MBC Every1"]?.timecodes || {}}
-                                onTimecodesChange={(entries) => handleTimecodesChange("MBC Every1", entries)}
+                                onTimecodeUpdate={(key, val) => handleTimecodeUpdate("MBC Every1", key, val)}
                                 onNewPost={() => handleNewPostRequest("MBC Every1", "channel-operation", "MBC Every1", "MBC Every1")}
                             />
                         </div>
@@ -1775,7 +1846,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 posts={channelLogs["MBC DRAMA"]?.posts || []}
                                 onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC DRAMA": { ...prev["MBC DRAMA"], posts, timecodes: prev["MBC DRAMA"]?.timecodes || {} } }))}
                                 timecodeEntries={channelLogs["MBC DRAMA"]?.timecodes || {}}
-                                onTimecodesChange={(entries) => handleTimecodesChange("MBC DRAMA", entries)}
+                                onTimecodeUpdate={(key, val) => handleTimecodeUpdate("MBC DRAMA", key, val)}
                                 onNewPost={() => handleNewPostRequest("MBC DRAMA", "channel-operation", "MBC DRAMA", "MBC DRAMA")}
                             />
                         </div>
@@ -1788,7 +1859,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 posts={channelLogs["MBC M"]?.posts || []}
                                 onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC M": { ...prev["MBC M"], posts, timecodes: prev["MBC M"]?.timecodes || {} } }))}
                                 timecodeEntries={channelLogs["MBC M"]?.timecodes || {}}
-                                onTimecodesChange={(entries) => handleTimecodesChange("MBC M", entries)}
+                                onTimecodeUpdate={(key, val) => handleTimecodeUpdate("MBC M", key, val)}
                                 onNewPost={() => handleNewPostRequest("MBC M", "channel-operation", "MBC M", "MBC M")}
                             />
                         </div>
@@ -1801,7 +1872,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                 posts={channelLogs["MBC ON"]?.posts || []}
                                 onPostsChange={(posts) => setChannelLogs(prev => ({ ...prev, "MBC ON": { ...prev["MBC ON"], posts, timecodes: prev["MBC ON"]?.timecodes || {} } }))}
                                 timecodeEntries={channelLogs["MBC ON"]?.timecodes || {}}
-                                onTimecodesChange={(entries) => handleTimecodesChange("MBC ON", entries)}
+                                onTimecodeUpdate={(key, val) => handleTimecodeUpdate("MBC ON", key, val)}
                                 onNewPost={() => handleNewPostRequest("MBC ON", "channel-operation", "MBC ON", "MBC ON")}
                             />
                         </div>

@@ -8,12 +8,21 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useAuthStore } from "@/store/auth"
-import { Laptop, Shield } from "lucide-react"
+import { Laptop, Shield, Palette, Sun, Moon, Monitor } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AuditLogList } from "@/components/settings/audit-log-list"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 
 export default function SettingsPage() {
   const { deviceMode, setDeviceMode, securitySettings, setSecuritySettings } = useAuthStore()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <MainLayout>
@@ -43,7 +52,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label className="text-base">공용 PC 모드 (Shared/Kiosk)</Label>
+                      <Label className="text-base">공용 PC 모드 (Shared)</Label>
                       <p className="text-sm text-muted-foreground">
                         주조정실 메인 PC 등 여러 사람이 함께 사용하는 기기에서 활성화하세요.<br />
                         <span className="text-xs text-blue-600 font-medium">
@@ -84,6 +93,50 @@ export default function SettingsPage() {
                       onCheckedChange={(checked) => setSecuritySettings({ requirePinForMemberSwitch: checked })}
                     />
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Theme Settings */}
+              <Card className="border-purple-200 bg-purple-50/30 dark:border-purple-900 dark:bg-purple-950/30">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <CardTitle>테마 설정</CardTitle>
+                  </div>
+                  <CardDescription>화면 테마를 설정합니다.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mounted && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant={theme === 'light' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTheme('light')}
+                        className="flex-1 gap-2"
+                      >
+                        <Sun className="h-4 w-4" />
+                        라이트
+                      </Button>
+                      <Button
+                        variant={theme === 'dark' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTheme('dark')}
+                        className="flex-1 gap-2"
+                      >
+                        <Moon className="h-4 w-4" />
+                        다크
+                      </Button>
+                      <Button
+                        variant={theme === 'system' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTheme('system')}
+                        className="flex-1 gap-2"
+                      >
+                        <Monitor className="h-4 w-4" />
+                        시스템
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

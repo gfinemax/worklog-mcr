@@ -341,16 +341,8 @@ function WorklogListView() {
   }
 
   const handleRowClick = (log: Worklog) => {
-    // Check if this is the currently active worklog
-    // We only redirect to "Today Mode" if it's the session currently happening.
-    // Past sessions of today (e.g. Day shift when it's Night) should open as normal tabs.
-    const isActiveSession = isWorkingNow(log)
-
-    if (isActiveSession) {
-      router.push('/worklog?mode=today')
-      return
-    }
-
+    // [FIX] Always open by ID to prevent triggering new worklog creation logic
+    // The "Today Mode" UI behavior is handled by worklog-detail based on the date/shift
     addTab({
       id: String(log.id),
       title: `${log.date} ${log.groupName}`,
@@ -359,7 +351,7 @@ function WorklogListView() {
       team: log.groupName
     })
 
-    // Explicitly push URL to navigate
+    // Explicitly push URL to navigate with ID
     router.push(`/worklog?id=${log.id}`)
   }
 
