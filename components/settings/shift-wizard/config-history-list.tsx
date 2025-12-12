@@ -158,7 +158,7 @@ export function ConfigHistoryList() {
                 </CardHeader>
                 <CardContent>
                     <div className="rounded-md border">
-                        <div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 border-b text-xs font-medium text-muted-foreground">
+                        <div className="grid grid-cols-12 gap-4 p-4 bg-muted border-b text-xs font-medium text-muted-foreground">
                             <div className="col-span-1 text-center">상태</div>
                             <div className="col-span-2">기준일 (적용일)</div>
                             <div className="col-span-4">내용</div>
@@ -177,13 +177,13 @@ export function ConfigHistoryList() {
                                     return (
                                         <div
                                             key={config.id}
-                                            className={`grid grid-cols-12 gap-4 p-4 items-center text-sm border-b last:border-0 hover:bg-slate-50 transition-colors cursor-pointer ${status === 'active' ? 'bg-blue-50/50' : ''}`}
+                                            className={`grid grid-cols-12 gap-4 p-4 items-center text-sm border-b last:border-0 hover:bg-muted transition-colors cursor-pointer ${status === 'active' ? 'bg-blue-50/50 dark:bg-blue-950/50' : ''}`}
                                             onClick={() => router.push(`/settings/worker-pattern/${config.id}`)}
                                         >
                                             <div className="col-span-1 flex justify-center">
                                                 {status === 'active' && <Badge className="bg-green-600 hover:bg-green-700">적용중</Badge>}
-                                                {status === 'pending' && <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">대기</Badge>}
-                                                {status === 'expired' && <Badge variant="outline" className="text-slate-400 border-slate-200">종료</Badge>}
+                                                {status === 'pending' && <Badge variant="secondary" className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800">대기</Badge>}
+                                                {status === 'expired' && <Badge variant="outline" className="text-muted-foreground">종료</Badge>}
                                             </div>
                                             <div className="col-span-2 font-medium">
                                                 {format(parseISO(config.valid_from), 'yyyy.MM.dd')}
@@ -198,7 +198,7 @@ export function ConfigHistoryList() {
                                                         <span className="truncate">{config.memo}</span>
                                                     </>
                                                 ) : (
-                                                    <span className="text-slate-300">-</span>
+                                                    <span className="text-muted-foreground/50">-</span>
                                                 )}
                                             </div>
                                             <div className="col-span-1 text-xs text-muted-foreground">

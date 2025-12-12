@@ -5,9 +5,25 @@ import { Sidebar } from "./sidebar"
 import { Navbar } from "./navbar"
 import { SidebarProvider, useSidebar } from "./sidebar-context"
 import { cn } from "@/lib/utils"
+import { useAuthStore } from "@/store/auth"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar()
+  const { user, guestSession } = useAuthStore()
+  const router = useRouter()
+
+  useEffect(() => {
+    // Basic Client-side Protection
+    // If not logged in and not a guest, redirect to login
+    // We check this on mount.
+    // Note: This relies on zustand persistence rehydrating quickly.
+    // Ideally, we might wait for rehydration, but for now this prevents access.
+    if (!user && !guestSession) {
+      router.replace("/login")
+    }
+  }, [user, guestSession, router])
 
   return (
     <div className="min-h-screen bg-background">

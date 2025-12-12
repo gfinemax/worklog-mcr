@@ -68,7 +68,7 @@ function WorkerPatternSettingsContent() {
                                     useShiftWizardStore.getState().resetWizard()
                                 }
                             }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                         >
                             마법사 종료 (Exit)
                         </Button>
@@ -100,14 +100,14 @@ function WorkerPatternSettingsContent() {
                         </FolderTabsList>
                         {/* Progress Line - Only visible in Wizard Mode */}
                         {isWizardActive && (
-                            <div className="absolute bottom-0 left-0 w-full h-[6px] bg-slate-200 z-20 rounded-full overflow-hidden">
+                            <div className="absolute bottom-0 left-0 w-full h-[6px] bg-muted z-20 rounded-full overflow-hidden">
                                 {/* Separators */}
-                                <div className="absolute top-0 bottom-0 left-[33.3%] w-[2px] bg-white z-30" />
-                                <div className="absolute top-0 bottom-0 left-[66.6%] w-[2px] bg-white z-30" />
+                                <div className="absolute top-0 bottom-0 left-[33.3%] w-[2px] bg-background z-30" />
+                                <div className="absolute top-0 bottom-0 left-[66.6%] w-[2px] bg-background z-30" />
 
                                 {/* Fill */}
                                 <div
-                                    className="h-full bg-slate-900 transition-all duration-500 ease-in-out"
+                                    className="h-full bg-foreground transition-all duration-500 ease-in-out"
                                     style={{ width: getProgressWidth() }}
                                 />
                             </div>

@@ -113,18 +113,18 @@ export function PinVerificationDialog({
                                     className={`
                                         flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all
                                         ${selectedUserId === member.id
-                                            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                                            : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                                            ? "border-blue-500 bg-blue-500/10 ring-1 ring-blue-500"
+                                            : "border-border hover:border-blue-400 hover:bg-muted"
                                         }
                                     `}
                                 >
-                                    <Avatar className="h-10 w-10 border border-slate-100">
+                                    <Avatar className="h-10 w-10 border border-border">
                                         <AvatarImage src={member.profile_image_url} />
                                         <AvatarFallback>{member.name[0]}</AvatarFallback>
                                     </Avatar>
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-semibold text-slate-900">{member.name}</span>
-                                        <span className="text-xs text-slate-500">{member.role}</span>
+                                        <span className="text-sm font-semibold">{member.name}</span>
+                                        <span className="text-xs text-muted-foreground">{member.role}</span>
                                     </div>
                                     {selectedUserId === member.id && (
                                         <div className="ml-auto h-2 w-2 rounded-full bg-blue-500" />

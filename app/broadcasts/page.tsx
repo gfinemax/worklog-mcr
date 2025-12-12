@@ -107,7 +107,7 @@ function BroadcastPageContent() {
                                                     e.stopPropagation()
                                                     handleRemoveTab(e, tab.id)
                                                 }}
-                                                className="rounded-full p-0.5 hover:bg-slate-300/50 text-slate-500 hover:text-slate-700 transition-colors z-50"
+                                                className="rounded-full p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors z-50"
                                             >
                                                 <X className="h-3 w-3" />
                                             </div>

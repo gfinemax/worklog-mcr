@@ -77,11 +77,11 @@ export function AuditLogList() {
         // Pattern Change
         if (changes.cycle_length) {
             return (
-                <div className="mt-2 text-xs bg-slate-50 p-2 rounded border">
+                <div className="mt-2 text-xs bg-muted p-2 rounded border">
                     <p>순환 주기: {changes.cycle_length}일</p>
                     <p>기준일: {changes.valid_from}</p>
                     {changes.teams && <p>운영 조: {changes.teams.length}개</p>}
-                    {changes.memo && <p className="mt-1 text-slate-500">{changes.memo}</p>}
+                    {changes.memo && <p className="mt-1 text-muted-foreground">{changes.memo}</p>}
                 </div>
             )
         }
@@ -89,10 +89,10 @@ export function AuditLogList() {
         // Worker Move
         if (changes.from_group || changes.to_group) {
             return (
-                <div className="mt-2 flex items-center gap-2 text-xs bg-slate-50 p-2 rounded border">
+                <div className="mt-2 flex items-center gap-2 text-xs bg-muted p-2 rounded border">
                     <span className="font-medium">{changes.from_group || '미배치'}</span>
-                    <ArrowRight className="h-3 w-3 text-slate-400" />
-                    <span className="font-medium text-blue-600">{changes.to_group}</span>
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium text-blue-600 dark:text-blue-400">{changes.to_group}</span>
                 </div>
             )
         }
@@ -101,17 +101,14 @@ export function AuditLogList() {
     }
 
     return (
-        <Card className="h-full border-none shadow-none">
-            <CardHeader className="px-0 pt-0">
-                <div className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-primary" />
-                    <CardTitle>변경 로그 (Audit Trail)</CardTitle>
-                </div>
+        <Card className="h-full">
+            <CardHeader>
+                <CardTitle>변경 로그 (Audit Trail)</CardTitle>
                 <CardDescription>
                     시스템 내의 주요 변경 사항과 작업 이력을 추적합니다.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="px-0">
+            <CardContent>
                 <ScrollArea className="h-[600px] pr-4">
                     {loading ? (
                         <div className="flex justify-center p-4">
@@ -124,8 +121,8 @@ export function AuditLogList() {
                     ) : (
                         <div className="space-y-6">
                             {logs.map((log) => (
-                                <div key={log.id} className="relative pl-6 border-l-2 border-slate-100 pb-6 last:pb-0">
-                                    <div className="absolute -left-[9px] top-0 bg-white p-1 rounded-full border border-slate-200">
+                                <div key={log.id} className="relative pl-6 border-l-2 border-border pb-6 last:pb-0">
+                                    <div className="absolute -left-[9px] top-0 bg-background p-1 rounded-full border border-border">
                                         {getIcon(log.action)}
                                     </div>
                                     <div className="flex flex-col gap-1">
@@ -138,7 +135,7 @@ export function AuditLogList() {
                                             </Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                            <span className="font-medium text-slate-700">{log.users?.name || '시스템'}</span>
+                                            <span className="font-medium text-foreground">{log.users?.name || '시스템'}</span>
                                             님이 변경했습니다.
                                         </p>
                                         {renderChanges(log.changes)}

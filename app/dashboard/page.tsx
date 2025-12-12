@@ -294,9 +294,9 @@ export default function Dashboard() {
                       })
 
                       return sortedMembers.map((member) => (
-                        <div key={member.id} className="flex items-center gap-2 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded w-full">
-                          <span className="text-slate-400 min-w-[30px]">{member.role}</span>
-                          <span className="font-bold border-l border-slate-200 pl-2 ml-1">{member.name}</span>
+                        <div key={member.id} className="flex items-center gap-2 text-xs font-medium text-foreground bg-muted px-2.5 py-1 rounded w-full">
+                          <span className="text-muted-foreground min-w-[30px]">{member.role}</span>
+                          <span className="font-bold border-l border-border pl-2 ml-1">{member.name}</span>
                         </div>
                       ))
                     })()}

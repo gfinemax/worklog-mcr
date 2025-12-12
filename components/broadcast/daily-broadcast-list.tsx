@@ -183,9 +183,9 @@ export function DailyBroadcastList({ onNewClick }: DailyBroadcastListProps) {
                                         key={summary.date}
                                         className={cn(
                                             "cursor-pointer transition-colors",
-                                            "hover:bg-gray-100",
-                                            selectedIndex === index && "bg-gray-100 hover:bg-gray-100",
-                                            summary.hasLiveNow && selectedIndex !== index && "bg-green-50 hover:bg-green-100"
+                                            "hover:bg-muted",
+                                            selectedIndex === index && "bg-muted hover:bg-muted",
+                                            summary.hasLiveNow && selectedIndex !== index && "bg-green-500/10 hover:bg-green-500/20"
                                         )}
                                         onClick={() => handleRowClick(summary, index)}
                                         onMouseEnter={() => setSelectedIndex(index)}

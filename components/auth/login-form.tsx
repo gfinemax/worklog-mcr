@@ -224,7 +224,7 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
                 // No group
                 if (mode === 'default') {
                     setLoginMode('personal') // Default to personal if no group
-                    router.push("/")
+                    router.push("/dashboard")
                 } else {
                     setError("소속된 조가 없습니다.")
                 }
