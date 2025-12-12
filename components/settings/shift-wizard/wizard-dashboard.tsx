@@ -97,7 +97,7 @@ export function WizardDashboard() {
         return (
             <div className="space-y-6">
                 {/* Active Status Card */}
-                <Card className="bg-slate-50 border-slate-200">
+                <Card>
                     <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
                             <div>
@@ -112,7 +112,7 @@ export function WizardDashboard() {
                     <CardContent>
                         {loading ? (
                             <div className="flex justify-center py-4">
-                                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
                         ) : activeConfig ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -142,11 +142,11 @@ export function WizardDashboard() {
                 {/* Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div
-                        className="border rounded-lg p-6 hover:bg-slate-50 transition-colors cursor-pointer flex flex-col items-center text-center space-y-3 group"
+                        className="border rounded-lg p-6 hover:bg-muted transition-colors cursor-pointer flex flex-col items-center text-center space-y-3 group"
                         onClick={() => startWizard()}
                     >
-                        <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                            <PlusCircle className="h-6 w-6 text-blue-600" />
+                        <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
+                            <PlusCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
                             <h3 className="font-bold text-lg">새 패턴 만들기</h3>
@@ -155,11 +155,11 @@ export function WizardDashboard() {
                     </div>
 
                     <div
-                        className="border rounded-lg p-6 hover:bg-slate-50 transition-colors cursor-pointer flex flex-col items-center text-center space-y-3 group"
+                        className="border rounded-lg p-6 hover:bg-muted transition-colors cursor-pointer flex flex-col items-center text-center space-y-3 group"
                         onClick={handleEditCurrent}
                     >
-                        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 transition-colors">
-                            <Settings className="h-6 w-6 text-slate-600" />
+                        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-muted/80 transition-colors">
+                            <Settings className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div>
                             <h3 className="font-bold text-lg">현재 패턴 수정하기</h3>

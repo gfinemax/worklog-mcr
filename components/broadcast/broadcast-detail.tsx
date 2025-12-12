@@ -140,35 +140,35 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
 
             {/* Dashboard Header */}
             {!loading && (broadcasts.length > 0 || receptions.length > 0) && (
-                <Card className="bg-gradient-to-r from-slate-50 to-slate-100">
+                <Card>
                     <CardContent className="pt-6">
                         <div className="grid grid-cols-4 gap-4 mb-6">
                             {/* 총 건수 */}
-                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
-                                <span className="text-3xl font-bold text-gray-800">{broadcasts.length + receptions.length}</span>
+                            <div className="flex flex-col items-center justify-center p-4 bg-muted rounded-xl">
+                                <span className="text-3xl font-bold">{broadcasts.length + receptions.length}</span>
                                 <span className="text-sm text-muted-foreground">총 건수</span>
                             </div>
                             {/* 라이브 */}
-                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                            <div className="flex flex-col items-center justify-center p-4 bg-muted rounded-xl">
                                 <div className="flex items-center gap-2">
                                     <Radio className="h-5 w-5 text-red-500" />
-                                    <span className="text-3xl font-bold text-red-600">{broadcasts.length}</span>
+                                    <span className="text-3xl font-bold text-red-500">{broadcasts.length}</span>
                                 </div>
                                 <span className="text-sm text-muted-foreground">라이브</span>
                             </div>
                             {/* 수신 */}
-                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                            <div className="flex flex-col items-center justify-center p-4 bg-muted rounded-xl">
                                 <div className="flex items-center gap-2">
                                     <Satellite className="h-5 w-5 text-blue-500" />
-                                    <span className="text-3xl font-bold text-blue-600">{receptions.length}</span>
+                                    <span className="text-3xl font-bold text-blue-500">{receptions.length}</span>
                                 </div>
                                 <span className="text-sm text-muted-foreground">수신</span>
                             </div>
                             {/* 완료 */}
-                            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm">
+                            <div className="flex flex-col items-center justify-center p-4 bg-muted rounded-xl">
                                 <div className="flex items-center gap-2">
                                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                    <span className="text-3xl font-bold text-green-600">
+                                    <span className="text-3xl font-bold text-green-500">
                                         {[...broadcasts, ...receptions].filter(s => s.status === 'completed').length}
                                     </span>
                                 </div>
@@ -194,14 +194,14 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                     {/* Broadcast Section */}
                     <section>
                         <div className="flex items-center gap-2 mb-4">
-                            <div className="h-6 w-1 bg-red-600 rounded-full"></div>
-                            <h2 className="text-xl font-bold text-gray-800">LIVE ON</h2>
+                            <div className="h-6 w-1 bg-red-500 rounded-full"></div>
+                            <h2 className="text-xl font-bold">LIVE ON</h2>
                             <Badge variant="destructive">{broadcasts.length}건</Badge>
                         </div>
 
                         <div className="grid gap-4">
                             {broadcasts.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                                <div className="text-center py-8 text-muted-foreground bg-muted rounded-lg">
                                     예정된 중계 일정이 없습니다.
                                 </div>
                             ) : (
@@ -217,8 +217,8 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                         </div>
                     </section>
 
-                    <div className="border-t-4 border-dashed border-gray-300 my-8 relative">
-                        <span className="absolute left-1/2 -translate-x-1/2 -top-3 bg-white px-4 text-gray-500 font-bold">
+                    <div className="border-t-4 border-dashed border-border my-8 relative">
+                        <span className="absolute left-1/2 -translate-x-1/2 -top-3 bg-background px-4 text-muted-foreground font-bold">
                             수 신
                         </span>
                     </div>
@@ -226,14 +226,14 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                     {/* Reception Section */}
                     <section>
                         <div className="flex items-center gap-2 mb-4">
-                            <div className="h-6 w-1 bg-blue-600 rounded-full"></div>
-                            <h2 className="text-xl font-bold text-gray-800">수신 현황</h2>
+                            <div className="h-6 w-1 bg-blue-500 rounded-full"></div>
+                            <h2 className="text-xl font-bold">수신 현황</h2>
                             <Badge className="bg-blue-600">{receptions.length}건</Badge>
                         </div>
 
                         <div className="grid gap-4">
                             {receptions.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                                <div className="text-center py-8 text-muted-foreground bg-muted rounded-lg">
                                     예정된 수신 일정이 없습니다.
                                 </div>
                             ) : (
@@ -300,9 +300,9 @@ function BroadcastCard({
                     {/* Time & Channel */}
                     <div className="flex flex-col min-w-[140px] gap-1">
                         <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-bold text-gray-900">{schedule.time.slice(0, 5)}</span>
+                            <span className="text-2xl font-bold">{schedule.time.slice(0, 5)}</span>
                             {schedule.end_time && (
-                                <span className="text-lg text-gray-500">~{schedule.end_time.slice(0, 5)}</span>
+                                <span className="text-lg text-muted-foreground">~{schedule.end_time.slice(0, 5)}</span>
                             )}
                         </div>
                         {schedule.end_time && (() => {
@@ -313,14 +313,14 @@ function BroadcastCard({
                                 const hours = Math.floor(duration / 60)
                                 const mins = duration % 60
                                 return (
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-muted-foreground">
                                         ({hours > 0 ? `${hours}시간 ` : ''}{mins > 0 ? `${mins}분` : ''})
                                     </span>
                                 )
                             }
                             return null
                         })()}
-                        <span className="text-lg font-bold text-red-600">{schedule.channel_name}</span>
+                        <span className="text-lg font-bold text-red-500">{schedule.channel_name}</span>
                         {schedule.studio_label && (
                             <Badge variant="outline" className="w-fit text-base bg-yellow-400 text-yellow-900 font-bold border-transparent">
                                 {schedule.studio_label}
@@ -330,12 +330,12 @@ function BroadcastCard({
 
                     {/* Program Info */}
                     <div className="flex-1 min-w-0 space-y-1">
-                        <h3 className="text-lg font-bold text-gray-900">{schedule.program_title}</h3>
+                        <h3 className="text-lg font-bold">{schedule.program_title}</h3>
                         {schedule.match_info && (
-                            <p className="text-base font-medium text-gray-700">&lt;{schedule.match_info}&gt;</p>
+                            <p className="text-base font-medium text-muted-foreground">&lt;{schedule.match_info}&gt;</p>
                         )}
                         {schedule.broadcast_van && (
-                            <p className="text-sm font-bold text-green-600">중계차: {schedule.broadcast_van}</p>
+                            <p className="text-sm font-bold text-green-600 dark:text-green-400">중계차: {schedule.broadcast_van}</p>
                         )}
                         {schedule.memo && (
                             <p className="text-sm font-bold text-red-500">{schedule.memo}</p>
@@ -345,21 +345,21 @@ function BroadcastCard({
                     {/* Technical Info */}
                     <div className="flex flex-col gap-1 text-sm min-w-[220px]">
                         {schedule.transmission_path && (
-                            <div className="font-medium text-red-600">
+                            <div className="font-medium text-red-500">
                                 수신: {formatReceptionPath(schedule.transmission_path)}
                             </div>
                         )}
                         {schedule.video_source_info && (
-                            <div className="font-medium text-green-700">송신: {schedule.video_source_info}</div>
+                            <div className="font-medium text-green-600 dark:text-green-400">송신: {schedule.video_source_info}</div>
                         )}
                         {schedule.return_info && (
-                            <div className="font-medium text-purple-700">리턴: {schedule.return_info}</div>
+                            <div className="font-medium text-purple-600 dark:text-purple-400">리턴: {schedule.return_info}</div>
                         )}
                         {schedule.biss_code && (
-                            <div className="font-mono font-medium text-gray-600">BISS: {schedule.biss_code}</div>
+                            <div className="font-mono font-medium text-muted-foreground">BISS: {schedule.biss_code}</div>
                         )}
                         {(schedule.manager || schedule.contact_info) && (
-                            <div className="flex items-center gap-1 text-blue-600 font-medium mt-1">
+                            <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium mt-1">
                                 <Phone className="h-3 w-3" />
                                 {schedule.manager}
                                 {schedule.contact_info && (

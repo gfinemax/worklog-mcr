@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { SessionSetupStep } from "@/components/auth/session-setup-step"
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "대시보드", href: "/" },
+  { icon: LayoutDashboard, label: "대시보드", href: "/dashboard" },
   { icon: Calendar, label: "오늘 업무일지", href: "/worklog?mode=today" },
   { icon: FileText, label: "업무일지 목록", href: "/worklog", exact: true },
 

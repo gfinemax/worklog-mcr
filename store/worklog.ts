@@ -326,7 +326,10 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             .eq('id', id)
 
         if (error) {
-            console.error('Error updating worklog:', JSON.stringify(error, null, 2))
+            // Suppress error logging for duplicate key constraint (collision handled in UI)
+            if (error.code !== '23505') {
+                console.error('Error updating worklog:', JSON.stringify(error, null, 2))
+            }
             return { error }
         }
         return { error: null }

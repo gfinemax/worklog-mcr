@@ -171,10 +171,10 @@ export default function PostList() {
   }
 
   const getCategoryColor = (slug: string) => {
-    if (slug === 'emergency') return "text-red-600 bg-red-50 border-red-200"
-    if (slug === 'notice') return "text-blue-600 bg-blue-50 border-blue-200"
-    if (slug === 'system-issue') return "text-orange-600 bg-orange-50 border-orange-200"
-    return "text-slate-600 bg-slate-50 border-slate-200"
+    if (slug === 'emergency') return "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
+    if (slug === 'notice') return "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800"
+    if (slug === 'system-issue') return "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800"
+    return "text-muted-foreground bg-muted border-border"
   }
 
   return (
@@ -277,6 +277,9 @@ export default function PostList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('created_at')}>
+                    <div className="flex items-center justify-center">날짜 {renderSortIcon('created_at')}</div>
+                  </TableHead>
                   <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'category.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('category.name')}>
                     <div className="flex items-center justify-center">카테고리 {renderSortIcon('category.name')}</div>
                   </TableHead>
@@ -291,9 +294,6 @@ export default function PostList() {
                   </TableHead>
                   <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'author.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('author.name')}>
                     <div className="flex items-center justify-center">작성자 {renderSortIcon('author.name')}</div>
-                  </TableHead>
-                  <TableHead className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('created_at')}>
-                    <div className="flex items-center justify-center">날짜 {renderSortIcon('created_at')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'views' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('views')}>
                     <div className="flex items-center justify-center">조회 {renderSortIcon('views')}</div>
@@ -320,6 +320,11 @@ export default function PostList() {
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => router.push(`/posts/${post.id}`)}
                     >
+                      <TableCell className="text-center text-sm text-muted-foreground">
+                        <span suppressHydrationWarning>
+                          {format(new Date(post.created_at), "yyyy-MM-dd HH:mm")}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className={getCategoryColor(post.category?.slug || "")}>
                           {post.category?.name}
@@ -403,18 +408,13 @@ export default function PostList() {
                           post.author.name
                         ) : (
                           <div className="flex items-center justify-center gap-1">
-                            <Badge variant="secondary" className="h-5 px-1 text-[10px] bg-slate-100 text-slate-600">GROUP</Badge>
+                            <Badge variant="secondary" className="h-5 px-1 text-[10px]">GROUP</Badge>
                             <span>
                               {post.worklog?.group?.name || '-'}
                               {post.creator?.name && <span className="text-xs text-muted-foreground ml-1">({post.creator.name})</span>}
                             </span>
                           </div>
                         )}
-                      </TableCell>
-                      <TableCell className="text-center text-sm text-muted-foreground">
-                        <span suppressHydrationWarning>
-                          {format(new Date(post.created_at), "yyyy-MM-dd HH:mm")}
-                        </span>
                       </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">
                         <div className="flex items-center justify-center gap-1">
@@ -431,14 +431,14 @@ export default function PostList() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            className="h-7 text-xs border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-300"
                             onClick={(e) => handleResolveClick(post, e)}
                           >
                             <AlertCircle className="mr-1 h-3 w-3" />
                             해결
                           </Button>
                         ) : post.status === 'resolved' ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">
+                          <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900">
                             <CheckCircle className="mr-1 h-3 w-3" />
                             해결됨
                           </Badge>

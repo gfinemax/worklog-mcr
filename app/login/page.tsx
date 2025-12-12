@@ -86,14 +86,14 @@ export default function LoginPage() {
       setStep("mode-selection")
     } else {
       setLoginMode('personal')
-      router.push("/")
+      router.push("/dashboard")
     }
   }
 
   const handleModeSelect = (mode: 'shift' | 'personal') => {
     if (mode === 'personal') {
       setLoginMode('personal')
-      router.push("/")
+      router.push("/dashboard")
     } else {
       prepareSessionSetup()
     }
@@ -246,7 +246,7 @@ export default function LoginPage() {
       })
 
       toast.success(`${globalGroup.name} 근무 세션이 시작되었습니다.`)
-      router.push("/")
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Session Start Error:", error)
       toast.error("세션 시작 실패: " + error.message)

@@ -314,7 +314,7 @@ export default function NewPostPage() {
                 content,
                 category_id: categoryId,
                 priority,
-                worklog_id: worklogId || currentSession?.id || undefined,
+                worklog_id: worklogId || undefined,
                 channel: channelName || undefined,
                 attachments: attachmentMeta,
                 summary: summary || undefined,

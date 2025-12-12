@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useWorklogStore, Worklog, ChannelLog } from "@/store/worklog"
 import { useAuthStore } from "@/store/auth"
+import { useWorklogTabStore } from "@/store/worklog-tab-store"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -162,6 +163,16 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
 
     // Determine Active Tab
     const [activeTab, setActiveTab] = useState<string>("current")
+    const [timeRange, setTimeRange] = useState('')
+
+    // [New] Auto-update time range based on strict defaults when Shift Type changes
+    useEffect(() => {
+        if (shiftType === 'day') {
+            if (!timeRange || timeRange === '18:30 ~ 08:00') setTimeRange('07:30 ~ 19:00')
+        } else {
+            if (!timeRange || timeRange === '07:30 ~ 19:00') setTimeRange('18:30 ~ 08:00')
+        }
+    }, [shiftType])
 
     // Sync activeTab with selectedTeam
     useEffect(() => {
@@ -183,6 +194,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             }
         }
     }, [selectedTeam, nextSession, currentSession, paramTeam])
+
     // ... (existing state)
 
     // Auto-save effect
@@ -376,6 +388,11 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                             }
                             // 3. Fallback: use empty workers
                             setWorkers(worklog.workers)
+                            // @ts-ignore
+                            if (worklog.workers?.time_range) {
+                                // @ts-ignore
+                                setTimeRange(worklog.workers.time_range)
+                            }
                         }
                         populateFromRoster()
                     }
@@ -450,6 +467,17 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     }
 
                     setIsLoaded(true) // Data loaded
+
+                    // [FIX] Force update tab title to prevent "Loading..." state
+                    if (id) {
+                        const title = `${worklog.date} ${worklog.groupName}`
+                        useWorklogTabStore.getState().updateTab(id, {
+                            title,
+                            date: worklog.date,
+                            type: worklog.type,
+                            team: worklog.groupName
+                        })
+                    }
                 })
 
                 if (!ignore) {
@@ -477,10 +505,25 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                             setShiftType(fetchedLog.type === '주간' ? 'day' : 'night')
                             setSelectedTeam(fetchedLog.groupName)
                             setWorkers(fetchedLog.workers)
+                            // @ts-ignore
+                            if (fetchedLog.workers?.time_range) {
+                                // @ts-ignore
+                                setTimeRange(fetchedLog.workers.time_range)
+                            }
+                            setWorkers(fetchedLog.workers)
                             setStatus(fetchedLog.status)
                             setChannelLogs(fetchedLog.channelLogs || {})
                             setSystemIssues(fetchedLog.systemIssues || [])
                             setIsLoaded(true) // Data loaded
+
+                            // [FIX] Force update tab title
+                            const title = `${fetchedLog.date} ${fetchedLog.groupName}`
+                            useWorklogTabStore.getState().updateTab(id, {
+                                title,
+                                date: fetchedLog.date,
+                                type: fetchedLog.type,
+                                team: fetchedLog.groupName
+                            })
                         } else {
                             toast.error("업무일지를 찾을 수 없습니다.")
                             router.replace('/worklog')
@@ -489,17 +532,11 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 }
             }
         } else if (!id || id === 'new') {
-            // ... (New logs code - kept mostly same but wrapped in ignore check where async) ...
-            // Be careful to not break the Else block structure. 
-            // Since replace_file_content targets a block, I must include the Else block logic too or keep it intact.
-            // The original code has a long else if block.
-
-            // Wait, the ReplacementContent must match the chunk.
-            // The chunk I selected starts at line 299.
-            // I need to include the 'else if' block for id === 'new'.
-
-            // To be safe and concise, I will copy the logic for 'new' ID from the original file 
-            // and just wrap async sets with if (!ignore).
+            // [FIX] If workers already have data, skip this effect to preserve them on shiftType change
+            const workersHaveData = workers.director?.length > 0 || workers.assistant?.length > 0 || workers.video?.length > 0
+            if (workersHaveData && isLoaded) {
+                return
+            }
 
             // New Worklog: Check if a worklog already exists for today/team/shift
             const dateStr = format(selectedDate, 'yyyy-MM-dd')
@@ -528,6 +565,16 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 if (mode === 'today') {
                     if (!ignore) {
                         setWorkers(existingWorklog.workers)
+                        // [New] Load custom time range if saved
+                        // @ts-ignore
+                        if (existingWorklog.workers?.time_range) {
+                            // @ts-ignore
+                            setTimeRange(existingWorklog.workers.time_range)
+                        } else {
+                            // Fallback for old logs
+                            setTimeRange(existingWorklog.type === '주간' ? '07:30 ~ 19:00' : '18:30 ~ 08:00')
+                        }
+
                         setChannelLogs(existingWorklog.channelLogs || {})
                         setSystemIssues(existingWorklog.systemIssues || [])
                         setStatus(existingWorklog.status)
@@ -542,6 +589,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             }
 
             const checkServerForDuplicate = async () => {
+                console.log("Checking duplicates for:", { dateStr, effectiveTeamName, effectiveShiftType })
                 const { data: serverLogs } = await supabase
                     .from('worklogs')
                     .select('id')
@@ -551,13 +599,12 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     .limit(1)
 
                 if (serverLogs && serverLogs.length > 0) {
+                    console.log("Found duplicate on server:", serverLogs[0].id)
                     toast.info("이미 생성된 업무일지가 있어 해당 일지로 이동합니다.")
-                    if (searchParams.get('mode') === 'today') {
-                        return true
-                    }
                     router.replace(`/worklog?id=${serverLogs[0].id}`)
                     return true
                 }
+                console.log("No duplicate found on server.")
                 return false
             }
 
@@ -597,16 +644,69 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     checkSwapAndSet()
                 }
                 setIsLoaded(true)
+
+                // [FIX] Force update tab title for NEW worklogs too
+                const title = `${format(selectedDate, 'yyyy-MM-dd')} ${selectedTeam}`
+                useWorklogTabStore.getState().updateTab('new', {
+                    title,
+                    date: format(selectedDate, 'yyyy-MM-dd'),
+                    type: effectiveShiftType === 'day' ? '주간' : '야간',
+                    team: selectedTeam
+                })
             })
         }
 
         return () => { ignore = true }
     }, [id, worklogs, selectedTeam, shiftType, paramType, activeTab, nextSession, currentSession, currentSession?.members])
 
+    // [New] Auto-save for newly created worklogs to ensure persistence immediately
+    // This solves the issue of user navigating away before saving and losing the 'created' status in list
+    const hasAutoSaved = useRef(false)
+    useEffect(() => {
+        if (id === 'new' && isLoaded && selectedTeam && !hasAutoSaved.current) {
+            // Check if workers are populated at least partially to avoid empty saves
+            const hasWorkers = workers.director.length > 0 || workers.assistant.length > 0
+
+            if (hasWorkers) {
+                hasAutoSaved.current = true
+                console.log("Auto-saving new worklog...")
+                // Small delay to ensure state is settled
+                setTimeout(() => {
+                    handleSave(true) // Silent save
+                }, 500)
+            }
+        }
+    }, [id, isLoaded, selectedTeam, workers])
+
+    // [Auto-Save 1] Critical Metadata (Shift/Team): Save quickly (200ms) to prevent data loss on nav
+    useEffect(() => {
+        if (!id || id === 'new' || !isLoaded) return
+
+        const timer = setTimeout(() => {
+            console.log("Auto-saving critical metadata (Shift/Team)...")
+            handleSave(true)
+        }, 200)
+
+        return () => clearTimeout(timer)
+    }, [shiftType, selectedTeam, id, isLoaded])
+
+    // [Auto-Save 2] Workers: Debounce (1000ms) to avoid spamming during multi-selection
+    useEffect(() => {
+        if (!id || id === 'new' || !isLoaded) return
+
+        const timer = setTimeout(() => {
+            console.log("Auto-saving workers...")
+            handleSave(true)
+        }, 1000)
+
+        return () => clearTimeout(timer)
+    }, [workers, id, isLoaded])
+
     // Smart Initialization: Determine initial Date and Shift Type
     // Prioritizes logged-in user's active shift over strict time-based shift to prevent auto-switching during handover.
     useEffect(() => {
         if ((id && id !== 'new') || paramType) return // Skip if existing ID or params exist
+        if (isLoaded) return // [FIX] Stop re-initializing if page is already loaded (user might have changed settings)
 
         const initializeSmartShift = async () => {
             const now = new Date()
@@ -640,21 +740,35 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 }
             }
 
-            setSelectedDate(targetDate)
-            setShiftType(logicalShiftType)
+            // [FIX] Only update if actually different to prevent re-triggering 'updateTeamFromPattern'
+            const isSameDate = format(targetDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+            const isSameShift = logicalShiftType === shiftType
+
+            if (!isSameDate) setSelectedDate(targetDate)
+            if (!isSameShift) setShiftType(logicalShiftType)
         }
 
         initializeSmartShift()
-    }, [id, paramType, currentSession])
+    }, [id, paramType, currentSession, selectedDate, shiftType])
 
+    // [NEW] Dedicated effect to populate workers when currentSession loads late
     // [NEW] Dedicated effect to populate workers when currentSession loads late
     useEffect(() => {
         if (!currentSession) return
         if (!selectedTeam || selectedTeam !== currentSession.groupName) return
+        if (!((!id || id === 'new') && activeTab === 'current')) return
 
         // Check if workers are empty
         const workersAreEmpty = !workers.director?.length && !workers.assistant?.length && !workers.video?.length
         if (!workersAreEmpty) return
+
+        // [FIX] Ensure we only use currentSession if it matches Today AND the same shift type
+        const now = new Date()
+        const isToday = format(selectedDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
+        const { shiftType: currentLinkShift } = shiftService.getLogicalShiftInfo(now)
+        const isSameShiftType = shiftType === currentLinkShift
+
+        if (!isToday || !isSameShiftType) return
 
         // Populate from currentSession.members (roles already have swap applied)
         const newWorkers = {
@@ -675,51 +789,37 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         })
 
         setWorkers(newWorkers)
-    }, [currentSession, selectedTeam, workers])
+    }, [currentSession, selectedTeam, workers, id, activeTab, selectedDate, shiftType])
 
-    // Auto-select team based on pattern when date or shift changes (Only for new logs)
+    // [Restored] One-time default to user's team if no team is selected
     useEffect(() => {
-        if (id && id !== 'new') return // Don't auto-change for existing logs
-        if (paramTeam) return // SKIP if explicit team from dialog is provided
-
-        // If user is logged in, ALWAYS default to their team for new logs
-        if (currentSession) {
-            if (selectedTeam !== currentSession.groupName) {
-                setSelectedTeam(currentSession.groupName)
-            }
-            return
+        // Only set if completely unset. This fills the initial state.
+        if (!selectedTeam && currentSession) {
+            setSelectedTeam(currentSession.groupName)
         }
-
-        const updateTeamFromPattern = async () => {
-            const config = await shiftService.getConfig(selectedDate)
-            if (config) {
-                const teams = shiftService.getTeamsForDate(selectedDate, config)
-                if (teams) {
-                    const targetTeam = shiftType === 'day' ? teams.A : teams.N
-                    if (targetTeam && targetTeam !== selectedTeam) {
-                        setSelectedTeam(targetTeam)
-                        toast.info(`${format(selectedDate, 'MM/dd')} ${shiftType === 'day' ? 'A' : 'N'}근무조(${targetTeam})로 자동 설정되었습니다.`)
-                    }
-                }
-            }
-        }
-
-        updateTeamFromPattern()
-    }, [selectedDate, shiftType, id, currentSession, selectedTeam, paramTeam])
+    }, [currentSession, selectedTeam])
 
     // Fetch group members when team changes (only if no ID or creating new)
     useEffect(() => {
         let ignore = false
 
         // [FIX] Skip if already loaded to prevent overwriting saved workers
-        if (isLoaded) return
+        // BUT allow if it is a NEW log and workers are empty (or if we need to fetch for the selected team)
+        // Actually, for 'new' logs, this effect is the primary way to fetch workers when team changes or on init.
+        // So we only block for EXISTING (saved) logs that are loaded.
+        if (isLoaded && id !== 'new') return
 
         // If we are in Next Session tab, we already set workers from session members in the previous effect
         if (activeTab === 'next' && nextSession && selectedTeam === nextSession.groupName) return
 
-        // [Modified] Use currentSession members if available and matches selectedTeam
+        // [Modified] Use currentSession members if available and matches selectedTeam AND IS TODAY AND SAME SHIFT
         // We do this EVEN IF id exists, to ensure the displayed workers match the logged-in session (user request)
-        if ((!id || id === 'new') && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current') {
+        const now = new Date()
+        const isToday = format(selectedDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
+        const { shiftType: currentLinkShift } = shiftService.getLogicalShiftInfo(now)
+        const isSameShiftType = shiftType === currentLinkShift
+
+        if ((!id || id === 'new') && currentSession && selectedTeam === currentSession.groupName && activeTab === 'current' && isToday && isSameShiftType) {
             const checkSwapAndSet = async () => {
                 const config = await shiftService.getConfig(selectedDate)
                 let isSwap = false
@@ -752,6 +852,10 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         }
 
         if (id && id !== 'new') return // Don't fetch for existing logs (they have their own workers saved)
+
+        // [FIX] Skip if workers already have data (preserve existing workers on shiftType change)
+        const workersHaveData = workers.director?.length > 0 || workers.assistant?.length > 0 || workers.video?.length > 0
+        if (workersHaveData) return
 
         const fetchGroupMembers = async () => {
             if (!selectedTeam) return
@@ -866,7 +970,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
         fetchGroupMembers()
 
         return () => { ignore = true }
-    }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate, isLoaded])
+    }, [selectedTeam, id, activeTab, nextSession, currentSession, selectedDate, isLoaded, workers.director?.length, workers.assistant?.length, workers.video?.length])
 
     const updateTitle = () => {
         const now = new Date()
@@ -912,15 +1016,42 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             const { error } = await updateWorklog(id, {
                 groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
-                workers: workers,
+                // @ts-ignore
+                workers: { ...workers, time_range: timeRange },
                 // [FIX] Do NOT update channelLogs/systemIssues here. 
                 // They are updated atomically via handleTimecodeUpdate or onNewPost.
-                // Including them here risks overwriting server data with stale local state.
                 // channelLogs: channelLogs,
                 // systemIssues: systemIssues
             })
 
             if (error) {
+                // [FIX] Handle Duplicate Key Error (Unique Constraint)
+                // If toggling Day<->Night and the target already exists, switch to it instead of crashing
+                if (error.code === '23505' || error.message?.includes('duplicate key')) {
+                    console.log("Duplicate collision during update. Finding existing log...")
+
+                    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+                    const targetType = shiftType === 'day' ? '주간' : '야간'
+
+                    // Find the ID of the existing log
+                    const { data: existing } = await supabase
+                        .from('worklogs')
+                        .select('id')
+                        .eq('group_name', selectedTeam)
+                        .eq('date', dateStr)
+                        .eq('type', targetType)
+                        .maybeSingle()
+
+                    if (existing) {
+                        toast.info("이미 존재하는 일지가 있어 이동합니다.")
+
+                        const newUrl = `/worklog?id=${existing.id}`
+                        window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+                        router.replace(newUrl)
+                        return existing.id
+                    }
+                }
+
                 if (!silent) toast.error("저장에 실패했습니다.")
                 return null
             }
@@ -939,11 +1070,14 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 .from('worklogs')
                 .select('id')
                 .eq('date', dateStr)
+                .eq('group_name', selectedTeam) // [FIX] Must check group name!
                 .eq('type', shiftType === 'day' ? '주간' : '야간')
                 .limit(1)
 
             if (existingLogs && existingLogs.length > 0) {
+                console.log("handleSave: Duplicate found, redirecting...", existingLogs[0].id)
                 if (!silent) toast.info("이미 생성된 업무일지가 있어 해당 일지로 이동합니다.")
+
                 // Redirect to existing
                 if (searchParams.get('mode') === 'today') {
                     return existingLogs[0].id
@@ -958,7 +1092,8 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 date: dateStr,
                 groupName: selectedTeam,
                 type: shiftType === 'day' ? '주간' : '야간',
-                workers: workers,
+                // @ts-ignore
+                workers: { ...workers, time_range: timeRange },
                 status: "작성중",
                 signature: "1/4",
                 isImportant: false,
@@ -1707,17 +1842,25 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     <div className="mb-2 w-full border border-black">
                         <div className="flex bg-gray-100 text-center text-sm font-bold border-b border-black">
                             <div
-                                className="w-[180px] border-r border-black py-1"
+                                className="w-[180px] border-r border-black py-1 cursor-pointer hover:bg-gray-200 transition-colors select-none"
+                                onClick={() => setShiftType(shiftType === 'day' ? 'night' : 'day')}
+                                title="클릭하여 주간/야간 변경"
                             >
-                                {shiftType === 'day' ? 'A 근무시간' : 'N 근무시간'}
+                                {shiftType === 'day' ? '주간 근무시간' : '야간 근무시간'}
                             </div>
                             <div className="flex-1 border-r border-black py-1">감 독</div>
                             <div className="flex-1 border-r border-black py-1">부 감 독</div>
                             <div className="flex-1 py-1">영 상</div>
                         </div>
                         <div className="flex text-center text-sm min-h-[2rem]">
-                            <div className="w-[180px] border-r border-black flex items-center justify-center font-handwriting text-base">
-                                {shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
+                            <div className="w-[180px] border-r border-black flex items-center justify-center font-handwriting text-base p-1">
+                                <input
+                                    type="text"
+                                    className="w-full text-center bg-transparent outline-none font-handwriting"
+                                    value={timeRange}
+                                    onChange={(e) => setTimeRange(e.target.value)}
+                                    placeholder={shiftType === 'day' ? '07:30 ~ 19:00' : '18:30 ~ 08:00'}
+                                />
                             </div>
                             {/* Director */}
                             <div className="flex-1 border-r border-black p-1 flex flex-col justify-center gap-1 relative group">

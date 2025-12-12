@@ -97,9 +97,12 @@ export default function Dashboard() {
     // Fetch Shift Info if session is active
     const loadShiftInfo = async () => {
       if (currentSession?.groupName) {
-        const config = await import("@/lib/shift-rotation").then(m => m.shiftService.getConfig())
+        const shiftService = await import("@/lib/shift-rotation").then(m => m.shiftService)
+        const config = await shiftService.getConfig()
         if (config) {
-          const info = await import("@/lib/shift-rotation").then(m => m.shiftService.calculateShift(new Date(), currentSession.groupName, config))
+          // Use logical date (handle past-midnight night shift)
+          const { date: logicalDate } = shiftService.getLogicalShiftInfo(new Date())
+          const info = shiftService.calculateShift(logicalDate, currentSession.groupName, config)
           setShiftInfo(info)
         }
       }
@@ -283,15 +286,19 @@ export default function Dashboard() {
                     : "현재 활성 세션이 없습니다."}
                 </p>
                 {shiftInfo && currentSession && (
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
-                    <span className="text-slate-400">감독:</span>
+                  <div className="flex flex-col gap-1.5 mt-2">
                     {(() => {
                       const roleOrder = ['감독', '부감독', '영상']
                       const sortedMembers = [...currentSession.members].sort((a, b) => {
                         return roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role)
                       })
-                      const directorIndex = shiftInfo?.roles?.director ?? 0
-                      return sortedMembers[directorIndex]?.name || "미지정"
+
+                      return sortedMembers.map((member) => (
+                        <div key={member.id} className="flex items-center gap-2 text-xs font-medium text-foreground bg-muted px-2.5 py-1 rounded w-full">
+                          <span className="text-muted-foreground min-w-[30px]">{member.role}</span>
+                          <span className="font-bold border-l border-border pl-2 ml-1">{member.name}</span>
+                        </div>
+                      ))
                     })()}
                   </div>
                 )}
@@ -384,7 +391,7 @@ export default function Dashboard() {
                         { key: 'mcr', label: 'MCR' },
                         { key: 'network', label: 'Net' },
                       ].map(item => {
-                        const sigData = parseSignature(currentLog.signatures?.[item.key as keyof typeof currentLog.signatures])
+                        const sigData = parseSignature(currentLog.signatures?.[item.key as keyof typeof currentLog.signatures] || null)
                         return (
                           <div key={item.key} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded border">
                             {sigData ? (
@@ -428,7 +435,7 @@ export default function Dashboard() {
                           { key: 'network', label: 'Net' },
                         ].map(item => {
                           // Use type assertion carefully or defined type
-                          const sigData = parseSignature(previousLog.signatures?.[item.key as keyof typeof previousLog.signatures])
+                          const sigData = parseSignature(previousLog.signatures?.[item.key as keyof typeof previousLog.signatures] || null)
                           return (
                             <div key={item.key} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded border">
                               {sigData ? (

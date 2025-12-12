@@ -231,17 +231,17 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-2 pl-2 pr-1 h-9 rounded-full border shadow-sm bg-white hover:bg-slate-50 text-foreground"
+                    className="flex items-center gap-2 pl-2 pr-1 h-9 rounded-full border shadow-sm bg-background hover:bg-muted text-foreground"
                   >
                     <div className="flex items-center gap-2 mr-1">
                       {loginMode === "TEAM" ? (
                         <Badge
                           variant="secondary"
-                          className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-100"
+                          className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900"
                         >
                           {group?.name || "소속 없음"}
                           {shiftType && (shiftType === 'A' || shiftType === 'N') && (
-                            <span className="text-blue-600 font-bold ml-0.5">
+                            <span className="text-blue-600 dark:text-blue-400 font-bold ml-0.5">
                               {shiftType}
                             </span>
                           )}
@@ -249,7 +249,7 @@ export function Navbar() {
                       ) : (
                         <Badge
                           variant="secondary"
-                          className="h-5 px-1.5 text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-100"
+                          className="h-5 px-1.5 text-[10px] font-medium bg-muted text-muted-foreground hover:bg-muted"
                         >
                           개인
                         </Badge>
@@ -262,7 +262,7 @@ export function Navbar() {
                     <Avatar className="h-6 w-6 border border-background ring-1 ring-muted">
                       <AvatarImage src={loginMode === "TEAM" ? "/placeholder-user.jpg" : "/placeholder-avatar.jpg"} />
                       <AvatarFallback
-                        className={`text-[10px] ${loginMode === "TEAM" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}
+                        className={`text-[10px] ${loginMode === "TEAM" ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}
                       >
                         {loginMode === "TEAM" ? (selectedMember ? selectedMember.name[0] : group?.name?.[0]) : user?.name?.[0]}
                       </AvatarFallback>

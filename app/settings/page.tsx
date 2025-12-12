@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useAuthStore } from "@/store/auth"
-import { Laptop, Shield, Palette, Sun, Moon, Monitor } from "lucide-react"
+import { Sun, Moon, Monitor } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AuditLogList } from "@/components/settings/audit-log-list"
 import { useTheme } from "next-themes"
@@ -41,12 +41,9 @@ export default function SettingsPage() {
           <TabsContent value="general" className="space-y-4">
             <div className="grid gap-6">
               {/* Device Context Setting */}
-              <Card className="border-blue-200 bg-blue-50/30">
+              <Card>
                 <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Laptop className="h-5 w-5 text-blue-600" />
-                    <CardTitle>기기 모드 설정 (Device Context)</CardTitle>
-                  </div>
+                  <CardTitle>기기 모드 설정 (Device Context)</CardTitle>
                   <CardDescription>현재 사용 중인 기기의 용도를 설정합니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -55,7 +52,7 @@ export default function SettingsPage() {
                       <Label className="text-base">공용 PC 모드 (Shared)</Label>
                       <p className="text-sm text-muted-foreground">
                         주조정실 메인 PC 등 여러 사람이 함께 사용하는 기기에서 활성화하세요.<br />
-                        <span className="text-xs text-blue-600 font-medium">
+                        <span className="text-xs text-muted-foreground">
                           * 중요 작업 시 PIN 인증 요구 / 게스트 로그인 지원 / 세션 유지 강화
                         </span>
                       </p>
@@ -69,12 +66,9 @@ export default function SettingsPage() {
               </Card>
 
               {/* Security Settings */}
-              <Card className="border-slate-200">
+              <Card>
                 <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-slate-600" />
-                    <CardTitle>보안 설정</CardTitle>
-                  </div>
+                  <CardTitle>보안 설정</CardTitle>
                   <CardDescription>보안 관련 옵션을 설정합니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -83,7 +77,7 @@ export default function SettingsPage() {
                       <Label className="text-base">멤버 전환 시 PIN 인증 요구</Label>
                       <p className="text-sm text-muted-foreground">
                         상단 메뉴에서 멤버를 전환할 때 PIN 번호를 입력하도록 합니다.<br />
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           * 끄면 즉시 전환됩니다. (개인 기기에서 권장)
                         </span>
                       </p>
@@ -97,12 +91,9 @@ export default function SettingsPage() {
               </Card>
 
               {/* Theme Settings */}
-              <Card className="border-purple-200 bg-purple-50/30 dark:border-purple-900 dark:bg-purple-950/30">
+              <Card>
                 <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    <CardTitle>테마 설정</CardTitle>
-                  </div>
+                  <CardTitle>테마 설정</CardTitle>
                   <CardDescription>화면 테마를 설정합니다.</CardDescription>
                 </CardHeader>
                 <CardContent>

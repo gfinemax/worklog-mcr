@@ -224,7 +224,7 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
                 // No group
                 if (mode === 'default') {
                     setLoginMode('personal') // Default to personal if no group
-                    router.push("/")
+                    router.push("/dashboard")
                 } else {
                     setError("소속된 조가 없습니다.")
                 }
@@ -255,7 +255,7 @@ export function LoginForm({ mode = 'default', onSuccess }: LoginFormProps) {
         <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-600 font-medium pl-1">
-                    사번 / 이메일
+                    아이디/이메일
                 </Label>
                 <div className="relative group">
                     <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
