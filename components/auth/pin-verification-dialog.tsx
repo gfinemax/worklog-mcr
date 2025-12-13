@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
     Dialog,
     DialogContent,
@@ -44,13 +44,16 @@ export function PinVerificationDialog({
     onSuccess,
     defaultSelectedId
 }: PinVerificationDialogProps) {
-    const [selectedUserId, setSelectedUserId] = useState<string | null>(defaultSelectedId || null)
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
-    // Update selectedUserId when defaultSelectedId changes or dialog opens
-    // This is important if the dialog is reused
-    if (open && defaultSelectedId && selectedUserId !== defaultSelectedId) {
-        setSelectedUserId(defaultSelectedId)
-    }
+    // 다이얼로그가 열릴 때만 초기값 설정 (사용자 선택 변경 허용)
+    useEffect(() => {
+        if (open) {
+            setSelectedUserId(defaultSelectedId || null)
+            setPin("")
+            setError(false)
+        }
+    }, [open, defaultSelectedId])
     const [pin, setPin] = useState("")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(false)

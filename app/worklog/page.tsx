@@ -455,7 +455,7 @@ function WorklogListView() {
                 <TableHead className="text-center">
                   <Button variant="ghost" onClick={() => requestSort('type')} className="group h-8 p-0 font-bold hover:bg-transparent hover:text-foreground w-full justify-center">
                     <span className="relative flex items-center">
-                      근무 형태
+                      근무시간
                       <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2">
                         {getSortIcon('type')}
                       </span>
@@ -946,25 +946,12 @@ function WorkLogPageContent() {
     // Capture date and type from state
     const dateStr = format(newLogDate, 'yyyy-MM-dd')
     const typeStr = newLogType
+    const teamStr = newLogTeam
 
-    // COMPUTE TEAM DIRECTLY at click time to avoid stale state
-    let teamStr = ''
-    try {
-      const config = await shiftService.getConfig(newLogDate)
-      if (config) {
-        const teams = shiftService.getTeamsForDate(newLogDate, config)
-        if (teams) {
-          teamStr = typeStr === 'day' ? teams.A : teams.N
-        }
-      }
-    } catch (error) {
-      console.error('[handleCreateWorklog] Error calculating team:', error)
-    }
-
-    console.log('[DEBUG handleCreateWorklog] Computed values:', { dateStr, typeStr, teamStr })
+    console.log('[DEBUG handleCreateWorklog] Values:', { dateStr, typeStr, teamStr })
 
     if (!teamStr) {
-      toast.error("근무조 계산에 실패했습니다. 다시 시도해주세요.")
+      toast.error("근무조를 선택해주세요.")
       return
     }
 
@@ -1119,19 +1106,18 @@ function WorkLogPageContent() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <span className="text-right text-sm font-medium">근무조</span>
                 <div className="col-span-3">
-                  {autoTeamLoading ? (
-                    <div className="h-10 flex items-center text-sm text-muted-foreground">
-                      조회 중...
-                    </div>
-                  ) : newLogTeam ? (
-                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 font-medium">
-                      {newLogTeam}
-                    </div>
-                  ) : (
-                    <div className="h-10 flex items-center px-3 border rounded-md text-sm text-red-500">
-                      해당 날짜의 근무 패턴이 없습니다
-                    </div>
-                  )}
+                  <Select value={newLogTeam} onValueChange={setNewLogTeam}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="근무조 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1조">1조</SelectItem>
+                      <SelectItem value="2조">2조</SelectItem>
+                      <SelectItem value="3조">3조</SelectItem>
+                      <SelectItem value="4조">4조</SelectItem>
+                      <SelectItem value="5조">5조</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -1151,8 +1137,8 @@ function WorkLogPageContent() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>취소</Button>
-              <Button onClick={handleCreateWorklog} disabled={autoTeamLoading || !newLogTeam}>
-                {autoTeamLoading ? '계산 중...' : '작성하기'}
+              <Button onClick={handleCreateWorklog} disabled={!newLogTeam}>
+                작성하기
               </Button>
             </DialogFooter>
           </DialogContent>

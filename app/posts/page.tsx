@@ -274,32 +274,32 @@ export default function PostList() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
+            <Table className="[&_th]:px-1 [&_td]:px-1">
+              <TableHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+                <TableRow className="border-b-2 border-slate-200 dark:border-slate-700 hover:bg-transparent">
                   <TableHead className={cn("w-[150px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'created_at' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('created_at')}>
-                    <div className="flex items-center justify-center">날짜 {renderSortIcon('created_at')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />날짜{renderSortIcon('created_at')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'category.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('category.name')}>
-                    <div className="flex items-center justify-center">카테고리 {renderSortIcon('category.name')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />카테고리{renderSortIcon('category.name')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'priority' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('priority')}>
-                    <div className="flex items-center justify-center">우선순위 {renderSortIcon('priority')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />우선순위{renderSortIcon('priority')}</div>
                   </TableHead>
                   <TableHead className={cn("cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'title' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('title')}>
-                    <div className="flex items-center">제목 {renderSortIcon('title')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />주요내용{renderSortIcon('title')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[120px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'worklog.work_date' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('worklog.work_date')}>
-                    <div className="flex items-center justify-center">업무일지 {renderSortIcon('worklog.work_date')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />업무일지{renderSortIcon('worklog.work_date')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[100px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'author.name' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('author.name')}>
-                    <div className="flex items-center justify-center">작성자 {renderSortIcon('author.name')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />작성자{renderSortIcon('author.name')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'views' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('views')}>
-                    <div className="flex items-center justify-center">조회 {renderSortIcon('views')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />조회{renderSortIcon('views')}</div>
                   </TableHead>
                   <TableHead className={cn("w-[80px] text-center cursor-pointer select-none transition-colors hover:text-primary hover:bg-muted/50 group", sortConfig.key === 'comments' && "text-primary font-bold bg-muted/30")} onClick={() => handleSort('comments')}>
-                    <div className="flex items-center justify-center">댓글 {renderSortIcon('comments')}</div>
+                    <div className="flex items-center justify-center"><span className="w-4" />댓글{renderSortIcon('comments')}</div>
                   </TableHead>
                   <TableHead className="w-[100px] text-center">상태</TableHead>
                 </TableRow>
@@ -407,13 +407,10 @@ export default function PostList() {
                         {post.author?.name ? (
                           post.author.name
                         ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <Badge variant="secondary" className="h-5 px-1 text-[10px]">GROUP</Badge>
-                            <span>
-                              {post.worklog?.group?.name || '-'}
-                              {post.creator?.name && <span className="text-xs text-muted-foreground ml-1">({post.creator.name})</span>}
-                            </span>
-                          </div>
+                          <span>
+                            {post.worklog?.group?.name || '-'}
+                            {post.creator?.name && <span className="text-muted-foreground"> ({post.creator.name})</span>}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground">

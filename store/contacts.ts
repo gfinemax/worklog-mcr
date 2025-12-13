@@ -5,7 +5,11 @@ export interface Contact {
     id: string
     name: string
     phone: string | null
-    organization: string | null
+    담당: string | null
+    회사: string | null
+    분류: string | null
+    직책: string | null
+    카테고리: string | null
     is_active: boolean
     created_at: string
     updated_at: string
@@ -17,7 +21,7 @@ interface ContactsState {
     error: string | null
 
     fetchContacts: () => Promise<void>
-    addContact: (name: string, phone?: string, organization?: string) => Promise<Contact | null>
+    addContact: (name: string, phone?: string, 담당?: string, 회사?: string, 분류?: string, 직책?: string, 카테고리?: string) => Promise<Contact | null>
     updateContact: (id: string, data: Partial<Contact>) => Promise<boolean>
     deleteContact: (id: string) => Promise<boolean>
 }
@@ -44,11 +48,17 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
         }
     },
 
-    addContact: async (name: string, phone?: string, organization?: string) => {
+    addContact: async (name: string, phone?: string, 담당?: string, 회사?: string, 분류?: string, 직책?: string, 카테고리?: string) => {
         try {
+            // Auto-set 회사 based on 담당 content
+            let final회사 = 회사
+            if (담당 && (담당.toLowerCase().includes('mbc+') || 담당.toLowerCase().includes('liveu'))) {
+                final회사 = 'MBC Plus'
+            }
+
             const { data, error } = await supabase
                 .from('contacts')
-                .insert({ name, phone: phone || null, organization: organization || null })
+                .insert({ name, phone: phone || null, 담당: 담당 || null, 회사: final회사 || null, 분류: 분류 || null, 직책: 직책 || null, 카테고리: 카테고리 || null })
                 .select()
                 .single()
 
@@ -66,9 +76,15 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
 
     updateContact: async (id: string, data: Partial<Contact>) => {
         try {
+            // Auto-set 회사 based on 담당 content if 담당 is being updated
+            const updateData = { ...data }
+            if (data.담당 && (data.담당.toLowerCase().includes('mbc+') || data.담당.toLowerCase().includes('liveu'))) {
+                updateData.회사 = 'MBC Plus'
+            }
+
             const { error } = await supabase
                 .from('contacts')
-                .update(data)
+                .update(updateData)
                 .eq('id', id)
 
             if (error) throw error

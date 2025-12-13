@@ -61,7 +61,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
     const paramType = tabType || searchParams.get('type')
     const paramDate = tabDate || searchParams.get('date')
 
-    const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts } = useWorklogStore()
+    const { worklogs, addWorklog, updateWorklog, fetchWorklogById, fetchWorklogs, fetchWorklogPosts, fetchWorklogChannelData } = useWorklogStore()
     const { user, currentSession, nextSession, promoteNextSession } = useAuthStore()
 
     // Initialize state from props if available
@@ -243,11 +243,17 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
     // Initial fetch logic
     useEffect(() => {
         if (id && id !== 'new') {
-            fetchWorklogById(id)
+            fetchWorklogById(id).then(() => {
+                // Lazy load channel data after worklog is loaded
+                fetchWorklogChannelData(id).then(({ channelLogs: loadedChannelLogs, systemIssues: loadedSystemIssues }) => {
+                    setChannelLogs(loadedChannelLogs)
+                    setSystemIssues(loadedSystemIssues)
+                })
+            })
         } else {
             fetchWorklogs()
         }
-    }, [id, fetchWorklogById, fetchWorklogs])
+    }, [id, fetchWorklogById, fetchWorklogs, fetchWorklogChannelData])
 
     // Fetch current user's team on mount (if no ID and no params)
     useEffect(() => {
@@ -495,7 +501,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 // Not found in store, try fetching
                 if (!fetchAttempted.current.has(id)) {
                     fetchAttempted.current.add(id)
-                    fetchWorklogById(id).then(fetchedLog => {
+                    fetchWorklogById(id).then((fetchedLog: Worklog | null) => {
                         if (ignore) return
                         if (fetchedLog) {
                             // Manually set state if fetched
@@ -651,7 +657,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     title,
                     date: format(selectedDate, 'yyyy-MM-dd'),
                     type: effectiveShiftType === 'day' ? '주간' : '야간',
-                    team: selectedTeam
+                    team: selectedTeam || undefined
                 })
             })
         }
@@ -1066,13 +1072,16 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
             const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
 
             // [NEW] Pre-check for duplicates before inserting
+            console.log('Checking duplicates for:', { dateStr, selectedTeam, shiftType, type: shiftType === 'day' ? '주간' : '야간' })
             const { data: existingLogs } = await supabase
                 .from('worklogs')
                 .select('id')
                 .eq('date', dateStr)
                 .eq('group_name', selectedTeam) // [FIX] Must check group name!
                 .eq('type', shiftType === 'day' ? '주간' : '야간')
+                .is('deleted_at', null) // Only check active (non-deleted) records
                 .limit(1)
+            console.log('existingLogs:', existingLogs)
 
             if (existingLogs && existingLogs.length > 0) {
                 console.log("handleSave: Duplicate found, redirecting...", existingLogs[0].id)
@@ -1678,14 +1687,18 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                                     id: user.id,
                                     name: user.name,
                                     role: '관리', // Display as Admin
-                                    profile_image_url: user.user_metadata?.avatar_url
+                                    profile_image_url: (user as any).user_metadata?.avatar_url
                                 })
                             }
                         }
 
                         return filteredMembers
                     })()}
-                    defaultSelectedId={user?.id}
+                    defaultSelectedId={
+                        signingType === 'operation'
+                            ? currentSession?.members.find(m => m.role?.includes('감독'))?.id || user?.id
+                            : user?.id
+                    }
                     onSuccess={handlePinSuccess}
                     title={pendingAction === 'handover' ? "근무 교대 승인" : "업무일지 결재"}
                     description={pendingAction === 'handover'
