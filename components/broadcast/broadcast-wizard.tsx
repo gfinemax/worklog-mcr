@@ -186,7 +186,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
     const { contacts, fetchContacts, addContact } = useContactsStore()
     const [contactsOpen, setContactsOpen] = useState(false)
     const [newContactDialogOpen, setNewContactDialogOpen] = useState(false)
-    const [newContactForm, setNewContactForm] = useState({ name: "", phone: "", organization: "" })
+    const [newContactForm, setNewContactForm] = useState({ name: "", phone: "", 담당: "", 회사: "", 분류: "", 직책: "", 카테고리: "" })
     const [addingContact, setAddingContact] = useState(false)
 
     // Fetch contacts on mount
@@ -1136,7 +1136,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                                     <CommandGroup>
                                         <CommandItem
                                             onSelect={() => {
-                                                setNewContactForm({ name: "", phone: "", organization: "" })
+                                                setNewContactForm({ name: "", phone: "", 담당: "", 회사: "", 분류: "", 직책: "", 카테고리: "" })
                                                 setNewContactDialogOpen(true)
                                                 setContactsOpen(false)
                                             }}
@@ -1194,6 +1194,22 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                                 placeholder="010-0000-0000"
                             />
                         </div>
+                        <div className="space-y-2">
+                            <Label>담당</Label>
+                            <Input
+                                value={newContactForm.담당}
+                                onChange={(e) => {
+                                    const new담당 = e.target.value
+                                    const shouldSetCompany = new담당.toLowerCase().includes('mbc+') || new담당.toLowerCase().includes('liveu')
+                                    setNewContactForm(prev => ({
+                                        ...prev,
+                                        담당: new담당,
+                                        회사: shouldSetCompany ? 'MBC Plus' : prev.회사
+                                    }))
+                                }}
+                                placeholder="담당 (선택)"
+                            />
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>
@@ -1208,7 +1224,12 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                                 setAddingContact(true)
                                 const result = await addContact(
                                     newContactForm.name.trim(),
-                                    newContactForm.phone.trim()
+                                    newContactForm.phone.trim(),
+                                    newContactForm.담당.trim() || null,
+                                    newContactForm.회사.trim() || null,
+                                    newContactForm.분류.trim() || null,
+                                    newContactForm.직책.trim() || null,
+                                    newContactForm.카테고리.trim() || null
                                 )
                                 setAddingContact(false)
                                 if (result) {

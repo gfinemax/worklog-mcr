@@ -49,6 +49,14 @@ export function ChannelRow({
     const [dialogValue, setDialogValue] = useState("")
     const [validationError, setValidationError] = useState("")
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1)
+    const postsPerPage = 10
+    const totalPages = Math.ceil(posts.length / postsPerPage)
+    const startIndex = (currentPage - 1) * postsPerPage
+    const endIndex = startIndex + postsPerPage
+    const currentPosts = posts.slice(startIndex, endIndex)
+
     // Parsed state for better UX
     const [parsedPrefix, setParsedPrefix] = useState("")
     const [parsedTimecode, setParsedTimecode] = useState("")
@@ -204,7 +212,7 @@ export function ChannelRow({
                 <div className="w-3/4 border-r border-gray-300 p-1 overflow-y-auto">
                     {posts && posts.length > 0 ? (
                         <ul className="list-none space-y-1">
-                            {posts.map(post => (
+                            {currentPosts.map(post => (
                                 <li key={post.id}
                                     onDoubleClick={() => handlePostClick(post.id)}
                                     className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
@@ -225,6 +233,28 @@ export function ChannelRow({
                             className="h-full w-full text-sm text-gray-400 cursor-pointer hover:bg-gray-50 flex items-start pt-1"
                         >
                             특이사항 없음
+                        </div>
+                    )}
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-1 mt-2 text-xs print:hidden">
+                            <button
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="px-1 py-0.5 text-gray-500 hover:text-gray-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                            >
+                                ‹
+                            </button>
+                            <span className="text-gray-600">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-1 py-0.5 text-gray-500 hover:text-gray-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                            >
+                                ›
+                            </button>
                         </div>
                     )}
                 </div>

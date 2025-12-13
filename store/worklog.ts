@@ -60,66 +60,70 @@ export interface Worklog {
 
 interface WorklogStore {
     worklogs: Worklog[]
+    lastFetchTime: number | null
     fetchWorklogs: () => Promise<void>
+    fetchWorklogById: (id: string) => Promise<Worklog | null>
     addWorklog: (worklog: Omit<Worklog, 'id'>) => Promise<Worklog | { error: any } | null>
     updateWorklog: (id: string | number, updates: Partial<Worklog>) => Promise<{ error: any, conflict?: boolean }>
     deleteWorklog: (id: string | number) => Promise<{ error: any | null }>
     softDeleteWorklog: (id: string | number, userId?: string) => Promise<{ error: any | null }>
     restoreWorklog: (id: string | number) => Promise<{ error: any | null }>
     fetchWorklogPosts: (worklogId: string) => Promise<{ id: string; summary: string; channel?: string }[]>
-    fetchWorklogById: (id: string) => Promise<Worklog | null>
+    fetchWorklogChannelData: (worklogId: string) => Promise<{ channelLogs: { [key: string]: ChannelLog }, systemIssues: { id: string; summary: string }[] }>
 }
 
 export const useWorklogStore = create<WorklogStore>((set, get) => ({
     worklogs: [],
-    fetchWorklogs: async () => {
-        const { data, error } = await supabase
-            .from('worklogs')
-            .select(`
-                *,
-                group:groups(name),
-                posts(priority)
-            `)
-            .is('deleted_at', null) // Soft delete filter
-            .order('date', { ascending: false })
-            .order('type', { ascending: true }) // '야간' < '주간', so Night comes first (Latest)
+    lastFetchTime: null,
+    fetchWorklogs: async (forceRefresh = false) => {
+        const now = Date.now()
+        const lastFetch = get().lastFetchTime
+        const cacheDuration = 5 * 60 * 1000 // 5 minutes
 
-        if (error) {
-            console.error('Error fetching worklogs:', error)
+        // Use cache if it's still valid (unless force refresh)
+        if (!forceRefresh && lastFetch && (now - lastFetch) < cacheDuration && get().worklogs.length > 0) {
+            console.log('Using cached worklogs')
             return
         }
 
+        console.log('Fetching fresh worklogs')
+        const { data, error } = await supabase
+            .from('worklogs')
+            .select(`
+                id, date, group_name, type, workers, status, signatures,
+                is_important, ai_summary
+            `)
+            .is('deleted_at', null)
+            .order('date', { ascending: false })
+            .order('type', { ascending: true })
+
+        if (error) {
+            console.error('Error fetching worklogs:', JSON.stringify(error, null, 2))
+            console.error('Error message:', error.message)
+            console.error('Error code:', error.code)
+            return
+        }
+
+        console.log('Worklogs fetched:', data?.length || 0)
+
         const formattedWorklogs: Worklog[] = data.map((log: any) => {
-            // Calculate max priority
-            let maxPriority: '긴급' | '중요' | '일반' | null = null
-            if (log.posts && log.posts.length > 0) {
-                const priorities = log.posts.map((p: any) => p.priority)
-                if (priorities.includes('긴급')) maxPriority = '긴급'
-                else if (priorities.includes('중요')) maxPriority = '중요'
-                else if (priorities.includes('일반')) maxPriority = '일반'
-            }
-
-            const signatures = log.signatures || { operation: null, mcr: null, team_leader: null, network: null }
-            const sigCount = Object.values(signatures).filter(Boolean).length
-
+            const sigCount = Object.values(log.signatures || {}).filter((sig: any) => sig !== null).length
             return {
                 id: log.id,
                 date: log.date,
-                groupName: log.group_name || log.group?.name || 'Unknown', // Map group_name column
+                groupName: log.group_name,
                 type: log.type,
-                workers: log.workers || { director: [], assistant: [], video: [] },
+                workers: log.workers,
                 status: log.status,
-                signature: `${sigCount}/4`, // Calculate dynamically
-                signatures: signatures,
-                isImportant: false,
-                isAutoCreated: log.is_auto_created || false,
+                signature: `${sigCount}/4`,
+                signatures: log.signatures,
+                isImportant: log.is_important,
                 aiSummary: log.ai_summary,
-                ...parseChannelData(log),
-                maxPriority
+                // channelLogs and systemIssues will be loaded lazily
             }
         })
 
-        set({ worklogs: formattedWorklogs })
+        set({ worklogs: formattedWorklogs, lastFetchTime: now })
     },
     addWorklog: async (worklog) => {
         // 1. Get group_id
@@ -346,6 +350,21 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
             return []
         }
         return data || []
+    },
+
+    fetchWorklogChannelData: async (worklogId: string) => {
+        const { data, error } = await supabase
+            .from('worklogs')
+            .select('channel_logs, system_issues')
+            .eq('id', worklogId)
+            .single()
+
+        if (error) {
+            console.error('Error fetching worklog channel data:', error)
+            return { channelLogs: {}, systemIssues: [] }
+        }
+
+        return parseChannelData(data)
     },
 
     deleteWorklog: async (id: string | number) => {

@@ -11,19 +11,19 @@ import { useEffect } from "react"
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar()
-  const { user, guestSession } = useAuthStore()
+  const { user, guestSession, hasHydrated } = useAuthStore()
   const router = useRouter()
 
   useEffect(() => {
+    // Wait for hydration to complete before checking auth
+    if (!hasHydrated) return
+
     // Basic Client-side Protection
     // If not logged in and not a guest, redirect to login
-    // We check this on mount.
-    // Note: This relies on zustand persistence rehydrating quickly.
-    // Ideally, we might wait for rehydration, but for now this prevents access.
     if (!user && !guestSession) {
       router.replace("/login")
     }
-  }, [user, guestSession, router])
+  }, [user, guestSession, hasHydrated, router])
 
   return (
     <div className="min-h-screen bg-background">

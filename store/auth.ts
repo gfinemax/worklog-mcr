@@ -62,6 +62,7 @@ interface AuthStore {
     // Volatile State (Not Persisted)
     guestSession: GuestSession | null
     activeMemberId: string | null
+    hasHydrated: boolean
 
     // Actions
     setUser: (user: User | null) => void
@@ -74,6 +75,7 @@ interface AuthStore {
     setNextSession: (session: CurrentSession | null) => void
     setNextUser: (user: User | null) => void
     setGuestSession: (session: GuestSession | null) => void
+    setHasHydrated: (state: boolean) => void
     promoteNextSession: () => void
     logout: () => void
 }
@@ -93,6 +95,7 @@ export const useAuthStore = create<AuthStore>()(
             nextUser: null,
             guestSession: null,
             activeMemberId: null,
+            hasHydrated: false,
 
             setUser: (user) => set({ user }),
             setGroup: (group) => set({ group }),
@@ -106,6 +109,7 @@ export const useAuthStore = create<AuthStore>()(
             setNextSession: (session) => set({ nextSession: session }),
             setNextUser: (user) => set({ nextUser: user }),
             setGuestSession: (session) => set({ guestSession: session }),
+            setHasHydrated: (state) => set({ hasHydrated: state }),
 
             promoteNextSession: () => set((state) => ({
                 user: state.nextUser || state.user,
@@ -132,6 +136,9 @@ export const useAuthStore = create<AuthStore>()(
                 setItem: () => { },
                 removeItem: () => { },
             }),
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true)
+            },
             partialize: (state) => ({
                 user: state.user,
                 group: state.group,

@@ -26,11 +26,12 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function checkWorklogs() {
-    const today = '2025-12-04'
+    const today = '2025-12-12'
     const { data, error } = await supabase
         .from('worklogs')
         .select('*')
         .eq('date', today)
+        .is('deleted_at', null) // Only active records
 
     if (error) {
         console.error(error)
