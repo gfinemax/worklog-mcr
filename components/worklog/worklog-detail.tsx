@@ -463,6 +463,17 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         }
                     })
 
+                    // 기존 systemIssues 순서를 유지하면서 정렬
+                    const existingOrder = systemIssues.map(s => s.id)
+                    newSystemIssues.sort((a, b) => {
+                        const aIndex = existingOrder.indexOf(a.id)
+                        const bIndex = existingOrder.indexOf(b.id)
+                        // 기존에 없던 항목은 맨 뒤로
+                        if (aIndex === -1) return 1
+                        if (bIndex === -1) return -1
+                        return aIndex - bIndex
+                    })
+
                     // Only update if actually changed to avoid re-renders
                     if (JSON.stringify(newChannelLogs) !== JSON.stringify(channelLogs)) {
                         setChannelLogs(newChannelLogs)
@@ -1727,7 +1738,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                 </Dialog>
 
                 {/* A4 Page Container */}
-                <div className="bg-white text-black p-[10mm] print:pt-[15mm] shadow-lg dark:shadow-2xl dark:shadow-black/50 print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
+                <div className="bg-white text-black px-[12mm] pt-[18mm] pb-[5mm] shadow-lg dark:shadow-2xl dark:shadow-black/50 print:shadow-none print:m-0 w-[210mm] min-h-[297mm] print:w-[210mm] print:h-[297mm] mx-auto relative box-border flex flex-col print:overflow-hidden print:absolute print:top-0 print:left-0">
 
                     {/* Header Section */}
                     <div className="mb-1">
@@ -1986,10 +1997,10 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     </div>
 
                     {/* Channels Container */}
-                    <div className="border border-black border-b-0 flex-1 flex flex-col">
+                    <div className="border border-black border-b-0 flex flex-col">
 
                         {/* MBC SPORTS+ */}
-                        <div className="border-b border-black flex-1">
+                        <div className="border-b border-black">
                             <ChannelRow
                                 name="MBC SPORTS+"
                                 worklogId={id}
@@ -2002,7 +2013,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         </div>
 
                         {/* MBC Every1 */}
-                        <div className="border-b border-black flex-1">
+                        <div className="border-b border-black">
                             <ChannelRow
                                 name="MBC Every1"
                                 worklogId={id}
@@ -2015,7 +2026,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         </div>
 
                         {/* MBC DRAMA */}
-                        <div className="border-b border-black flex-1">
+                        <div className="border-b border-black">
                             <ChannelRow
                                 name="MBC DRAMA"
                                 worklogId={id}
@@ -2028,7 +2039,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         </div>
 
                         {/* MBC M */}
-                        <div className="border-b border-black flex-1">
+                        <div className="border-b border-black">
                             <ChannelRow
                                 name="MBC M"
                                 worklogId={id}
@@ -2041,7 +2052,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                         </div>
 
                         {/* MBC ON */}
-                        <div className="flex-1">
+                        <div className="border-b border-black">
                             <ChannelRow
                                 name="MBC ON"
                                 worklogId={id}
@@ -2058,7 +2069,7 @@ export function WorklogDetail({ worklogId: propWorklogId, tabDate, tabType, tabT
                     <div className="mb-0 border border-black bg-gray-300 py-0.5 text-center font-bold border-b-0 text-base tracking-[0.3em]">
                         시스템 및 기타 특이사항
                     </div>
-                    <div className="border border-black min-h-[100px] flex-1 p-1">
+                    <div className="border border-black min-h-[6rem] p-1">
                         <SystemIssuesList
                             issues={systemIssues}
                             onIssuesChange={setSystemIssues}

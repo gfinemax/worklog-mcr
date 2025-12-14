@@ -211,18 +211,18 @@ export function ChannelRow({
             <div className="flex flex-1 min-h-[6rem]">
                 <div className="w-3/4 border-r border-gray-300 p-1 overflow-y-auto">
                     {posts && posts.length > 0 ? (
-                        <ul className="list-none space-y-1">
+                        <ul className="list-none space-y-0">
                             {currentPosts.map(post => (
                                 <li key={post.id}
                                     onDoubleClick={() => handlePostClick(post.id)}
-                                    className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
+                                    className="cursor-pointer hover:bg-gray-100 rounded text-sm leading-tight group flex items-start"
                                 >
                                     <span className="mr-1">•</span>
                                     <span className="group-hover:underline">{post.summary}</span>
                                 </li>
                             ))}
                             {posts.length < 5 && (
-                                <li onClick={handleNewPostClick} className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm mt-1 print:hidden">
+                                <li onClick={handleNewPostClick} className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm leading-tight print:hidden">
                                     + 추가
                                 </li>
                             )}
@@ -260,7 +260,7 @@ export function ChannelRow({
                 </div>
                 <div className="w-1/4">
                     <textarea
-                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight overflow-hidden whitespace-nowrap"
+                        className="h-full w-full resize-none p-1 text-sm outline-none bg-transparent leading-tight overflow-hidden whitespace-nowrap text-right"
                         placeholder=""
                         value={generateRightContent()}
                         readOnly
