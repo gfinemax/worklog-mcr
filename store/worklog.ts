@@ -322,7 +322,7 @@ export const useWorklogStore = create<WorklogStore>((set, get) => ({
         if (updates.aiSummary) dbUpdates.ai_summary = updates.aiSummary
         if (updates.signatures) dbUpdates.signatures = updates.signatures
         if (updates.isAutoCreated !== undefined) dbUpdates.is_auto_created = updates.isAutoCreated
-        // if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues // Enable after migration
+        if (updates.systemIssues) dbUpdates.system_issues = updates.systemIssues
 
         const { error } = await supabase
             .from('worklogs')

@@ -42,6 +42,7 @@ export default function NewPostPage() {
     const { user, currentSession } = useAuthStore()
 
     const [authorId, setAuthorId] = useState("")
+    const [authorError, setAuthorError] = useState(false)
 
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
@@ -136,7 +137,7 @@ export default function NewPostPage() {
 
             if (channelName) {
                 setTitle(`${channelName} 운행 이슈`)
-            } else if (sourceField === 'systemIssues') {
+            } else if (sourceField === 'systemIssues' || sourceField === 'system-issues') {
                 setTitle("장비 및 시스템 주요사항")
             }
         }
@@ -253,6 +254,17 @@ export default function NewPostPage() {
             return
         }
 
+        // 작성자 선택 확인
+        if (!authorId) {
+            setAuthorError(true)
+            toast.error("작성자를 선택해주세요.")
+            // 작성자 선택 필드로 스크롤
+            document.getElementById('author-select')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            document.getElementById('author-select')?.focus()
+            return
+        }
+        setAuthorError(false)
+
         // Calculate Display Author Name
         let name = ""
         if (currentSession) {
@@ -351,7 +363,7 @@ export default function NewPostPage() {
                         summary: summary || title // Use summary if available, else title
                     }
 
-                    if (sourceField === 'systemIssues') {
+                    if (sourceField === 'systemIssues' || sourceField === 'system-issues') {
                         const currentIssues = currentWorklog.systemIssues || []
                         await worklogStore.updateWorklog(worklogId, {
                             systemIssues: [...currentIssues, postSummary]
@@ -432,9 +444,9 @@ export default function NewPostPage() {
                         <form onSubmit={handlePreSubmit} className="space-y-6">
                             <div className="grid gap-6 md:grid-cols-3">
                                 <div className="space-y-2">
-                                    <Label>작성자</Label>
-                                    <Select value={authorId} onValueChange={setAuthorId}>
-                                        <SelectTrigger>
+                                    <Label className={authorError ? "text-red-500" : ""}>작성자 {authorError && <span className="text-red-500">*</span>}</Label>
+                                    <Select value={authorId} onValueChange={(v) => { setAuthorId(v); setAuthorError(false); }}>
+                                        <SelectTrigger id="author-select" className={authorError ? "border-red-500 ring-2 ring-red-200 animate-pulse" : ""}>
                                             <SelectValue placeholder="작성자 선택" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -457,6 +469,9 @@ export default function NewPostPage() {
                                             )}
                                         </SelectContent>
                                     </Select>
+                                    {authorError && (
+                                        <p className="text-sm text-red-500 mt-1">작성자를 선택해주세요</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>카테고리</Label>

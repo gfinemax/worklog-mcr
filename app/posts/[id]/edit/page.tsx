@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Save, Paperclip, X, Loader2 } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import { usePostStore } from "@/store/posts"
+import { useWorklogStore } from "@/store/worklog"
 import { toast } from "sonner"
 import dynamic from "next/dynamic"
 import "react-quill-new/dist/quill.snow.css"
@@ -247,6 +248,38 @@ export default function EditPostPage() {
             }
 
             await updatePost(id, updates)
+
+            // 업무일지의 summary도 업데이트
+            const post = posts.find(p => p.id === id)
+            if (post?.worklog_id) {
+                const worklogStore = useWorklogStore.getState()
+                await worklogStore.fetchWorklogs(true) // 최신 데이터 가져오기
+                const worklog = worklogStore.worklogs.find(w => String(w.id) === String(post.worklog_id))
+
+                if (worklog) {
+                    const newSummary = summary || title
+
+                    if (post.channel) {
+                        // 채널 로그 업데이트
+                        const updatedChannelLogs = { ...worklog.channelLogs }
+                        if (updatedChannelLogs[post.channel]) {
+                            updatedChannelLogs[post.channel] = {
+                                ...updatedChannelLogs[post.channel],
+                                posts: updatedChannelLogs[post.channel].posts.map(p =>
+                                    p.id === id ? { ...p, summary: newSummary } : p
+                                )
+                            }
+                            await worklogStore.updateWorklog(String(post.worklog_id), { channelLogs: updatedChannelLogs })
+                        }
+                    } else {
+                        // 시스템 이슈 업데이트
+                        const updatedSystemIssues = (worklog.systemIssues || []).map(issue =>
+                            issue.id === id ? { ...issue, summary: newSummary } : issue
+                        )
+                        await worklogStore.updateWorklog(String(post.worklog_id), { systemIssues: updatedSystemIssues })
+                    }
+                }
+            }
 
             toast.success("포스트가 수정되었습니다.")
             router.push(`/posts/${id}`)

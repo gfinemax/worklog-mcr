@@ -31,19 +31,21 @@ export function SystemIssuesList({
     return (
         <div className="h-full w-full p-1 overflow-y-auto">
             {issues && issues.length > 0 ? (
-                <ul className="list-none space-y-1">
+                <ul className="list-none space-y-0">
                     {currentIssues.map(issue => (
                         <li key={issue.id}
                             onDoubleClick={() => handlePostClick(issue.id)}
-                            className="cursor-pointer hover:bg-gray-100 rounded text-sm group flex items-start"
+                            className="cursor-pointer hover:bg-gray-100 rounded text-sm leading-tight group flex items-start"
                         >
                             <span className="mr-1">•</span>
                             <span className="group-hover:underline">{issue.summary}</span>
                         </li>
                     ))}
-                    <li onClick={onNewPost} className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm mt-1 print:hidden">
-                        + 추가
-                    </li>
+                    {issues.length < 5 && (
+                        <li onClick={onNewPost} className="cursor-pointer text-gray-400 hover:text-gray-600 text-sm leading-tight print:hidden">
+                            + 추가
+                        </li>
+                    )}
                 </ul>
             ) : (
                 <div
