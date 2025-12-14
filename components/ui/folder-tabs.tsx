@@ -26,10 +26,11 @@ const FolderTabsTrigger = React.forwardRef<
     <TabsTrigger
         ref={ref}
         className={cn(
-            "group relative h-10 px-6 flex items-center justify-center text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 select-none",
+            "group relative h-9 px-4 md:h-10 md:px-6 flex items-center justify-center text-sm md:text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 select-none",
             "ml-[-15px] first:ml-0", // Overlap
             "data-[state=active]:z-10",
             "data-[state=inactive]:z-0 hover:z-[5]",
+            "min-w-[110px] max-w-[160px] truncate",
             className
         )}
         {...props}

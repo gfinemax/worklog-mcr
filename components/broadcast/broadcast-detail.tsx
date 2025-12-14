@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Printer, Edit2, Trash2, Phone, Monitor, Radio, Satellite, CheckCircle2 } from "lucide-react"
 import { useBroadcastStore, BroadcastSchedule } from "@/store/broadcast"
+import { useContactsStore, Contact } from "@/store/contacts"
 import { BroadcastWizard } from "./broadcast-wizard"
 import { BroadcastTimeline } from "./broadcast-timeline"
 import { StatusIndicator } from "./status-indicator"
@@ -74,6 +75,8 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
     const loading = useBroadcastStore((state) => state.loading)
     const fetchSchedules = useBroadcastStore((state) => state.fetchSchedules)
     const deleteSchedule = useBroadcastStore((state) => state.deleteSchedule)
+    const contacts = useContactsStore((state) => state.contacts)
+    const fetchContacts = useContactsStore((state) => state.fetchContacts)
 
     const [formOpen, setFormOpen] = useState(false)
     const [editingSchedule, setEditingSchedule] = useState<BroadcastSchedule | null>(null)
@@ -84,7 +87,8 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
 
     useEffect(() => {
         fetchSchedules(date)
-    }, [date, fetchSchedules])
+        fetchContacts()
+    }, [date, fetchSchedules, fetchContacts])
 
     const broadcasts = schedules.filter(s => s.date === date && s.type === 'broadcast')
     const receptions = schedules.filter(s => s.date === date && s.type === 'reception')
@@ -209,6 +213,7 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                                     <BroadcastCard
                                         key={schedule.id}
                                         schedule={schedule}
+                                        contacts={contacts}
                                         onEdit={() => handleEdit(schedule)}
                                         onDelete={() => setDeleteDialog({ open: true, schedule })}
                                     />
@@ -241,6 +246,7 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
                                     <BroadcastCard
                                         key={schedule.id}
                                         schedule={schedule}
+                                        contacts={contacts}
                                         onEdit={() => handleEdit(schedule)}
                                         onDelete={() => setDeleteDialog({ open: true, schedule })}
                                     />
@@ -286,13 +292,19 @@ export function BroadcastDetail({ date }: BroadcastDetailProps) {
 
 function BroadcastCard({
     schedule,
+    contacts,
     onEdit,
     onDelete
 }: {
     schedule: BroadcastSchedule
+    contacts: Contact[]
     onEdit: () => void
     onDelete: () => void
 }) {
+    // 중계차 담당자의 연락처 찾기
+    const broadcastVanContact = schedule.broadcast_van
+        ? contacts.find(c => c.name === schedule.broadcast_van)
+        : null
     return (
         <Card className="hover:shadow-md transition-shadow">
             <CardContent className="py-0.5 px-4">
@@ -334,9 +346,6 @@ function BroadcastCard({
                         {schedule.match_info && (
                             <p className="text-base font-medium text-muted-foreground">&lt;{schedule.match_info}&gt;</p>
                         )}
-                        {schedule.broadcast_van && (
-                            <p className="text-sm font-bold text-green-600 dark:text-green-400">중계차: {schedule.broadcast_van}</p>
-                        )}
                         {schedule.memo && (
                             <p className="text-sm font-bold text-red-500">{schedule.memo}</p>
                         )}
@@ -355,17 +364,24 @@ function BroadcastCard({
                         {schedule.return_info && (
                             <div className="font-medium text-purple-600 dark:text-purple-400">리턴: {schedule.return_info}</div>
                         )}
-                        {schedule.biss_code && (
-                            <div className="font-mono font-medium text-muted-foreground">BISS: {schedule.biss_code}</div>
-                        )}
-                        {(schedule.manager || schedule.contact_info) && (
-                            <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium mt-1">
-                                <Phone className="h-3 w-3" />
-                                {schedule.manager}
+                        {schedule.manager && (
+                            <div className="font-medium text-blue-600 dark:text-blue-400">
+                                LiveU: {schedule.manager}
                                 {schedule.contact_info && (
                                     <span className="text-muted-foreground">({schedule.contact_info})</span>
                                 )}
                             </div>
+                        )}
+                        {schedule.broadcast_van && (
+                            <div className="font-medium text-teal-600 dark:text-teal-400">
+                                중계차: {schedule.broadcast_van}
+                                {broadcastVanContact?.phone && (
+                                    <span className="text-muted-foreground">({broadcastVanContact.phone})</span>
+                                )}
+                            </div>
+                        )}
+                        {schedule.biss_code && (
+                            <div className="font-mono font-medium text-muted-foreground">BISS: {schedule.biss_code}</div>
                         )}
                     </div>
 

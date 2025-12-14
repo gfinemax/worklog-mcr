@@ -90,7 +90,7 @@ export default function BroadcastMonitorPage() {
     const dateObj = date ? new Date(date + 'T00:00:00') : new Date()
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white px-24 py-16">
             {/* Header */}
             <header className="flex justify-between items-center mb-8">
                 <div>
@@ -173,7 +173,7 @@ export default function BroadcastMonitorPage() {
                 </section>
             </div>
 
-            <footer className="fixed bottom-4 left-0 right-0 text-center text-slate-500 text-sm">
+            <footer className="fixed bottom-6 left-0 right-0 text-center text-slate-500 text-sm">
                 자동 갱신 (60초) | <span className="text-yellow-400">Space</span>: ON AIR 해제 | <span className="text-green-400">R</span>: ON AIR 다시 활성화
             </footer>
         </div>

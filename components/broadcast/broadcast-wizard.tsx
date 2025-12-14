@@ -117,9 +117,10 @@ interface FormData {
     returns: string[]         // 리턴 목록 (종류 > 채널 형태)
 
     // Step 4: 추가 정보
-    manager: string
-    contactInfo: string
-    broadcastVan: string
+    manager: string           // LiveU 담당자
+    contactInfo: string       // LiveU 담당자 연락처
+    broadcastVan: string      // 중계차 담당자
+    broadcastVanContact: string // 중계차 담당자 연락처
     bissCode: string
     memo: string
 }
@@ -143,30 +144,110 @@ const createInitialFormData = (defaultDate?: string): FormData => {
         manager: '',
         contactInfo: '',
         broadcastVan: '',
+        broadcastVanContact: '',
         bissCode: '',
         memo: '',
     }
 }
 
-// Helper function to parse transmission_path like "IP > LiveU > FA3AO (1-1)"
-function parseReceptionPath(path: string | undefined): SignalConfig[] {
-    if (!path) return createDefaultSignals()
-
-    // 메인: IP > LiveU > FA3AO / 백업: 광수신 > LG FS > LG FS-1 형태 파싱
-    const signals: SignalConfig[] = []
-    const sections = path.split(' / ').map(s => s.trim())
-
-    for (const section of sections) {
-        const cleanSection = section.replace(/^(메인|백업):\s*/, '')
-        const parts = cleanSection.split(' > ').map(p => p.trim())
-        if (parts.length >= 3) {
-            signals.push({
-                id: generateSignalId(),
-                type: parts[0] as NetworkType,
-                source: parts[1],
-                equipment: parts[2]
-            })
+// 장비명으로 type/source 역으로 찾기
+function findEquipmentConfig(equipmentLabel: string): { type: NetworkType, source: string, equipment: string } | null {
+    for (const type of NETWORK_TYPES) {
+        const sources = getSourcesByNetworkType(type)
+        for (const source of sources) {
+            const equipments = getEquipmentsBySource(type, source)
+            const found = equipments.find(eq => eq.label === equipmentLabel)
+            if (found) {
+                return { type, source, equipment: found.label }
+            }
         }
+    }
+    return null
+}
+
+// Helper function to parse transmission_path
+// 지원 형식:
+// 1. "메인: 광수신 > LG FS > FA3AO / 백업: IP > LiveU > TVRO-1"
+// 2. "(M)FA3AO (B)TVRO-1 TVRO-2"
+function parseReceptionPath(path: string | undefined): { signals: SignalConfig[], receptionText: string } {
+    if (!path) return { signals: createDefaultSignals(), receptionText: '' }
+
+    const signals: SignalConfig[] = []
+    let receptionText = ''
+
+    // 형식 1: "메인: ... / 백업: ..." 형태 확인
+    if (path.includes(' > ')) {
+        const sections = path.split(' / ').map(s => s.trim())
+
+        for (const section of sections) {
+            const cleanSection = section.replace(/^(메인|백업):\s*/, '')
+            const parts = cleanSection.split(' > ').map(p => p.trim())
+            if (parts.length >= 3) {
+                signals.push({
+                    id: generateSignalId(),
+                    type: parts[0] as NetworkType,
+                    source: parts[1],
+                    equipment: parts[2]
+                })
+            }
+        }
+
+        // receptionText 자동 생성
+        if (signals.length > 0) {
+            const mainSignal = signals[0]
+            const backupSignals = signals.slice(1).filter(s => s.equipment)
+            const parts: string[] = []
+            if (mainSignal?.equipment) {
+                parts.push(`(M)${mainSignal.equipment}`)
+            }
+            if (backupSignals.length > 0) {
+                parts.push(`(B)${backupSignals.map(s => s.equipment).join(' ')}`)
+            }
+            receptionText = parts.join(' ')
+        }
+    }
+    // 형식 2: "(M)FA3AO (B)TVRO-1" 형태 - 장비명에서 config 역추적
+    else if (path.includes('(M)') || path.includes('(B)')) {
+        receptionText = path
+
+        // 메인 장비 추출: (M)NCC FS-1 형태에서 NCC FS-1 추출
+        const mainMatch = path.match(/\(M\)([^(]+?)(?:\s+\(B\)|$)/)
+        if (mainMatch) {
+            const mainEquipment = mainMatch[1].trim()
+            const config = findEquipmentConfig(mainEquipment)
+            if (config) {
+                signals.push({
+                    id: generateSignalId(),
+                    type: config.type,
+                    source: config.source,
+                    equipment: config.equipment
+                })
+            }
+        }
+
+        // 백업 장비들 추출: (B)LG FS-1 LG FS-2 형태에서 각 장비 추출
+        const backupMatch = path.match(/\(B\)(.+)$/)
+        if (backupMatch) {
+            const backupPart = backupMatch[1].trim()
+            // 공백으로 분리하되, 'LG FS-1'처럼 공백 포함 이름 처리
+            // 패턴: 영문+숫자 조합 (예: LG FS-1, NCC FS-2, TVRO-1)
+            const backupEquipments = backupPart.match(/[A-Z]+\s*[A-Z]*\s*[\w-]+/gi) || []
+            for (const eq of backupEquipments) {
+                const config = findEquipmentConfig(eq.trim())
+                if (config) {
+                    signals.push({
+                        id: generateSignalId(),
+                        type: config.type,
+                        source: config.source,
+                        equipment: config.equipment
+                    })
+                }
+            }
+        }
+    }
+    // 형식 3: 기타 텍스트 - 그대로 receptionText로 사용
+    else {
+        receptionText = path
     }
 
     // 최소 4개 신호 보장
@@ -174,7 +255,7 @@ function parseReceptionPath(path: string | undefined): SignalConfig[] {
         signals.push(createEmptySignal())
     }
 
-    return signals
+    return { signals, receptionText }
 }
 
 export function BroadcastWizard({ open, onClose, schedule, defaultDate }: BroadcastWizardProps) {
@@ -185,6 +266,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
     // Contacts store
     const { contacts, fetchContacts, addContact } = useContactsStore()
     const [contactsOpen, setContactsOpen] = useState(false)
+    const [broadcastVanOpen, setBroadcastVanOpen] = useState(false)
     const [newContactDialogOpen, setNewContactDialogOpen] = useState(false)
     const [newContactForm, setNewContactForm] = useState({ name: "", phone: "", 담당: "", 회사: "", 분류: "", 직책: "", 카테고리: "" })
     const [addingContact, setAddingContact] = useState(false)
@@ -201,26 +283,27 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
     const [position, setPosition] = useState({ x: 0, y: 0 })
     const [isDragging, setIsDragging] = useState(false)
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+    const [positionAtDragStart, setPositionAtDragStart] = useState({ x: 0, y: 0 })
 
-    // 드래그 핸들러
+    // 드래그 핸들러 - 헤더에서만 드래그 시작
     const handleMouseDown = (e: React.MouseEvent) => {
-        // 입력 요소나 상호작용 요소에서는 드래그 시작하지 않음
-        const interactiveElements = 'button, input, select, textarea, label, [role="button"], [role="combobox"], [data-radix-collection-item]'
-        if ((e.target as HTMLElement).closest(interactiveElements)) return
+        // 닫기 버튼 클릭은 드래그하지 않음
+        if ((e.target as HTMLElement).closest('button')) return
 
-        // 스크롤 영역 내부에서는 드래그 시작하지 않음
-        const scrollContainer = (e.target as HTMLElement).closest('.overflow-y-auto, .overflow-auto')
-        if (scrollContainer && scrollContainer !== e.currentTarget) return
-
+        e.preventDefault()
         setIsDragging(true)
-        setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
+        setDragStart({ x: e.clientX, y: e.clientY })
+        setPositionAtDragStart({ x: position.x, y: position.y })
     }
 
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!isDragging) return
+        e.preventDefault()
+        const deltaX = e.clientX - dragStart.x
+        const deltaY = e.clientY - dragStart.y
         setPosition({
-            x: e.clientX - dragStart.x,
-            y: e.clientY - dragStart.y
+            x: positionAtDragStart.x + deltaX,
+            y: positionAtDragStart.y + deltaY
         })
     }
 
@@ -233,18 +316,7 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
     useEffect(() => {
         if (schedule) {
             // Parse existing schedule data
-            const parsedSignals = parseReceptionPath(schedule.transmission_path)
-
-            // 수신 텍스트 생성 (메인/백업 형식)
-            const receptionTextParts: string[] = []
-            const mainSignal = parsedSignals[0]
-            const backupSignals = parsedSignals.slice(1).filter(s => s.equipment)
-            if (mainSignal?.equipment) {
-                receptionTextParts.push(`(M)${mainSignal.equipment}`)
-            }
-            if (backupSignals.length > 0) {
-                receptionTextParts.push(`(B)${backupSignals.map(s => s.equipment).join(' ')}`)
-            }
+            const { signals: parsedSignals, receptionText: parsedReceptionText } = parseReceptionPath(schedule.transmission_path)
 
             setFormData({
                 type: schedule.type,
@@ -257,12 +329,13 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                 subtitle: schedule.match_info || '',
                 signals: parsedSignals,
                 mainSignalId: parsedSignals[0]?.id || '',
-                receptionText: receptionTextParts.join(' '),
+                receptionText: parsedReceptionText,
                 transmissions: schedule.video_source_info ? schedule.video_source_info.split(', ').filter(s => s.trim()) : [],
                 returns: schedule.return_info ? schedule.return_info.split(', ').filter(s => s.trim()) : [],
                 manager: schedule.manager || '',
                 contactInfo: schedule.contact_info || '',
                 broadcastVan: schedule.broadcast_van || '',
+                broadcastVanContact: '',
                 bissCode: schedule.biss_code || '',
                 memo: schedule.memo || '',
             })
@@ -1081,10 +1154,10 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                 </div>
             </div>
 
-            {/* 추가 정보 */}
+            {/* LiveU 담당자 */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>담당자</Label>
+                    <Label>LiveU</Label>
                     <Popover open={contactsOpen} onOpenChange={setContactsOpen}>
                         <PopoverTrigger asChild>
                             <Button
@@ -1252,22 +1325,103 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                 </DialogContent>
             </Dialog>
 
+            {/* 중계차 담당자 */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>중계차</Label>
-                    <Input
-                        value={formData.broadcastVan}
-                        onChange={(e) => setFormData(prev => ({ ...prev, broadcastVan: e.target.value }))}
-                    />
+                    <Popover open={broadcastVanOpen} onOpenChange={setBroadcastVanOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={broadcastVanOpen}
+                                className="w-full justify-between font-normal"
+                            >
+                                {formData.broadcastVan || "담당자 선택..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[280px] p-0">
+                            <Command>
+                                <CommandInput placeholder="이름 검색..." />
+                                <CommandList>
+                                    <CommandEmpty>검색 결과 없음</CommandEmpty>
+                                    <CommandGroup>
+                                        {contacts.map((contact) => (
+                                            <CommandItem
+                                                key={contact.id}
+                                                value={contact.name}
+                                                onSelect={() => {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        broadcastVan: contact.name,
+                                                        broadcastVanContact: contact.phone || ""
+                                                    }))
+                                                    setBroadcastVanOpen(false)
+                                                }}
+                                            >
+                                                <Check
+                                                    className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        formData.broadcastVan === contact.name ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                />
+                                                <div className="flex-1">
+                                                    <span>{contact.name}</span>
+                                                    {contact.phone && (
+                                                        <span className="ml-2 text-xs text-muted-foreground">
+                                                            ({contact.phone})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    <CommandGroup>
+                                        <CommandItem
+                                            onSelect={() => {
+                                                setNewContactForm({ name: "", phone: "", 담당: "", 회사: "", 분류: "", 직책: "", 카테고리: "" })
+                                                setNewContactDialogOpen(true)
+                                                setBroadcastVanOpen(false)
+                                            }}
+                                            className="text-blue-600"
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            새 담당자 추가
+                                        </CommandItem>
+                                        <CommandItem asChild>
+                                            <Link
+                                                href="/settings/contacts"
+                                                className="flex items-center text-muted-foreground"
+                                                onClick={() => setBroadcastVanOpen(false)}
+                                            >
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                담당자 관리
+                                            </Link>
+                                        </CommandItem>
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 <div className="space-y-2">
-                    <Label>BISS 코드</Label>
+                    <Label>연락처</Label>
                     <Input
-                        value={formData.bissCode}
-                        onChange={(e) => setFormData(prev => ({ ...prev, bissCode: e.target.value }))}
-                        className="font-mono"
+                        value={formData.broadcastVanContact}
+                        onChange={(e) => setFormData(prev => ({ ...prev, broadcastVanContact: formatPhoneNumber(e.target.value) }))}
+                        placeholder="010-0000-0000"
                     />
                 </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label>BISS 코드</Label>
+                <Input
+                    value={formData.bissCode}
+                    onChange={(e) => setFormData(prev => ({ ...prev, bissCode: e.target.value }))}
+                    className="font-mono"
+                />
             </div>
 
             <div className="space-y-2">
@@ -1291,12 +1445,16 @@ export function BroadcastWizard({ open, onClose, schedule, defaultDate }: Broadc
                     } : {}),
                     cursor: isDragging ? 'grabbing' : 'default'
                 }}
-                onMouseDown={handleMouseDown}
+                onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => e.preventDefault()}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
             >
-                <DialogHeader className="cursor-grab active:cursor-grabbing shrink-0">
+                <DialogHeader
+                    className="cursor-grab active:cursor-grabbing shrink-0 select-none"
+                    onMouseDown={handleMouseDown}
+                >
                     <DialogTitle className="text-xl">
                         {schedule ? '중계 일정 수정' : '중계 일정 등록'}
                     </DialogTitle>
